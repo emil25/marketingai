@@ -26,6 +26,9 @@ try {
     // Neon supplies a direct URL without exposing it to the client or build log.
     environment.DIRECT_URL ||= process.env.DATABASE_URL_UNPOOLED;
     await run(path.resolve("scripts/migrate-postgres.mjs"));
+    if (environment.MARKETINGPILOT_IMPORT_BLOB_PATH) {
+      await run("--import", ["tsx", path.resolve("scripts/import-private-snapshot.ts")]);
+    }
   }
   await run(path.resolve("node_modules/vite/bin/vite.js"), ["build", "--configLoader", "native"]);
 } catch (error) {
