@@ -22,6 +22,7 @@ data/
 private-backups/
 outputs/
 .vercel/
+.lovable/
 *-QA.md
 
 # Wrangler / Cloudflare

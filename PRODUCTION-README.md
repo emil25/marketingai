@@ -86,6 +86,20 @@ A szerver a meglévő `aiJobs` naplózását és `mediaAssets` tárát használj
 
 **Ellenőrzés:** `node --import tsx --test tests/video.test.ts` külön, ideiglenes QA store-ban fut, élő adatot nem módosít. Vizsgálja az izolációt, érvénytelen bemenetet, tényleges MP4-kódolást/dekódolást, magyar feliratokat és a hibás render utáni újrapróbálást.
 
+## Képposzt és carousel
+
+A mentett poszt szerkesztőjének **Képposzt és carousel** része 1 képet vagy 2–6 lapot készít, 1080×1350 vagy 1080×1080 JPEG formátumban. Saját márkához tartozó fotó vagy márkaszínes grafika használható; a cím, leírás, CTA, képsorrend és Instagram-posztszöveg szerkeszthető. Az OpenRouter szöveges AI a mentett Brand Voice, vállalkozástípus, kampány és szerkesztett posztszöveg alapján ír kreatívtervet. Ez nem AI-fotógenerálás, nem igényel képgenerálási kreditet.
+
+A szerkeszthető terv és a sikeres export a meglévő `aiJobs` adataiban marad, új üzleti táblák nélkül. A JPEG-ek `mediaAssets` rekordokba kerülnek; mentéskor a poszt kiválasztott képei az új exportok lesznek. Az eredeti fotók és korábbi exportok a Médiatárban megmaradnak. A szöveg az Instagram-változatba és verziótörténetbe mentődik. A JPEG/ZIP letölthető; a ZIP tartalmazza a lapokat és a UTF-8 posztszöveget is.
+
+A jogosultságellenőrzés post/workspace/brand és fotó szinten fut. A szerver ellenőrzi a tényleges JPEG méretet/formátumot, legfeljebb 2 MB/lap és 6 lap fogadható el. Sikertelen mentéskor a frissen írt fájlok eltakarítása történik, félkész posztmentés nincs. Közzétett poszt kreatívja nem írható felül.
+
+A Facebook képes poszt és Instagram carousel publikálási útvonal előkészítve, de valódi publikálás csak működő Meta kapcsolat, jogosultság és külsőleg elérhető HTTPS média mellett igazolható. A protokolltesztek szimulált válaszokkal futnak, nem bizonyítanak tényleges Meta közzétételt. Tesztek: `tests/post-creative.test.ts`.
+
+## Vállalkozásodra szabva
+
+A Márka AI oldalon opcionális, kereshető vállalkozáskártyák egészítik ki a már meglévő `BrandProfile.businessType` mezőt. 15 kategória áll rendelkezésre, köztük fogászat, ingatlaniroda, fitness és autókereskedés. A választás normál márkamentéssel, szerveroldali ownership mellett mentődik; nincs telepített álmodul vagy kötelező új onboarding. Az AI közös business contextje és a Dashboard gyorsindítói használják. A hiányzó vagy ismeretlen érték továbbra is `other`; nincs új adatmodell vagy PostgreSQL aktiválás.
+
 ## Ideiglenes helyi adminbelépés
 
 A `/login` oldalon a **Belépés adminnak** gomb csak `NODE_ENV=development`, `ENABLE_LOCAL_ADMIN_LOGIN=true`, valamint egy meglévő owner/admin `LOCAL_ADMIN_USER_ID` és `LOCAL_ADMIN_WORKSPACE_ID` beállítása esetén érhető el. A szerver csak localhost/loopback, azonos originű kérést fogad el; proxy/forwarded kérések tiltottak. Productionben a funkció akkor sem működik, ha a kapcsoló véletlenül bekapcsolva marad. Alapértelmezetten kikapcsolt.
