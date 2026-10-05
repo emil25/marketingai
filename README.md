@@ -1,80 +1,41 @@
-# AI Business OS 2.0 — Vercel verzió
+# MarketingPilot V2
 
-Ez a projekt feltöltésre kész: Vite + React frontend és egy Vercel serverless
-függvény (`api/claude.js`), ami biztonságosan, a szerveren tartja az Anthropic
-API-kulcsot.
+Kisvállalkozások marketing-munkatere: saját márkahang, AI-posztok és platformváltozatok, kampányok, 30 napos terv, Planner, naptár, Médiatár, képposztok és carousel.
 
-## Mi kell hozzá?
+## Melyik változat ez?
 
-1. Ingyenes fiók: https://github.com és https://vercel.com
-2. Anthropic API-kulcs: https://console.anthropic.com → **API Keys** → Create Key
-   (az API használata fizetős, kis összegű feltöltés kell hozzá)
+Ez a jelenlegi, TanStack Start alapú MarketingPilot. A repository `main` ágában lévő korábbi AI Business OS prototípus külön változat; nem azonos ezzel az alkalmazással. A `marketingpilot-v2` ág őrzi a jelenlegi MarketingPilot forrását, az eredeti Git-előzmények megtartásával.
 
-## Feltöltés lépésről lépésre
+**A GitHub-link forráskódot nyit meg, nem futó alkalmazást.** A korábbi `marketingai-self.vercel.app` oldal a régi `main` ághoz kapcsolódik. Amíg a MarketingPilot deployment nincs beállítva és böngészőben ellenőrizve, ez nem tekinthető MarketingPilot V2 preview-nak.
 
-### 1. Kód feltöltése GitHubra
+## Fejlesztés
 
-- GitHubon hozz létre egy új (üres) repository-t, pl. `ai-business-os`
-- A gépeden, ebben a mappában:
-
-```bash
-git init
-git add .
-git commit -m "AI Business OS 2.0"
-git branch -M main
-git remote add origin https://github.com/FELHASZNALONEV/ai-business-os.git
-git push -u origin main
+```sh
+npm ci
+npm run dev
 ```
 
-### 2. Deploy Vercelre
+A `.env.example` a beállítások neveit tartalmazza. Titkot, helyi üzleti adatot, feltöltött médiát és privát QA másolatot nem tárolunk a repositoryban.
 
-- https://vercel.com → **Add New → Project** → válaszd ki a repót
-- A Vercel automatikusan felismeri, hogy Vite projekt — semmit nem kell átállítani
-- **Deploy** előtt (vagy után a Settings-ben): **Settings → Environment Variables**
-  - Name: `ANTHROPIC_API_KEY`
-  - Value: a saját kulcsod (sk-ant-...)
-  - Environment: Production + Preview
-- Deploy → kapsz egy `https://valami.vercel.app` címet — kész!
+## Ellenőrzés és Node build
 
-> Ha a kulcsot a deploy UTÁN adtad hozzá, nyomj egy **Redeploy**-t
-> (Deployments → ⋯ → Redeploy), különben a függvény még nem látja.
-
-### 3. Kipróbálás helyben (opcionális)
-
-```bash
-npm install
-npm install -g vercel
-vercel dev
+```sh
+npm run build
+npm run build:node
+npx tsc --noEmit
+node .output/server/index.mjs
 ```
 
-A `vercel dev` futtatja az `api/claude.js` függvényt is helyben.
-(A sima `npm run dev` csak a frontendet indítja — abban az AI-hívások nem működnek,
-mert nincs mögötte az API-proxy.)
+Az alkalmazás React, TypeScript, TanStack Start/Router, Tailwind és szerveroldali OpenRouter rendszerre épül. Az API-k és a workspace/brand jogosultságok a szerveren működnek. A JSON fejlesztői store megtartott; PostgreSQL kapcsolat esetén az előkészített PostgreSQL adapter működik.
 
-Helyi teszthez hozz létre egy `.env` fájlt:
+## Állandó online működés
 
-```
-ANTHROPIC_API_KEY=sk-ant-...
-```
+Az alkalmazás nem statikus GitHub Pages oldal. Tartós PostgreSQL adatbázis, tartós médiatárolás, szerveroldali titkos beállítások és HTTPS szükséges. A helyi JSON/media könyvtárak nem alkalmasak Vercel serverless tartós adatkezelésre. A helyi adminbelépés productionben tiltott.
 
-## Fontos tudnivalók
+Részletek: [PRODUCTION-README.md](PRODUCTION-README.md). Az eredeti és jelenlegi funkciók összevetése: [docs/FEATURE-COMPARISON.md](docs/FEATURE-COMPARISON.md).
 
-- **Az API-kulcs soha nem kerül a böngészőbe** — a frontend a saját
-  `/api/claude` végpontot hívja, a kulcsot csak a szerver látja.
-- Minden AI-generálás valódi API-hívás, azaz **pénzbe kerül** (tipikusan
-  néhány cent / hívás). A `max_tokens` 2000-re van korlátozva a proxyban.
-- A nyilvános oldaladon bárki tudja hívni az AI-funkciókat — élesítés előtt
-  érdemes bejelentkezést és rate-limitet tenni elé (pl. Clerk/Auth.js + Upstash).
-- A dashboard számai, CRM-adatok, naptár: demó adatok. Valós integrációkhoz
-  (Meta, Google, Stripe) külön backend-fejlesztés kell.
+## Külső függőségek
 
-## Szerkezet
-
-```
-├── api/claude.js      ← serverless proxy az Anthropic API-hoz
-├── src/App.jsx        ← a teljes alkalmazás (UI + logika)
-├── src/main.jsx       ← React belépési pont
-├── index.html
-├── vite.config.js
-└── package.json
-```
+- Meta kapcsolat és valódi Facebook/Instagram publikálás: megfelelő App Secret, jogosultságok és HTTPS média szükséges; még nincs igazolt éles publikálás.
+- OpenRouter képgenerálás: szolgáltatói kredit szükséges. Saját fotós képposzt/carousel ezt nem igényli.
+- Valódi automatikus időzített publikálás: tartós háttérfeldolgozó szükséges.
