@@ -1,4 +1,4 @@
-import { mkdir, readFile, rename, writeFile, unlink } from "node:fs/promises";
+import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import type {
@@ -12,10 +12,12 @@ import type {
   WorkspaceRecord,
 } from "@/lib/data-model";
 import { normalizeBusinessType } from "@/lib/business-types";
+import { createMediaStorage } from "./media-storage.server";
 
 const dataDirectory = process.env["MARKETINGPILOT_DATA_DIR"] || path.join(process.cwd(), "data");
 const dataFile = path.join(dataDirectory, "marketingpilot.json");
 export const mediaDirectory = path.join(dataDirectory, "media");
+const mediaStorage = createMediaStorage(mediaDirectory);
 
 const emptyData = (): AppData => ({
   users: [],
@@ -52,6 +54,9 @@ export async function readData(): Promise<AppData> {
   if (isPostgresEnabled()) {
     const { readPostgresData } = await import("./postgres-store.server");
     return readPostgresData();
+  }
+  if (process.env["VERCEL"]) {
+    throw new Error("Az online adatbázis nincs beállítva. Ideiglenes JSON-tárolót nem használunk.");
   }
   await ensureStore();
   const raw = await readFile(dataFile, "utf8");
@@ -211,14 +216,13 @@ export function mediaPathForId(id: string) {
 }
 
 export async function writeMediaFile(id: string, bytes: Uint8Array) {
-  await mkdir(mediaDirectory, { recursive: true });
-  await writeFile(mediaPathForId(id), bytes);
+  await mediaStorage.write(id, bytes);
+}
+
+export async function readMediaFile(id: string) {
+  return mediaStorage.read(id);
 }
 
 export async function removeMediaFile(id: string) {
-  try {
-    await unlink(mediaPathForId(id));
-  } catch (error) {
-    if (!(error instanceof Error && "code" in error && error.code === "ENOENT")) throw error;
-  }
+  await mediaStorage.remove(id);
 }

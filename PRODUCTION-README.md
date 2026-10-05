@@ -116,4 +116,18 @@ A belépés a normál titkosított session cookie-t állítja be, nem változtat
 - [ ] OpenRouter és Meta kvóta/jogosultság ellenőrizve.
 - [ ] Build és TypeScript ellenőrzés zöld.
 
-Jelenlegi állapot: PostgreSQL kapcsolat nélkül a fejlesztői JSON fallback működik; éles többfelhasználós SaaS-hoz előbb PostgreSQL, titkos env-kezelés, HTTPS és tartós média storage szükséges.
+PostgreSQL kapcsolat nélkül a helyi fejlesztői JSON fallback továbbra is működik. Vercel környezetben hiányzó adatbázis vagy privát képtár esetén szándékosan nincs ideiglenes lemezre visszaesés.
+
+## Vercel + Neon + privát képtár
+
+Az `npm run build:vercel` a Nitro Vercel szerveres buildjét készíti el. A Vercelen előtte ellenőrzi a kötelező szerverbeállításokat, és lefuttatja a meglévő, nem destruktív SQL migrationöket. A JSON-importot **nem** futtatja automatikusan, és meglévő PostgreSQL rekordokat nem cserél le. A helyi JSON és média fájlok változatlanul megmaradnak.
+
+- Vercel projekt: `marketingai`; az alkalmazás aktuális forrása a `marketingpilot-v2` branch.
+- Neon Free adatbázis: `neon-charcoal-lantern`; a Vercel-integráció közvetlenül injektálja a `DATABASE_URL` és `DATABASE_URL_UNPOOLED` változókat.
+- Privát Blob store: `marketingpilot-media`, Frankfurt. `MEDIA_STORAGE=vercel-blob`; a SDK a Vercel által kezelt OIDC / szerveroldali Blob hozzáférést használja. A tokenek és Blob URL-ek nem kerülnek a kliensoldali adatmodellbe.
+- A média olvasása továbbra is a meglévő `/api/media/:id` útvonalon, workspace/brand ellenőrzés vagy korlátozott élettartamú aláírás után történik. A privát képtárba UUID alapú, nem felülírható fájlok kerülnek.
+- A JSON → PostgreSQL import külön, ellenőrzött művelet. Az új online adatbázis kezdetben üres; a helyi fiókok nem jelennek meg benne automatikusan. A migráció nem kerülhet nyilvános API-végpont mögé.
+- A helyi admin belépési shortcut productionben tiltott. A valódi regisztráció/bejelentkezés marad az online belépési mód.
+- Serverless korlátok: Vercel szerverfeltöltés legfeljebb 4,5 MB teljes HTTP-kérés; nagy videókhoz vagy nagy carousel exporthoz közvetlen, jogosultsággal védett kliensfeltöltés szükséges. A natív FFmpeg / betűkészlet és hosszú videófeldolgozás külön infrastruktúra-ellenőrzést igényel. Nincs automatikus háttérpublikálási worker.
+
+Hivatkozások: [Nitro Vercel deployment](https://nitro.build/deploy/providers/vercel), [Vercel privát Blob](https://vercel.com/docs/vercel-blob/private-storage).

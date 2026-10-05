@@ -1,7 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { readFile } from "node:fs/promises";
 import { requireAuthContext } from "@/lib/server/auth-context.server";
-import { mediaPathForId, readData, removeMediaFile, transact } from "@/lib/server/store.server";
+import { readMediaFile, readData, removeMediaFile, transact } from "@/lib/server/store.server";
 import { verifyMediaAccess } from "@/lib/server/token-crypto.server";
 
 export const Route = createFileRoute("/api/media/$id")({
@@ -19,7 +18,7 @@ export const Route = createFileRoute("/api/media/$id")({
         const database = await readData();
         const asset = database.mediaAssets.find((candidate) => candidate.id === params.id && (publicAccess || (context && candidate.workspaceId === context.workspace.id && context.brands.some((brand) => brand.id === candidate.brandId))));
         if (!asset) return Response.json({ error: "A médiafájl nem található." }, { status: 404 });
-        try { const bytes = await readFile(mediaPathForId(asset.id)); const safeName = asset.filename.replace(/["\r\n]/g, ""); return new Response(bytes, { headers: { "Content-Type": asset.mimeType, "Content-Length": String(asset.size), "Cache-Control": "private, max-age=3600", "Content-Disposition": `inline; filename="${safeName}"` } }); } catch { return Response.json({ error: "A médiafájl nem olvasható." }, { status: 404 }); }
+        try { const bytes = await readMediaFile(asset.id); const safeName = asset.filename.replace(/["\r\n]/g, ""); return new Response(bytes, { headers: { "Content-Type": asset.mimeType, "Content-Length": String(bytes.byteLength), "X-Content-Type-Options": "nosniff", "Cache-Control": "private, max-age=3600", "Content-Disposition": `inline; filename="${safeName}"` } }); } catch { return Response.json({ error: "A médiafájl nem olvasható." }, { status: 404 }); }
       },
       DELETE: async ({ params }) => {
         let context: Awaited<ReturnType<typeof requireAuthContext>> | undefined;

@@ -1,8 +1,9 @@
 import { spawn } from "node:child_process";
-import { access, copyFile, mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { access, copyFile, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import path from "node:path";
-import { mediaDirectory, mediaPathForId } from "@/lib/server/store.server";
+import { tmpdir } from "node:os";
+import { readMediaFile } from "@/lib/server/store.server";
 import { VIDEO_FORMATS, wrapVideoCaption, type VideoFormat, type VideoScene } from "@/lib/video";
 
 let rendering = false;
@@ -93,8 +94,7 @@ export async function renderPhotoVideo(input: {
   let directory: string | undefined;
   try {
     const { binary, font } = await videoRenderConfiguration();
-    await mkdir(mediaDirectory, { recursive: true });
-    directory = await mkdtemp(path.join(mediaDirectory, "video-job-"));
+    directory = await mkdtemp(path.join(tmpdir(), "marketingpilot-video-job-"));
     await copyFile(font, path.join(directory, "font.ttf"));
     await writeFile(
       path.join(directory, "brand.txt"),
@@ -107,10 +107,9 @@ export async function renderPhotoVideo(input: {
       : "0xF7664B";
     const deadline = Date.now() + 120_000;
     for (const [index, scene] of input.scenes.entries()) {
-      const sourcePath = mediaPathForId(scene.mediaAssetId);
-      if ((await stat(sourcePath)).size > 10 * 1024 * 1024)
+      const source = await readMediaFile(scene.mediaAssetId);
+      if (source.byteLength > 10 * 1024 * 1024)
         throw new Error("A kiválasztott kép túl nagy.");
-      const source = await readFile(sourcePath);
       const header = source.subarray(0, 12);
       const png = header.subarray(0, 8).toString("hex") === "89504e470d0a1a0a";
       const jpeg = header.subarray(0, 3).toString("hex") === "ffd8ff";
@@ -199,8 +198,8 @@ export async function renderPhotoVideo(input: {
       if (directory) {
         const resolved = path.resolve(directory);
         if (
-          path.dirname(resolved) === path.resolve(mediaDirectory) &&
-          path.basename(resolved).startsWith("video-job-")
+          path.dirname(resolved) === path.resolve(tmpdir()) &&
+          path.basename(resolved).startsWith("marketingpilot-video-job-")
         ) {
           await rm(resolved, { recursive: true, force: true }).catch(() => undefined);
         }
