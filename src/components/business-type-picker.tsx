@@ -9,6 +9,8 @@ import {
   Smile,
   Sparkles,
   Utensils,
+  Scissors,
+  Store,
 } from "lucide-react";
 import {
   BUSINESS_TYPES,
@@ -38,7 +40,52 @@ const icons = {
   fitness: Dumbbell,
   beauty_salon: Sparkles,
   car_dealer: Car,
+  hair_salon: Scissors,
+  ecommerce: Store,
+  local_business: House,
 };
+
+export function PostBusinessTypePicker({ value, disabled, onChange, onTopic }: {
+  value?: string;
+  disabled: boolean;
+  onChange: (value: string) => void;
+  onTopic: (topic: string) => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const selected = normalizeBusinessType(value);
+  const common = ["restaurant", "accommodation", "hair_salon", "beauty_salon", "ecommerce", "local_business", "other"];
+  const types = BUSINESS_TYPES.filter((item) => expanded || common.includes(item.value) || item.value === selected);
+  return (
+    <section className="rounded-2xl border border-border bg-secondary/20 p-4" aria-label="Poszt vállalkozástípusa">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <h3 className="text-base font-semibold">Milyen vállalkozásnak készül? <span className="font-normal text-muted-foreground">Opcionális</span></h3>
+          <p className="mt-1 text-sm text-muted-foreground">A márkádnál megjegyezzük, így a későbbi posztok és ötletek is hozzád illenek.</p>
+        </div>
+        <Button type="button" variant="ghost" size="sm" disabled={disabled} onClick={() => setExpanded((current) => !current)}>
+          {expanded ? "Kevesebb típus" : "Összes típus"}
+        </Button>
+      </div>
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4" role="group" aria-label="Választható vállalkozástípusok">
+        {types.map((item) => {
+          const Icon = icons[item.value as keyof typeof icons] ?? Sparkles;
+          const active = selected === item.value;
+          return <button key={item.value} type="button" aria-pressed={active} disabled={disabled}
+            onClick={() => onChange(item.value)}
+            className={`flex min-h-16 items-center gap-2 rounded-xl border px-3 py-2 text-left text-sm font-medium transition hover:border-primary disabled:opacity-50 ${active ? "border-primary bg-primary/5 text-primary" : "bg-background"}`}>
+            <Icon className="h-5 w-5 shrink-0" /><span className="flex-1">{item.value === "other" ? "Általános / kihagyom" : item.label}</span>
+            {active && <Check className="h-4 w-4 shrink-0" />}
+          </button>;
+        })}
+      </div>
+      <div className="mt-3 flex flex-wrap items-center gap-2" aria-label="Vállalkozáshoz illő posztötletek">
+        <span className="text-sm text-muted-foreground">Ötletindító:</span>
+        {businessTypeQuickStarts(selected).slice(0, 3).map((topic) => <Button key={topic} type="button" variant="outline" size="sm" disabled={disabled} onClick={() => onTopic(topic)}>{topic}</Button>)}
+      </div>
+      {disabled && <p role="status" className="mt-2 text-sm text-muted-foreground">A művelet végéig a választás nem módosítható.</p>}
+    </section>
+  );
+}
 
 export function BusinessTypePicker({
   value,

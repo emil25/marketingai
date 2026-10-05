@@ -4,7 +4,7 @@ import { requireAuthContext } from "./server/auth-context.server";
 import { useAppSession } from "./server/session.server";
 import { completeAiJob, createAiJob, newId, nowIso, removeMediaFile, startAiJob, transact, getWorkspaceSnapshot } from "./server/store.server";
 import { openRouterChat } from "./server/ai-provider.server";
-import { buildBusinessContext, businessContextPrompt, normalizeBusinessType } from "@/lib/business-types";
+import { BUSINESS_TYPES, buildBusinessContext, businessContextPrompt, normalizeBusinessType } from "@/lib/business-types";
 
 const BrandInputSchema = z.object({
   id: z.string().optional(),
@@ -134,6 +134,25 @@ export const setActiveBrand = createServerFn({ method: "POST" })
     if (!context.brands.some((brand) => brand.id === data.brandId)) throw new Error("Nincs hozzáférés ehhez a márkához.");
     const session = await useAppSession();
     await session.update({ activeBrandId: data.brandId });
+    return requireAuthContext();
+  });
+
+// A creator selection only updates this field, never overwriting the rest of Brand Voice.
+export const setBrandBusinessType = createServerFn({ method: "POST" })
+  .inputValidator((data: unknown) => z.object({
+    brandId: z.string().min(1),
+    businessType: z.string().refine((value) => BUSINESS_TYPES.some((item) => item.value === value), "Érvénytelen vállalkozástípus."),
+  }).parse(data))
+  .handler(async ({ data }) => {
+    const context = await requireAuthContext();
+    await transact((database) => {
+      const brand = database.brands.find((item) => item.id === data.brandId && item.workspaceId === context.workspace.id);
+      if (!brand) throw new Error("Nincs hozzáférés ehhez a márkához.");
+      const profile = database.brandProfiles.find((item) => item.brandId === brand.id);
+      if (!profile) throw new Error("A márkaprofil nem található.");
+      profile.businessType = normalizeBusinessType(data.businessType);
+      profile.updatedAt = nowIso();
+    });
     return requireAuthContext();
   });
 

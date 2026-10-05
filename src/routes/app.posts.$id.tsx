@@ -25,7 +25,9 @@ import { PageHeader } from "@/components/app-chrome";
 import { PostVideoComposer } from "@/components/post-video-composer";
 import { PostCreativeComposer } from "@/components/post-creative-composer";
 import { PlatformMark, SocialPreview } from "@/components/social-preview";
-import { getWorkspace } from "@/lib/workspace.functions";
+import { getWorkspace, setBrandBusinessType } from "@/lib/workspace.functions";
+import { PostBusinessTypePicker } from "@/components/business-type-picker";
+import { normalizeBusinessType } from "@/lib/business-types";
 import {
   getPost,
   createPostDraft,
@@ -164,6 +166,7 @@ function PostEditor() {
   const [abVariants, setAbVariants] = useState<PostAbVariantRecord[]>(data.post?.abVariants ?? []);
   const [adCopies, setAdCopies] = useState<PostAdCopyRecord[]>(data.post?.adCopies ?? []);
   const [generating, setGenerating] = useState(false);
+  const [businessTypeSaving, setBusinessTypeSaving] = useState(false);
   const [extrasBusy, setExtrasBusy] = useState<"hooks" | "ab" | "ads" | null>(null);
   const [imageBusy, setImageBusy] = useState(false);
   const [creativeBusy, setCreativeBusy] = useState(false);
@@ -179,6 +182,7 @@ function PostEditor() {
     status: PostStatus;
   } | null>(null);
   const generate = useServerFn(generatePostVariants);
+  const saveBusinessType = useServerFn(setBrandBusinessType);
   const generateHooks = useServerFn(generatePostHooks);
   const generateAB = useServerFn(generatePostABVariants);
   const generateAds = useServerFn(generatePostAdCopies);
@@ -297,6 +301,20 @@ function PostEditor() {
   }
   const activeBrand = brand;
 
+  async function chooseBusinessType(value: string) {
+    if (businessTypeSaving || generating || value === normalizeBusinessType(activeBrand.profile.businessType)) return;
+    setBusinessTypeSaving(true);
+    try {
+      await saveBusinessType({ data: { brandId: activeBrand.id, businessType: value } });
+      await router.invalidate();
+      toast.success("A vállalkozástípus mentve a márkádhoz.");
+    } catch (cause) {
+      toast.error(cause instanceof Error ? cause.message : "A vállalkozástípus mentése sikertelen.");
+    } finally {
+      setBusinessTypeSaving(false);
+    }
+  }
+
   const update: UpdateForm = (key, value) => setForm((current) => ({ ...current, [key]: value }));
   function togglePlatform(platform: PostPlatform) {
     update(
@@ -309,6 +327,7 @@ function PostEditor() {
   async function handleGenerate() {
     if (
       generating ||
+      businessTypeSaving ||
       creativeBusy ||
       saving ||
       publicationInFlight.current ||
@@ -728,6 +747,12 @@ function PostEditor() {
             )}
             {(simpleMode || step === 3) && (
               <div className="space-y-6">
+                {!data.post && <PostBusinessTypePicker
+                  value={brand.profile.businessType}
+                  disabled={businessTypeSaving || generating || saving || creativeBusy}
+                  onChange={(value) => void chooseBusinessType(value)}
+                  onTopic={(topic) => setForm((current) => ({ ...current, topic, title: current.title || topic }))}
+                />}
                 <StepContent
                   form={form}
                   update={update}
@@ -735,7 +760,7 @@ function PostEditor() {
                   editorPlatform={editorPlatform}
                   onSelectPlatform={setSelectedPlatform}
                   onVariant={currentVariant}
-                  generating={generating}
+                  generating={generating || businessTypeSaving}
                   onGenerate={() => void handleGenerate()}
                   hasPost={Boolean(data.post)}
                   campaign={activeCampaigns.find((item) => item.id === form.campaignId)}
