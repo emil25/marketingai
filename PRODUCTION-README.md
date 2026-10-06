@@ -4,6 +4,12 @@ Ez a dokumentum a jelenlegi Phase 1–3A alkalmazás üzemeltetési és élesít
 
 ## Architektúra
 
+### Heti marketingcsomag
+
+A Dashboard „Készítsd el a heti marketingemet” gombja a `/app/campaigns?mode=weekly` folyamatra vezet. Egy briefből a meglévő kampány-, planItem-, post- és postVariant-rekordokba mentett 7 napos terv és 4 poszt készül. A Brand Voice és az aktív márka üzleti kontextusa közös a 30 napos kampányokkal.
+
+A kliens a posztokat külön szerverkérésekben készíti el, így nem egyetlen hosszú HTTP-kérésben fut a teljes csomag. Megszakítás után a kampány részletezőjében a hiányzó posztok folytathatók; ez a művelet nem írja felül a már elkészült vagy szerkesztett posztokat. A heti stratégia 3500, az egyes tervtételek szövege 2000 válasz-token kerettel készül. Nem készül automatikus kép vagy publikálás: saját média és ellenőrzés a meglévő posztszerkesztőben érhető el. A Planner és a Calendar ugyanazokat a tervtételeket látja, nincs új adatmodell vagy külön naptár.
+
 - **Frontend/SSR:** React + TanStack Start + TanStack Router + TypeScript.
 - **Szerver:** TanStack Start server functions és API route-ok; a Node production build belépési pontja az `.output/server/index.mjs`.
 - **Üzleti adat-elérés:** `src/lib/server/store.server.ts`. Ez a stabil store API; a route-ok nem közvetlenül SQL-lel dolgoznak.

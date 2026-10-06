@@ -64,25 +64,34 @@ export function openRouterChat(input: {
   messages: ChatMessage[];
   schemaName: string;
   schema: JsonSchema;
+  maxTokens?: number;
   model?: string;
 }) {
-  return request(`${OPENROUTER_BASE_URL}/chat/completions`, {
-    model: input.model ?? OPENROUTER_TEXT_MODEL,
-    messages: input.messages,
-    // Keep the provider's token budget below low-credit account limits while
-    // leaving enough room for structured post and campaign responses.
-    max_tokens: 16_000,
-    response_format: {
-      type: "json_schema",
-      json_schema: { name: input.schemaName, strict: true, schema: input.schema },
+  return request(
+    `${OPENROUTER_BASE_URL}/chat/completions`,
+    {
+      model: input.model ?? OPENROUTER_TEXT_MODEL,
+      messages: input.messages,
+      // Keep the provider's token budget below low-credit account limits while
+      // leaving enough room for structured post and campaign responses.
+      max_tokens: input.maxTokens ?? 16_000,
+      response_format: {
+        type: "json_schema",
+        json_schema: { name: input.schemaName, strict: true, schema: input.schema },
+      },
     },
-  }, TEXT_REQUEST_TIMEOUT_MS);
+    TEXT_REQUEST_TIMEOUT_MS,
+  );
 }
 
 export function openRouterImage(input: { prompt: string; stream: boolean }) {
-  return request(`${OPENROUTER_BASE_URL}/images`, {
-    model: OPENROUTER_IMAGE_MODEL,
-    prompt: input.prompt,
-    ...(input.stream ? { stream: true } : {}),
-  }, IMAGE_REQUEST_TIMEOUT_MS);
+  return request(
+    `${OPENROUTER_BASE_URL}/images`,
+    {
+      model: OPENROUTER_IMAGE_MODEL,
+      prompt: input.prompt,
+      ...(input.stream ? { stream: true } : {}),
+    },
+    IMAGE_REQUEST_TIMEOUT_MS,
+  );
 }

@@ -128,9 +128,9 @@ function Dashboard() {
                     Készítsünk egy posztot <ArrowRight className="ml-1 h-4 w-4" />
                   </Button>
                 </Link>
-                <Link to={weeklyPlanned.length ? "/app/planner" : "/app/campaigns"}>
+                <Link to="/app/campaigns" search={{ mode: "weekly" }}>
                   <Button variant="outline" className="reference-hero-secondary">
-                    {weeklyPlanned.length ? "Heti terv megnyitása" : "Kampány tervezése"}
+                    Készítsd el a heti marketingemet
                   </Button>
                 </Link>
               </div>
