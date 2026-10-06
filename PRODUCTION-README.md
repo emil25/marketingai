@@ -131,3 +131,13 @@ Az `npm run build:vercel` a Nitro Vercel szerveres buildjét készíti el. A Ver
 - Serverless korlátok: Vercel szerverfeltöltés legfeljebb 4,5 MB teljes HTTP-kérés; nagy videókhoz vagy nagy carousel exporthoz közvetlen, jogosultsággal védett kliensfeltöltés szükséges. A natív FFmpeg / betűkészlet és hosszú videófeldolgozás külön infrastruktúra-ellenőrzést igényel. Nincs automatikus háttérpublikálási worker.
 
 Hivatkozások: [Nitro Vercel deployment](https://nitro.build/deploy/providers/vercel), [Vercel privát Blob](https://vercel.com/docs/vercel-blob/private-storage).
+
+## Nyilvános béta, kapcsolat és jogi tájékoztatók
+
+A nyitóoldal a tényleges funkciókat kommunikálja: szövegkészítés, saját fotós kreatív, mentés és tartalomtervezés. A naptárba mentett dátum **nem automatikus publikálás**. Nincs aktív bankkártyás előfizetés; a korábbi, még nem vásárolható Starter/Pro árlista helyett díjmentes béta szerepel, korlátlan AI-használat ígérete nélkül.
+
+A `/privacy`, `/terms` és `/contact` nyilvánosan elérhető. A jogi oldalak **tervezetek**, nem teljes adatkezelési tájékoztató vagy végleges ÁSZF. Az üzemeltető személyét/cégét, címét, elérhetőségét, az adatkezelés jogalapjait, megőrzési szabályait és szolgáltatói feltételeit éles indulás előtt véglegesíteni kell. A kapcsolatfelvétel valós email-cím hiányában nem aktív; nincs ál-küldési siker vagy kitalált elérhetőség.
+
+Az üzemeltető által jóváhagyott, szándékosan nyilvános adatokat a `PUBLIC_OPERATOR_NAME`, `PUBLIC_OPERATOR_ADDRESS`, `PUBLIC_CONTACT_EMAIL`, `PUBLIC_OPERATOR_ABOUT` szerverváltozók adják. Csak e négy mező explicit whitelistje kerül a böngészőbe; a többi környezeti változó nem. A `PUBLIC_CONTACT_EMAIL` érvényes email esetén `mailto:` hivatkozást nyit, nem szerveroldali levélküldést.
+
+A nyitóoldali képernyőkép elkülönített tesztmárkával készül; nem tartalmaz valódi ügyféladatot, nem ügyfélvélemény és nem teljesítményígéret. A végleges jogi információk hiányát a nyitóoldal és a regisztráció is jelzi. Jelszó-visszaállítást vagy Google-belépést csak valódi backend megvalósítás után szabad ígérni.

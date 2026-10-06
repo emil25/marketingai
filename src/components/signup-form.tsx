@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { BUSINESS_TYPES } from "@/lib/business-types";
+import { PublicInfoLinks } from "@/components/public-info-page";
 
 
 export interface OnboardingBrandDetails {
@@ -107,6 +108,7 @@ export function SignupForm({ businessType = "other", brandDetails }: { businessT
             Bejelentkezés
           </Link>
         </p>
+        <div className="mt-6 border-t pt-4 text-muted-foreground"><PublicInfoLinks /><p className="mt-3 text-center text-sm">Nyilvános béta. Az üzemeltetői és végleges jogi adatok előkészítés alatt állnak.</p></div>
       </Card>
     </div>
   );

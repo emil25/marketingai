@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
+import { PublicInfoLinks } from "@/components/public-info-page";
 
 export const Route = createFileRoute("/login")({ beforeLoad: redirectSignedInUser, loader: () => getLocalAdminLoginAvailability(), component: LoginPage });
 
@@ -43,6 +44,7 @@ function LoginPage() {
     </form>
     {localAdminAvailable && <div className="mt-6 border-t pt-5"><Button type="button" variant="outline" className="w-full rounded-full" disabled={pending} onClick={() => void enterLocalAdmin()}>{pending ? "Beléptetés…" : "Belépés adminnak"}</Button><p className="mt-2 text-center text-xs text-muted-foreground">Csak ezen a gépen, fejlesztés közben. Nem kell jelszó.</p></div>}
     <p className="mt-6 text-center text-sm text-muted-foreground">Még nincs fiókod? <Link to="/signup" className="font-medium text-primary hover:underline">Regisztráció</Link></p>
+    <div className="mt-6 border-t pt-4 text-muted-foreground"><PublicInfoLinks /></div>
   </AuthShell>;
 }
 
