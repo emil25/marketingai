@@ -1,4 +1,3 @@
-import { redirectSignedInUser } from "@/lib/guest-route";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import { PublicInfoLinks } from "@/components/public-info-page";
@@ -23,7 +22,6 @@ import {
 
 const SITE_URL = "https://marketingai-self.vercel.app";
 export const Route = createFileRoute("/")({
-  beforeLoad: redirectSignedInUser,
   head: () => ({
     meta: [
       { title: "MarketingPilot — AI marketing-munkatér kisvállalkozásoknak" },

@@ -86,6 +86,10 @@
 }
 .marketing-workspace.theme-marketingpilot-v2 .reference-header-actions {
   gap: 10px;
+  flex-wrap: wrap;
+}
+.marketing-workspace.theme-marketingpilot-v2 .reference-header-inner {
+  flex-wrap: wrap;
 }
 .marketing-workspace.theme-marketingpilot-v2 .reference-icon-button {
   width: 38px;
@@ -1092,11 +1096,14 @@
   }
   .marketing-workspace.theme-marketingpilot-v2 .reference-header-inner {
     flex-direction: row;
+    flex-wrap: wrap;
     align-items: center;
     gap: 12px;
   }
   .marketing-workspace.theme-marketingpilot-v2 .reference-header-actions {
     width: auto;
+    flex-wrap: wrap;
+    justify-content: flex-end;
     gap: 8px;
   }
   .marketing-workspace.theme-marketingpilot-v2 .reference-header-actions .reference-search {

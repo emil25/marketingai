@@ -1,6 +1,7 @@
 import { createFileRoute, Link, Outlet, useRouterState } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
+import { toast } from "sonner";
 import { requireCurrentUser, logoutUser } from "@/lib/auth.functions";
 import { getThemePreference } from "@/lib/theme.functions";
 import { getChannelConnections } from "@/lib/channel.functions";
@@ -308,6 +309,12 @@ function AppLayout() {
                     Új poszt
                   </Button>
                 </Link>
+                <Button asChild size="sm" variant="outline">
+                  <Link to="/" title="Nyilvános főoldal">
+                    Főoldal
+                  </Link>
+                </Button>
+                <LogoutButton header />
               </div>
             </div>
           </header>
@@ -328,26 +335,33 @@ function AppLayout() {
   );
 }
 
-function LogoutButton() {
+function LogoutButton({ header = false }: { header?: boolean }) {
   const logout = useServerFn(logoutUser);
+  const [busy, setBusy] = useState(false);
   async function handleLogout() {
+    if (busy) return;
+    setBusy(true);
     try {
       await logout();
+      window.location.assign("/");
+    } catch {
+      toast.error("Nem sikerült kijelentkezni. Kérlek, próbáld újra.");
     } finally {
-      window.location.assign("/login");
+      setBusy(false);
     }
   }
   return (
     <Button
       size="sm"
-      variant="ghost"
-      className="reference-sidebar-action rounded-lg"
+      variant={header ? "outline" : "ghost"}
+      className={header ? "workspace-header-logout" : "reference-sidebar-action rounded-lg"}
       aria-label="Kijelentkezés"
       title="Kijelentkezés"
+      disabled={busy}
       onClick={() => void handleLogout()}
     >
       <LogOut className="h-4 w-4" />
-      Kijelentkezés
+      {busy ? "Kilépés…" : "Kijelentkezés"}
     </Button>
   );
 }
