@@ -101,7 +101,7 @@ const NAV_GROUPS: Array<{ label: string; items: NavItem[] }> = [
 function SectionNavigation({ path }: { path: string }) {
   const links = /^\/app\/(campaigns|planner|calendar)(\/|$)/.test(path)
     ? [
-        { to: "/app/campaigns", label: "Kampányok" },
+        { to: "/app/campaigns", label: "Kampánytervezés" },
         { to: "/app/planner", label: "30 napos terv" },
         { to: "/app/calendar", label: "Naptár" },
       ]
@@ -315,7 +315,7 @@ function AppLayout() {
                       { to: "/app/channels", label: "Csatornák" },
                       { to: "/app/analytics", label: "Eredmények" },
                       { to: "/app/recommendations", label: "Következő lépések" },
-                      { to: "/app/settings", label: "Beállítások" },
+                      { to: "/app/settings", label: "Fiók és beállítások" },
                       { to: "/", label: "Nyilvános főoldal" },
                     ].map(({ to, label }) => (
                       <DropdownMenuItem asChild key={to}>

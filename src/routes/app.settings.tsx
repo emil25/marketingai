@@ -6,11 +6,17 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/app-chrome";
 import { getThemePreference, setThemePreference } from "@/lib/theme.functions";
+import { requireCurrentUser } from "@/lib/auth.functions";
+import { getPublicOperator } from "@/lib/public-site.functions";
 import { Check, LayoutDashboard, Palette, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/app/settings")({
-  loader: () => getThemePreference(),
+  loader: async () => ({
+    theme: await getThemePreference(),
+    auth: await requireCurrentUser(),
+    operator: await getPublicOperator(),
+  }),
   component: SettingsPage,
 });
 
@@ -35,7 +41,7 @@ const THEMES: Array<{
 ];
 
 function SettingsPage() {
-  const selectedTheme = Route.useLoaderData() as ThemePreference;
+  const { theme: selectedTheme, auth, operator } = Route.useLoaderData();
   const [theme, setTheme] = useState<ThemePreference>(selectedTheme);
   const save = useServerFn(setThemePreference);
   const router = useRouter();
@@ -57,7 +63,7 @@ function SettingsPage() {
     <div className="space-y-8">
       <PageHeader
         title="Beállítások"
-        sub="A saját MarketingPilot munkatered megjelenése."
+        sub="A fiókod, vállalkozásod és munkatered beállításai."
         action={
           <Link to="/app">
             <Button variant="outline" className="rounded-full">
@@ -66,6 +72,34 @@ function SettingsPage() {
           </Link>
         }
       />
+      <Card id="account" className="max-w-5xl rounded-3xl p-5">
+        <h2 className="text-xl font-semibold">Fiók</h2>
+        <p className="mt-2 text-sm">
+          {auth.user.displayName} · {auth.user.email}
+        </p>
+        <p className="mt-2 text-sm text-muted-foreground">
+          Önkiszolgáló jelszóváltoztatás és automatikus fióktörlés jelenleg nincs. A kijelentkezést
+          a jobb felső fiókmenüben találod.
+        </p>
+        <div className="mt-4">
+          {operator.email ? (
+            <a
+              href={`mailto:${operator.email}?subject=${encodeURIComponent("MarketingPilot fióktörlési kérelem")}`}
+              className="inline-flex rounded-xl border px-4 py-2 font-semibold"
+            >
+              Fióktörlés kérése
+            </a>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              Fióktörlési kérelmet az üzemeltető elérhetőségének beállítása után lehet innen
+              küldeni.
+            </p>
+          )}
+          <p className="mt-2 text-sm text-muted-foreground">
+            A kérelem elküldése önmagában nem törli a fiókot vagy a munkatér adatait.
+          </p>
+        </div>
+      </Card>
       <section
         className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3"
         aria-label="Vállalkozás és munkatér beállításai"

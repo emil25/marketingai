@@ -16,7 +16,13 @@ const channels: Array<[PostPlatform, string]> = [
   ["linkedin", "LinkedIn"],
   ["google-business", "Google Cégprofil"],
 ];
-export function WeeklyMarketingForm({ brandName }: { brandName: string }) {
+export function WeeklyMarketingForm({
+  brandName,
+  onPendingChange,
+}: {
+  brandName: string;
+  onPendingChange?: (pending: boolean) => void;
+}) {
   const router = useRouter();
   const create = useServerFn(createWeeklyMarketingPlan);
   const generate = useServerFn(createMissingPlanItemPost);
@@ -31,6 +37,7 @@ export function WeeklyMarketingForm({ brandName }: { brandName: string }) {
     event.preventDefault();
     if (pending) return;
     setPending(true);
+    onPendingChange?.(true);
     setProgress("A heti terv készül…");
     try {
       const campaign = await create({ data: { brief, startDate, channels: platforms } });
@@ -53,6 +60,7 @@ export function WeeklyMarketingForm({ brandName }: { brandName: string }) {
       );
     } finally {
       setPending(false);
+      onPendingChange?.(false);
       setProgress("");
     }
   }

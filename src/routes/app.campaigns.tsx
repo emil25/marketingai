@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createFileRoute, Link, Outlet, useLocation, useRouter } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { CalendarDays, Loader2, Megaphone, Plus, Sparkles, Trash2 } from "lucide-react";
@@ -47,10 +47,28 @@ const STATUS_LABELS = {
 function dateInput(date: Date) {
   return date.toISOString().slice(0, 10);
 }
+function campaignDateLabel(value: string) {
+  const date = new Date(`${value}T12:00:00Z`);
+  if (
+    !/^\d{4}-\d{2}-\d{2}$/.test(value) ||
+    !Number.isFinite(date.getTime()) ||
+    dateInput(date) !== value
+  )
+    return "Dátum megadása szükséges";
+  return date.toLocaleDateString("hu-HU", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    timeZone: "UTC",
+  });
+}
 function initialForm() {
-  const start = new Date();
+  const today = new Intl.DateTimeFormat("sv-SE", { timeZone: "Europe/Bucharest" }).format(
+    new Date(),
+  );
+  const start = new Date(`${today}T12:00:00Z`);
   const end = new Date(start);
-  end.setDate(end.getDate() + 29);
+  end.setUTCDate(end.getUTCDate() + 29);
   return {
     name: "",
     objective: "",
@@ -77,6 +95,9 @@ function Campaigns() {
   const [form, setForm] = useState(initialForm);
   const [showForm, setShowForm] = useState(data.campaigns.length === 0);
   const [pending, setPending] = useState(false);
+  const [weeklyPending, setWeeklyPending] = useState(false);
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const startDateRef = useRef<HTMLInputElement>(null);
   useEffect(() => {
     if (!data.campaigns.length) setShowForm(true);
   }, [data.campaigns.length]);
@@ -139,42 +160,67 @@ function Campaigns() {
   return (
     <div className="space-y-8">
       <PageHeader
-        title={mode === "weekly" ? "Egyhetes kampány" : "Kampányok"}
-        sub="Egy rövid kérésből heti tartalomcsomag vagy részletes 30 napos kampány."
+        title={showForm || mode === "weekly" ? "Új kampány" : "Kampányaid"}
+        sub="Válassz 7 napos posztcsomagot vagy 30 napos tartalomtervet a vállalkozásodnak."
         action={
-          mode === "weekly" ? (
-            <Link to="/app/campaigns" search={{}} onClick={() => setShowForm(true)}>
-              <Button variant="outline" className="rounded-full">
-                30 napos kampány
-              </Button>
-            </Link>
-          ) : (
-            <div className="flex flex-wrap gap-2">
-              <Link to="/app/campaigns" search={{ mode: "weekly" }}>
-                <Button variant="outline" className="rounded-full">
-                  <Sparkles className="mr-1 h-4 w-4" />
-                  Egyhetes kampány
-                </Button>
-              </Link>
-              <Button className="rounded-full" onClick={() => setShowForm((value) => !value)}>
-                <Plus className="mr-1 h-4 w-4" />
-                {showForm ? "Kampánylista" : "Új kampány"}
-              </Button>
-            </div>
-          )
+          <Button
+            variant="outline"
+            className="rounded-full"
+            disabled={pending || weeklyPending}
+            onClick={async () => {
+              if (mode === "weekly") {
+                setShowForm(false);
+                await router.navigate({ to: "/app/campaigns", search: {} });
+              } else setShowForm((value) => !value);
+            }}
+          >
+            <Plus className="mr-1 h-4 w-4" />
+            {showForm || mode === "weekly" ? "Kampánylista" : "Új kampány"}
+          </Button>
         }
       />
-      {mode === "weekly" && <WeeklyMarketingForm brandName={brand.name} />}
+      {(showForm || mode === "weekly") && (
+        <fieldset className="campaign-duration" disabled={pending || weeklyPending}>
+          <legend>Időtartam</legend>
+          <div className="flex flex-wrap gap-2">
+            {([7, 30] as const).map((days) => (
+              <Button
+                key={days}
+                type="button"
+                variant={(mode === "weekly" ? 7 : 30) === days ? "default" : "outline"}
+                aria-pressed={(mode === "weekly" ? 7 : 30) === days}
+                onClick={async () => {
+                  setShowForm(true);
+                  await router.navigate({
+                    to: "/app/campaigns",
+                    search: days === 7 ? { mode: "weekly" } : {},
+                  });
+                }}
+              >
+                {days} nap
+              </Button>
+            ))}
+          </div>
+          <p className="mt-2 text-sm text-muted-foreground">
+            {mode === "weekly"
+              ? "4 poszt szövege is elkészül, piszkozatként. Közzététel előtt ellenőrizheted őket."
+              : "A kampány és a 30 napos terv készül el. A posztokat a tervből külön kérheted le."}
+          </p>
+        </fieldset>
+      )}
+      {mode === "weekly" && (
+        <WeeklyMarketingForm brandName={brand.name} onPendingChange={setWeeklyPending} />
+      )}
       {showForm && mode !== "weekly" && (
-        <Card className="v2-feature-card rounded-3xl border-0 p-6 md:p-8">
+        <Card className="v2-feature-card campaign-form-card rounded-3xl border-0 p-6 md:p-8">
           <div className="mb-6 flex items-start gap-3">
             <div className="grid h-11 w-11 place-items-center rounded-2xl bg-brand-soft text-brand">
               <Sparkles className="h-5 w-5" />
             </div>
             <div>
-              <h2 className="text-xl font-semibold">Új kampány és AI marketingterv</h2>
+              <h2 className="text-xl font-semibold">30 napos kampányterv</h2>
               <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-                Az ajánlatodból elkészül a kampány és a 30 napos terv. A posztokat a tervből, külön
+                Az ajánlatodból elkészül a kampány és a 30 napos terv. A posztokat a tervből külön
                 kérheted le.
               </p>
             </div>
@@ -215,14 +261,33 @@ function Campaigns() {
                 />
               </div>
             </div>
-            <p className="text-sm text-muted-foreground">
-              {form.startDate} – {form.endDate} ·{" "}
-              {form.channels
-                .map((id) => CHANNELS.find((channel) => channel.id === id)?.label)
-                .join(", ") || "Válassz csatornát a részleteknél."}
-              . A mentett márkaprofilodat automatikusan használjuk.
-            </p>
-            <details className="workspace-details">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-sm text-muted-foreground">
+              <span>
+                {campaignDateLabel(form.startDate)} – {campaignDateLabel(form.endDate)} ·{" "}
+                {form.channels
+                  .map((id) => CHANNELS.find((channel) => channel.id === id)?.label)
+                  .join(", ") || "Válassz csatornát a részleteknél."}
+              </span>
+              <button
+                type="button"
+                className="font-semibold text-brand underline underline-offset-4"
+                aria-controls="campaign-details"
+                aria-expanded={detailsOpen}
+                onClick={() => {
+                  setDetailsOpen(true);
+                  requestAnimationFrame(() => startDateRef.current?.focus());
+                }}
+              >
+                Dátum és csatornák módosítása
+              </button>
+              <p className="w-full">A mentett márkaprofilodat automatikusan használjuk.</p>
+            </div>
+            <details
+              id="campaign-details"
+              className="workspace-details"
+              open={detailsOpen}
+              onToggle={(event) => setDetailsOpen(event.currentTarget.open)}
+            >
               <summary>Részletek — opcionális</summary>
               <div className="mt-4 grid gap-4 md:grid-cols-2">
                 <div>
@@ -255,8 +320,10 @@ function Campaigns() {
               </div>
               <div className="grid gap-4 md:grid-cols-3">
                 <div>
-                  <Label>Kezdés</Label>
+                  <Label htmlFor="campaign-start">Kezdés</Label>
                   <Input
+                    id="campaign-start"
+                    ref={startDateRef}
                     type="date"
                     className="mt-2"
                     value={form.startDate}
@@ -264,8 +331,9 @@ function Campaigns() {
                   />
                 </div>
                 <div>
-                  <Label>Befejezés</Label>
+                  <Label htmlFor="campaign-end">Befejezés</Label>
                   <Input
+                    id="campaign-end"
                     type="date"
                     className="mt-2"
                     value={form.endDate}
@@ -395,7 +463,8 @@ function CampaignCard({
                 {campaign.name}
               </Link>
               <div className="mt-1 text-sm text-muted-foreground">
-                {campaign.brandName} · {campaign.startDate} – {campaign.endDate}
+                {campaign.brandName} · {campaignDateLabel(campaign.startDate)} –{" "}
+                {campaignDateLabel(campaign.endDate)}
               </div>
             </div>
             <div className="flex items-center gap-2">

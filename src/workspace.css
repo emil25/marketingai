@@ -1942,9 +1942,14 @@
 }
 .workspace-section-nav {
   display: flex;
+  align-items: center;
   flex-wrap: wrap;
   gap: 8px;
   margin-bottom: 22px;
+}
+/* Section tabs are peers, not vertically spaced page sections. */
+.marketing-workspace.theme-marketingpilot-v2 .reference-main > .workspace-section-nav > a {
+  margin-top: 0;
 }
 .workspace-section-nav a {
   padding: 9px 14px;
@@ -1985,6 +1990,35 @@
   border-radius: 10px;
   background: #f0f3eb;
   font-size: 14px;
+}
+.owner-setup-links a[data-state="next"] {
+  background: #e86448;
+  color: #fff;
+  font-weight: 700;
+  box-shadow: 0 3px 10px #e8644820;
+}
+.owner-setup-links a[data-state="complete"] {
+  color: #315c45;
+}
+.owner-setup-links a[data-state="pending"] {
+  background: transparent;
+  border: 1px solid #dce3d8;
+}
+.owner-setup-counter {
+  border-radius: 999px;
+  padding: 5px 10px;
+  background: #f0f3eb;
+  font-size: 14px;
+  font-weight: 600;
+}
+.campaign-duration legend {
+  margin-bottom: 8px;
+  font-size: 15px;
+  font-weight: 600;
+}
+.campaign-form-card label {
+  display: block;
+  line-height: 1.5;
 }
 .social-preview-skeleton {
   display: flex;

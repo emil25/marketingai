@@ -132,28 +132,44 @@ function Dashboard() {
       </div>
     );
 
+  const setupSteps = [
+    { to: "/app/brand", label: "Márka", done: Boolean(brand.name) },
+    { to: "/app/posts/new", label: "Első poszt", done: posts.length > 0 },
+    { to: "/app/channels", label: "Facebook / Instagram kapcsolása", done: connectionCount > 0 },
+    { to: "/app/campaigns", label: "Első kampány", done: campaigns.length > 0 },
+  ];
+  const completedSteps = setupSteps.filter((step) => step.done).length;
+  const nextStep = setupSteps.find((step) => !step.done);
+
   return (
     <div className="owner-dashboard">
       <QuickCreator brandName={brand.name} businessType={brand.profile.businessType} />
       {(!posts.length || !campaigns.length || !connectionCount) && (
         <section className="owner-panel owner-setup" aria-label="Kezdő lépések">
-          <h2 className="text-xl font-semibold">Így indulj el</h2>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 className="text-xl font-semibold">Így indulj el</h2>
+            <span
+              className="owner-setup-counter"
+              aria-label={`${completedSteps} lépés kész a 4-ből`}
+            >
+              {completedSteps}/4 kész
+            </span>
+          </div>
           <p className="mt-1 text-sm text-muted-foreground">
-            A márkád megvan. A következő lépést te választod.
+            Következő lépés: {nextStep?.label}. A többi feladathoz később is visszatérhetsz.
           </p>
           <div className="owner-setup-links">
-            {[
-              { to: "/app/brand", label: "Márka létrehozva", done: Boolean(brand.name) },
-              { to: "/app/posts/new", label: "Első poszt", done: posts.length > 0 },
-              {
-                to: "/app/channels",
-                label: "Facebook / Instagram kapcsolása",
-                done: connectionCount > 0,
-              },
-              { to: "/app/campaigns", label: "Első kampány", done: campaigns.length > 0 },
-            ].map(({ to, label, done }) => (
-              <Link key={to} to={to}>
-                <span aria-label={done ? "Kész" : "Következő lépés"}>
+            {setupSteps.map(({ to, label, done }) => (
+              <Link
+                key={to}
+                to={to}
+                data-state={done ? "complete" : to === nextStep?.to ? "next" : "pending"}
+              >
+                <span
+                  aria-label={
+                    done ? "Kész" : to === nextStep?.to ? "Következő lépés" : "Még hátravan"
+                  }
+                >
                   {done ? <Check className="h-4 w-4" /> : <ArrowRight className="h-4 w-4" />}
                 </span>
                 {label}
@@ -277,7 +293,7 @@ function Dashboard() {
             to: "/app/analytics",
             icon: Lightbulb,
             title: "Eredmények",
-            sub: "A ténylegesen beérkezett teljesítményadatok.",
+            sub: "Itt látod a posztjaid elérését, amint mérési adat érkezik.",
           },
         ].map(({ to, icon: Icon, title, sub }) => (
           <Link key={title} to={to} className="owner-tool">
@@ -371,9 +387,14 @@ function QuickCreator({ brandName, businessType }: { brandName: string; business
         <span>
           <strong>{businessTypeLabel(businessType)}</strong> · a mentett vállalkozásodra szabva
         </span>
-        <Link to="/app/brand" hash="business-type">
-          Típus módosítása <ArrowRight className="h-3.5 w-3.5" />
-        </Link>
+        <div className="flex flex-wrap gap-x-4 gap-y-2">
+          <Link to="/app/brand">
+            Márkaprofil szerkesztése <ArrowRight className="h-3.5 w-3.5" />
+          </Link>
+          <Link to="/app/brand" hash="business-type">
+            Típus módosítása <ArrowRight className="h-3.5 w-3.5" />
+          </Link>
+        </div>
       </div>
     </section>
   );
