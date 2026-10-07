@@ -73,16 +73,32 @@ export function SocialPreview({
   const canPage = !compact && firstAsset?.mimeType.startsWith("image/") && images.length > 1;
   const page = Math.min(imagePage, Math.max(0, images.length - 1));
   const asset = canPage ? images[page] : firstAsset;
-  if (!active)
+  if (!active) {
+    const platform = selectedPlatform ?? "facebook";
     return (
-      <div className="social-preview-empty">
-        <ImageIcon className="h-8 w-8" />
-        <strong>Itt lesz látható a posztod.</strong>
-        <p>
-          Írd le az ötletedet. A kész szöveget és a kiválasztott képet csatornánként ellenőrizheted.
-        </p>
+      <div className="social-preview">
+        <div className="social-preview-post" data-platform={platform}>
+          <div className="social-preview-account">
+            <span className="social-preview-avatar">{brandName.slice(0, 1).toUpperCase()}</span>
+            <span>
+              <strong>{brandName}</strong>
+              <small>{SOCIAL_LABELS[platform]} · Előnézet</small>
+            </span>
+          </div>
+          <div className="social-preview-skeleton" aria-hidden="true">
+            <ImageIcon className="h-8 w-8" />
+            <span />
+            <span />
+            <span />
+          </div>
+          <div className="social-preview-caption">
+            <strong>A kész posztod előnézete</strong>
+            <p>Írd le az ötletedet, és készíts szöveget a kijelölt csatornákra.</p>
+          </div>
+        </div>
       </div>
     );
+  }
   const text = postCopyText(active);
   const shortVideo = active.platform === "tiktok" || active.platform === "youtube";
   const imageFirst = active.platform === "instagram" || shortVideo;

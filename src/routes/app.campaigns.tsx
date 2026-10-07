@@ -139,7 +139,7 @@ function Campaigns() {
   return (
     <div className="space-y-8">
       <PageHeader
-        title={mode === "weekly" ? "Heti marketing" : "Kampányok"}
+        title={mode === "weekly" ? "Egyhetes kampány" : "Kampányok"}
         sub="Egy rövid kérésből heti tartalomcsomag vagy részletes 30 napos kampány."
         action={
           mode === "weekly" ? (
@@ -153,7 +153,7 @@ function Campaigns() {
               <Link to="/app/campaigns" search={{ mode: "weekly" }}>
                 <Button variant="outline" className="rounded-full">
                   <Sparkles className="mr-1 h-4 w-4" />
-                  Heti marketing
+                  Egyhetes kampány
                 </Button>
               </Link>
               <Button className="rounded-full" onClick={() => setShowForm((value) => !value)}>
@@ -174,129 +174,150 @@ function Campaigns() {
             <div>
               <h2 className="text-xl font-semibold">Új kampány és AI marketingterv</h2>
               <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-                A briefből valódi kampányrekord és szerkeszthető tervtételek születnek. Kész
-                posztokat csak külön indítunk.
+                Az ajánlatodból elkészül a kampány és a 30 napos terv. A posztokat a tervből, külön
+                kérheted le.
               </p>
             </div>
           </div>
           <form onSubmit={submit} className="space-y-5">
             <div className="grid gap-4 md:grid-cols-2">
               <div>
-                <Label>Kampány neve</Label>
+                <Label htmlFor="campaign-name">Kampány neve</Label>
                 <Input
                   className="mt-2"
                   required
+                  id="campaign-name"
                   value={form.name}
                   onChange={(event) => update("name", event.target.value)}
                   placeholder="Pl. tavaszi ajánlat"
                 />
               </div>
               <div>
-                <Label>Kampány célja</Label>
+                <Label htmlFor="campaign-objective">Kampány célja</Label>
                 <Input
                   className="mt-2"
                   required
+                  id="campaign-objective"
                   value={form.objective}
                   onChange={(event) => update("objective", event.target.value)}
                   placeholder="Pl. érdeklődőszerzés"
                 />
               </div>
               <div>
-                <Label>Célközönség</Label>
+                <Label htmlFor="campaign-offer">Ajánlat</Label>
                 <Textarea
-                  className="mt-2 min-h-24"
-                  value={form.audience}
-                  onChange={(event) => update("audience", event.target.value)}
-                  placeholder="Az aktív márka közönsége alapértelmezett."
-                />
-              </div>
-              <div>
-                <Label>Ajánlat</Label>
-                <Textarea
+                  id="campaign-offer"
+                  required
                   className="mt-2 min-h-24"
                   value={form.offer}
                   onChange={(event) => update("offer", event.target.value)}
                   placeholder="Mit szeretnél kommunikálni?"
                 />
               </div>
-              <div>
-                <Label>Leírás / brief</Label>
-                <Textarea
-                  className="mt-2 min-h-24"
-                  value={form.description}
-                  onChange={(event) => update("description", event.target.value)}
-                  placeholder="További kampánykontekstus…"
-                />
-              </div>
-              <div>
-                <Label>Sikerfeltétel</Label>
-                <Textarea
-                  className="mt-2 min-h-24"
-                  value={form.successCriteria}
-                  onChange={(event) => update("successCriteria", event.target.value)}
-                  placeholder="Pl. több ajánlatkérés"
-                />
-              </div>
             </div>
-            <div className="grid gap-4 md:grid-cols-3">
-              <div>
-                <Label>Kezdés</Label>
-                <Input
-                  type="date"
-                  className="mt-2"
-                  value={form.startDate}
-                  onChange={(event) => update("startDate", event.target.value)}
-                />
+            <p className="text-sm text-muted-foreground">
+              {form.startDate} – {form.endDate} ·{" "}
+              {form.channels
+                .map((id) => CHANNELS.find((channel) => channel.id === id)?.label)
+                .join(", ") || "Válassz csatornát a részleteknél."}
+              . A mentett márkaprofilodat automatikusan használjuk.
+            </p>
+            <details className="workspace-details">
+              <summary>Részletek — opcionális</summary>
+              <div className="mt-4 grid gap-4 md:grid-cols-2">
+                <div>
+                  <Label>Célközönség</Label>
+                  <Textarea
+                    className="mt-2 min-h-24"
+                    value={form.audience}
+                    onChange={(event) => update("audience", event.target.value)}
+                    placeholder="Az aktív márka közönsége alapértelmezett."
+                  />
+                </div>
+                <div>
+                  <Label>Leírás / brief</Label>
+                  <Textarea
+                    className="mt-2 min-h-24"
+                    value={form.description}
+                    onChange={(event) => update("description", event.target.value)}
+                    placeholder="További kampánykontekstus…"
+                  />
+                </div>
+                <div>
+                  <Label>Sikerfeltétel</Label>
+                  <Textarea
+                    className="mt-2 min-h-24"
+                    value={form.successCriteria}
+                    onChange={(event) => update("successCriteria", event.target.value)}
+                    placeholder="Pl. több ajánlatkérés"
+                  />
+                </div>
+              </div>
+              <div className="grid gap-4 md:grid-cols-3">
+                <div>
+                  <Label>Kezdés</Label>
+                  <Input
+                    type="date"
+                    className="mt-2"
+                    value={form.startDate}
+                    onChange={(event) => update("startDate", event.target.value)}
+                  />
+                </div>
+                <div>
+                  <Label>Befejezés</Label>
+                  <Input
+                    type="date"
+                    className="mt-2"
+                    value={form.endDate}
+                    onChange={(event) => update("endDate", event.target.value)}
+                  />
+                </div>
+                <div>
+                  <Label>Tervezett költségkeret (RON, opcionális)</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    className="mt-2"
+                    value={form.budget}
+                    onChange={(event) => update("budget", event.target.value)}
+                    placeholder="0"
+                  />
+                </div>
               </div>
               <div>
-                <Label>Befejezés</Label>
-                <Input
-                  type="date"
-                  className="mt-2"
-                  value={form.endDate}
-                  onChange={(event) => update("endDate", event.target.value)}
-                />
-              </div>
-              <div>
-                <Label>Költségkeret (opcionális)</Label>
-                <Input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  className="mt-2"
-                  value={form.budget}
-                  onChange={(event) => update("budget", event.target.value)}
-                  placeholder="0"
-                />
-              </div>
-            </div>
-            <div>
-              <Label>Csatornák</Label>
-              <div className="mt-2 flex flex-wrap gap-2">
-                {CHANNELS.map((channel) => (
-                  <button type="button" key={channel.id} onClick={() => toggleChannel(channel.id)}>
-                    <Badge
-                      variant={form.channels.includes(channel.id) ? "default" : "outline"}
-                      className="rounded-full"
+                <Label>Csatornák</Label>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {CHANNELS.map((channel) => (
+                    <button
+                      type="button"
+                      key={channel.id}
+                      aria-pressed={form.channels.includes(channel.id)}
+                      onClick={() => toggleChannel(channel.id)}
                     >
-                      {channel.label}
-                    </Badge>
-                  </button>
-                ))}
+                      <Badge
+                        variant={form.channels.includes(channel.id) ? "default" : "outline"}
+                        className="rounded-full"
+                      >
+                        {channel.label}
+                      </Badge>
+                    </button>
+                  ))}
+                </div>
+                <p className="mt-2 text-xs text-muted-foreground">
+                  A terv csak a kiválasztott csatornákra készít tételeket.
+                </p>
               </div>
-              <p className="mt-2 text-xs text-muted-foreground">
-                A terv csak a kiválasztott csatornákra készít tételeket.
-              </p>
-            </div>
-            <div>
-              <Label>CTA</Label>
-              <Input
-                className="mt-2"
-                value={form.cta}
-                onChange={(event) => update("cta", event.target.value)}
-                placeholder={brand.profile.ctaStyle}
-              />
-            </div>
+              <div>
+                <Label>Cselekvésre hívás (opcionális)</Label>
+                <Input
+                  className="mt-2"
+                  value={form.cta}
+                  onChange={(event) => update("cta", event.target.value)}
+                  placeholder="Pl. Foglalj most, vagy írj nekünk!"
+                />
+              </div>
+            </details>
             <div className="flex justify-end">
               <Button
                 type="submit"
@@ -308,7 +329,7 @@ function Campaigns() {
                 ) : (
                   <Sparkles className="mr-1 h-4 w-4" />
                 )}
-                {pending ? "AI-terv készül…" : "Kampány + 30 napos terv készítése"}
+                {pending ? "AI-terv készül…" : "Kampányterv készítése"}
               </Button>
             </div>
           </form>

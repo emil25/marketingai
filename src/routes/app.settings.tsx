@@ -66,6 +66,43 @@ function SettingsPage() {
           </Link>
         }
       />
+      <section
+        className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3"
+        aria-label="Vállalkozás és munkatér beállításai"
+      >
+        {[
+          {
+            to: "/app/brand",
+            title: "Vállalkozás és márkahang",
+            text: "Profil, vállalkozástípus és Brand Voice.",
+          },
+          {
+            to: "/app/channels",
+            title: "Csatornák",
+            text: "Facebook, Instagram és a kapcsolataid.",
+          },
+          {
+            to: "/app/analytics",
+            title: "Eredmények",
+            text: "Valódi teljesítményadatok, ha rendelkezésre állnak.",
+          },
+          {
+            to: "/app/recommendations",
+            title: "AI ajánlások",
+            text: "A márkádhoz tartozó következő lépések.",
+          },
+          {
+            to: "/app/subscription",
+            title: "Előfizetés",
+            text: "A csomagod és a használati korlátok.",
+          },
+        ].map(({ to, title, text }) => (
+          <Link key={to} to={to} className="rounded-2xl border bg-card p-5">
+            <strong>{title}</strong>
+            <p className="mt-2 text-sm text-muted-foreground">{text}</p>
+          </Link>
+        ))}
+      </section>
       <section className="max-w-5xl">
         <div className="mb-5 flex items-start gap-3">
           <div className="grid h-10 w-10 place-items-center rounded-2xl bg-brand-soft text-brand">

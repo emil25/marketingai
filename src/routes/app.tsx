@@ -8,13 +8,9 @@ import { getChannelConnections } from "@/lib/channel.functions";
 import { activeBrandRecords, connectedChannelCount } from "@/lib/dashboard";
 import {
   LayoutDashboard,
-  Calendar,
   Sparkles,
   Image as ImageIcon,
-  WandSparkles,
-  BarChart3,
   Plus,
-  Radio,
   Megaphone,
   Search,
   Settings,
@@ -22,13 +18,19 @@ import {
   ChevronDown,
   Menu,
   X,
-  ListChecks,
   FileText,
-  Lightbulb,
   Wallet,
   ShieldCheck,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
 import "@/workspace.css";
 
 export const Route = createFileRoute("/app")({
@@ -65,47 +67,65 @@ type NavItem = {
 const NAV_GROUPS: Array<{ label: string; items: NavItem[] }> = [
   {
     label: "MUNKATÉR",
-    items: [{ to: "/app", label: "Áttekintés", icon: LayoutDashboard, exact: true }],
-  },
-  {
-    label: "TARTALOM",
     items: [
+      { to: "/app", label: "Áttekintés", icon: LayoutDashboard, exact: true },
       {
         to: "/app/posts/$id",
         params: { id: "new" },
         label: "Posztkészítő",
         icon: Sparkles,
-        activePrefixes: ["/app/posts/"],
+        activePrefixes: ["/app/posts/", "/app/ideas"],
       },
       { to: "/app/posts", label: "Posztok", icon: FileText, exact: true },
-      { to: "/app/media", label: "Médiatár", icon: ImageIcon },
-    ],
-  },
-  {
-    label: "TERVEZÉS",
-    items: [
-      { to: "/app/campaigns", label: "Kampányok", icon: Megaphone },
-      { to: "/app/planner", label: "30 napos terv", icon: ListChecks },
-      { to: "/app/calendar", label: "Naptár", icon: Calendar },
-    ],
-  },
-  {
-    label: "MÁRKA & AI",
-    items: [
-      { to: "/app/brand", label: "Márka AI", icon: WandSparkles },
-      { to: "/app/images", label: "AI képek", icon: ImageIcon },
-      { to: "/app/ideas", label: "Tartalomötletek", icon: Lightbulb },
-      { to: "/app/recommendations", label: "AI ajánlások", icon: Lightbulb },
-      { to: "/app/analytics", label: "Eredmények", icon: BarChart3 },
       {
-        to: "/app/channels",
-        label: "Csatornák",
-        icon: Radio,
-        activePrefixes: ["/app/channels", "/app/content"],
+        to: "/app/campaigns",
+        label: "Kampányok",
+        icon: Megaphone,
+        activePrefixes: ["/app/campaigns", "/app/planner", "/app/calendar"],
+      },
+      {
+        to: "/app/media",
+        label: "Médiatár",
+        icon: ImageIcon,
+        activePrefixes: ["/app/media", "/app/images"],
       },
     ],
   },
 ];
+
+function SectionNavigation({ path }: { path: string }) {
+  const links = /^\/app\/(campaigns|planner|calendar)(\/|$)/.test(path)
+    ? [
+        { to: "/app/campaigns", label: "Kampányok" },
+        { to: "/app/planner", label: "30 napos terv" },
+        { to: "/app/calendar", label: "Naptár" },
+      ]
+    : /^\/app\/(media|images)(\/|$)/.test(path)
+      ? [
+          { to: "/app/media", label: "Médiatár" },
+          { to: "/app/images", label: "AI képgenerálás" },
+        ]
+      : /^\/app\/(posts\/|ideas)/.test(path)
+        ? [
+            { to: "/app/posts/new", label: "Posztkészítő" },
+            { to: "/app/ideas", label: "Tartalomötletek" },
+          ]
+        : [];
+  if (!links.length) return null;
+  return (
+    <nav className="workspace-section-nav" aria-label="Kapcsolódó funkciók">
+      {links.map(({ to, label }) => (
+        <Link
+          key={to}
+          to={to}
+          aria-current={path === to || path.startsWith(to + "/") ? "page" : undefined}
+        >
+          {label}
+        </Link>
+      ))}
+    </nav>
+  );
+}
 
 function AppLayout() {
   const auth = Route.useLoaderData();
@@ -211,7 +231,6 @@ function AppLayout() {
                 <Settings className="h-4 w-4" />
                 Beállítások
               </Link>
-              <LogoutButton />
             </div>
           </div>
         </aside>
@@ -224,8 +243,7 @@ function AppLayout() {
                   <>
                     <p className="reference-eyebrow">A TE MARKETINGKÖZPONTOD</p>
                     <h2 className="reference-greeting">
-                      Szia, {auth.user.displayName.split(" ")[0]}!{" "}
-                      <span className="workspace-greeting-dot" />
+                      Szia, {auth.user.displayName.split(" ")[0]}!
                     </h2>
                     <p className="reference-greeting-sub">
                       Egy jó ötletből legyen következő lépés.
@@ -263,62 +281,50 @@ function AppLayout() {
                   <Search className="h-4 w-4" />
                   <span>Posztok keresése</span>
                 </Link>
-                <Button
-                  asChild
-                  size="icon"
-                  variant="outline"
-                  className="reference-icon-button hidden rounded-xl md:inline-flex"
-                >
-                  <Link to="/app/settings" aria-label="Beállítások" title="Beállítások">
-                    <Settings className="h-4 w-4" />
+                {path !== "/app/posts/new" && (
+                  <Link to="/app/posts/$id" params={{ id: "new" }}>
+                    <Button size="sm" className="reference-new-post rounded-xl">
+                      <Plus className="mr-1 h-4 w-4" />
+                      Új poszt
+                    </Button>
                   </Link>
-                </Button>
-                <Button
-                  asChild
-                  size="icon"
-                  variant="outline"
-                  className="reference-icon-button hidden rounded-xl md:inline-flex"
-                >
-                  <Link
-                    to="/app/brand"
-                    aria-label="Brand Voice beállítások"
-                    title="Brand Voice beállítások"
-                  >
-                    <WandSparkles className="h-4 w-4" />
-                  </Link>
-                </Button>
-                <Link
-                  to="/app/brand"
-                  className="reference-header-profile hidden items-center gap-2 lg:flex"
-                  aria-label="Aktív márka beállításai"
-                >
-                  <span className="reference-header-avatar">
-                    {auth.user.displayName.slice(0, 1).toUpperCase()}
-                  </span>
-                  <span>
-                    <strong className="block text-sm">{auth.user.displayName.split(" ")[0]}</strong>
-                    <small className="block text-[11px] text-muted-foreground">
-                      {auth.activeBrand?.name ?? auth.workspace.name}
-                    </small>
-                  </span>
-                  <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                </Link>
-                <Link to="/app/posts/$id" params={{ id: "new" }}>
-                  <Button size="sm" className="reference-new-post rounded-xl">
-                    <Plus className="mr-1 h-4 w-4" />
-                    Új poszt
-                  </Button>
-                </Link>
-                <Button asChild size="sm" variant="outline">
-                  <Link to="/" title="Nyilvános főoldal">
-                    Főoldal
-                  </Link>
-                </Button>
-                <LogoutButton header />
+                )}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" className="gap-2" aria-label="Fiók és beállítások">
+                      <span className="reference-header-avatar">
+                        {auth.user.displayName.slice(0, 1).toUpperCase()}
+                      </span>
+                      <span className="hidden lg:inline">
+                        {auth.user.displayName.split(" ")[0]}
+                      </span>
+                      <ChevronDown className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="min-w-56">
+                    <DropdownMenuLabel>{auth.user.displayName}</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    {[
+                      { to: "/app/brand", label: "Vállalkozás és márkahang" },
+                      { to: "/app/channels", label: "Csatornák" },
+                      { to: "/app/analytics", label: "Eredmények" },
+                      { to: "/app/recommendations", label: "AI ajánlások" },
+                      { to: "/app/settings", label: "Beállítások" },
+                      { to: "/", label: "Nyilvános főoldal" },
+                    ].map(({ to, label }) => (
+                      <DropdownMenuItem asChild key={to}>
+                        <Link to={to}>{label}</Link>
+                      </DropdownMenuItem>
+                    ))}
+                    <DropdownMenuSeparator />
+                    <LogoutButton header />
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
             </div>
           </header>
           <div className="reference-main p-4 pb-20 md:px-9 md:pb-10">
+            <SectionNavigation path={path} />
             <Outlet />
           </div>
         </main>
@@ -350,6 +356,19 @@ function LogoutButton({ header = false }: { header?: boolean }) {
       setBusy(false);
     }
   }
+  if (header)
+    return (
+      <DropdownMenuItem
+        disabled={busy}
+        onSelect={(event) => {
+          event.preventDefault();
+          void handleLogout();
+        }}
+      >
+        <LogOut className="mr-2 h-4 w-4" />
+        {busy ? "Kilépés…" : "Kijelentkezés"}
+      </DropdownMenuItem>
+    );
   return (
     <Button
       size="sm"
@@ -494,8 +513,18 @@ function MobileNav({
       activePrefixes: ["/app/posts/"],
     },
     { to: "/app/posts", label: "Posztok", icon: LayoutDashboard, exact: true },
-    { to: "/app/calendar", label: "Naptár", icon: Calendar },
-    { to: "/app/brand", label: "Márka", icon: WandSparkles },
+    {
+      to: "/app/campaigns",
+      label: "Kampányok",
+      icon: Megaphone,
+      activePrefixes: ["/app/campaigns", "/app/calendar", "/app/planner"],
+    },
+    {
+      to: "/app/media",
+      label: "Média",
+      icon: ImageIcon,
+      activePrefixes: ["/app/media", "/app/images"],
+    },
   ];
   return (
     <nav

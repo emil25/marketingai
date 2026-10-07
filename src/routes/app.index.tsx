@@ -89,7 +89,9 @@ function Dashboard() {
   const data = Route.useLoaderData();
   const brand = data.workspace.activeBrand;
   const now = new Date();
-  const posts = activeBrandRecords(data.posts, data.workspace.workspace.id, brand?.id);
+  const posts = activeBrandRecords(data.posts, data.workspace.workspace.id, brand?.id).filter(
+    (post) => post.variants.some((variant) => variant.content.trim()) || post.media.length > 0,
+  );
   const media = activeBrandRecords(data.media, data.workspace.workspace.id, brand?.id);
   const campaigns = activeBrandRecords(data.campaigns, data.workspace.workspace.id, brand?.id);
   const channels = activeBrandRecords(data.channels, data.workspace.workspace.id, brand?.id);
@@ -131,85 +133,114 @@ function Dashboard() {
   return (
     <div className="owner-dashboard">
       <QuickCreator brandName={brand.name} businessType={brand.profile.businessType} />
-      <section className="owner-stats" aria-label="A vállalkozásod valódi adatai">
-        <Stat
-          icon={FileText}
-          title="Mentett posztok"
-          value={posts.length}
-          detail="Az aktív vállalkozásod tartalmai"
-          to="/app/posts"
-        />
-        <Stat
-          icon={WandSparkles}
-          title="Piszkozatok"
-          value={posts.filter((post) => post.status === "draft").length}
-          detail="Folytasd a szerkesztést"
-          to="/app/posts"
-        />
-        <Stat
-          icon={CalendarDays}
-          title="Heti terv"
-          value={weekly.length}
-          detail={`${ready.length} posztszöveg elkészült`}
-          to="/app/planner"
-        />
-        <Stat
-          icon={Radio}
-          title="Kapcsolt csatornák"
-          value={connectionCount}
-          detail="Ellenőrzött külső kapcsolatok"
-          to="/app/channels"
-        />
-      </section>
-      <div className="owner-week-layout">
-        <WeeklyRhythm items={weekly} posts={posts} ready={ready.length} />
-        <NextAction
-          hasProfile={Boolean(
-            brand.audience && (brand.products || brand.services || brand.profile.description),
-          )}
-          hasPost={posts.some((post) => post.variants.some((variant) => variant.content.trim()))}
-          items={weekly}
-          posts={posts}
-        />
-      </div>
-      <section className="owner-panel owner-recent">
-        <SectionHead
-          title="Legutóbbi posztjaid"
-          sub="A mentett szövegek és képek. Innen folytathatod a szerkesztést."
-          to="/app/posts"
-          action="Összes poszt"
-        />
-        {recent.length ? (
-          <div className="owner-post-grid">
-            {recent.map((post) => (
-              <article key={post.id} className="owner-post-card">
-                <div className="owner-post-heading">
-                  <h3>{post.title}</h3>
-                  <Badge variant="secondary">{STATUS_LABELS[post.status] ?? post.status}</Badge>
-                </div>
-                <SocialPreview
-                  compact
-                  brandName={brand.name}
-                  variants={post.variants}
-                  media={post.media}
-                />
-                <Link to="/app/posts/$id" params={{ id: post.id }} className="owner-card-link">
-                  Szerkesztés és előnézet <ArrowRight className="h-4 w-4" />
-                </Link>
-              </article>
+      {(!posts.length || !campaigns.length || !connectionCount) && (
+        <section className="owner-panel owner-setup" aria-label="Kezdő lépések">
+          <h2 className="text-xl font-semibold">Így indulj el</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            A márkád megvan. A következő lépést te választod.
+          </p>
+          <div className="owner-setup-links">
+            {[
+              { to: "/app/brand", label: "Márka létrehozva", done: Boolean(brand.name) },
+              { to: "/app/posts/new", label: "Első poszt", done: posts.length > 0 },
+              { to: "/app/channels", label: "Csatorna csatlakoztatása", done: connectionCount > 0 },
+              { to: "/app/campaigns", label: "Első kampány", done: campaigns.length > 0 },
+            ].map(({ to, label, done }) => (
+              <Link key={to} to={to}>
+                <span aria-label={done ? "Kész" : "Következő lépés"}>
+                  {done ? <Check className="h-4 w-4" /> : <ArrowRight className="h-4 w-4" />}
+                </span>
+                {label}
+              </Link>
             ))}
           </div>
-        ) : (
-          <Empty
+        </section>
+      )}
+      {(posts.length > 0 || weekly.length > 0 || connectionCount > 0) && (
+        <section className="owner-stats" aria-label="A vállalkozásod valódi adatai">
+          <Stat
             icon={FileText}
-            title="Az első posztod itt fog megjelenni."
-            text="Válassz fent egy ötletet, vagy írd le saját szavaiddal, mit szeretnél megosztani."
-            to="/app/posts/new"
-            action="Első poszt készítése"
+            title="Ütemezett / közzétett"
+            value={posts.filter((post) => ["scheduled", "published"].includes(post.status)).length}
+            detail="Időzített és közzétett tartalmak"
+            to="/app/posts"
           />
-        )}
-      </section>
-      <Campaigns campaigns={activeCampaigns} />
+          <Stat
+            icon={WandSparkles}
+            title="Piszkozatok"
+            value={posts.filter((post) => post.status === "draft").length}
+            detail="Folytasd a szerkesztést"
+            to="/app/posts"
+          />
+          <Stat
+            icon={CalendarDays}
+            title="Heti terv"
+            value={weekly.length}
+            detail={`${ready.length} posztszöveg elkészült`}
+            to="/app/planner"
+          />
+          <Stat
+            icon={Radio}
+            title="Kapcsolt csatornák"
+            value={connectionCount}
+            detail="Ellenőrzött külső kapcsolatok"
+            to="/app/channels"
+          />
+        </section>
+      )}
+      {weekly.length > 0 && (
+        <div className="owner-week-layout">
+          <WeeklyRhythm items={weekly} posts={posts} ready={ready.length} />
+          <NextAction
+            hasProfile={Boolean(
+              brand.audience && (brand.products || brand.services || brand.profile.description),
+            )}
+            hasPost={posts.some((post) => post.variants.some((variant) => variant.content.trim()))}
+            items={weekly}
+            posts={posts}
+          />
+        </div>
+      )}
+      {recent.length > 0 && (
+        <section className="owner-panel owner-recent">
+          <SectionHead
+            title="Legutóbbi posztjaid"
+            sub="A mentett szövegek és képek. Innen folytathatod a szerkesztést."
+            to="/app/posts"
+            action="Összes poszt"
+          />
+          {recent.length ? (
+            <div className="owner-post-grid">
+              {recent.map((post) => (
+                <article key={post.id} className="owner-post-card">
+                  <div className="owner-post-heading">
+                    <h3>{post.title}</h3>
+                    <Badge variant="secondary">{STATUS_LABELS[post.status] ?? post.status}</Badge>
+                  </div>
+                  <SocialPreview
+                    compact
+                    brandName={brand.name}
+                    variants={post.variants}
+                    media={post.media}
+                  />
+                  <Link to="/app/posts/$id" params={{ id: post.id }} className="owner-card-link">
+                    Szerkesztés és előnézet <ArrowRight className="h-4 w-4" />
+                  </Link>
+                </article>
+              ))}
+            </div>
+          ) : (
+            <Empty
+              icon={FileText}
+              title="Az első posztod itt fog megjelenni."
+              text="Válassz fent egy ötletet, vagy írd le saját szavaiddal, mit szeretnél megosztani."
+              to="/app/posts/new"
+              action="Első poszt készítése"
+            />
+          )}
+        </section>
+      )}
+      {activeCampaigns.length > 0 && <Campaigns campaigns={activeCampaigns} />}
       <section className="owner-tools" aria-label="További marketingeszközök">
         {[
           {

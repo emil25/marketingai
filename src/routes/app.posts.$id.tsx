@@ -27,7 +27,7 @@ import { PostCreativeComposer } from "@/components/post-creative-composer";
 import { PlatformMark, SocialPreview } from "@/components/social-preview";
 import { getWorkspace, setBrandBusinessType } from "@/lib/workspace.functions";
 import { PostBusinessTypePicker } from "@/components/business-type-picker";
-import { normalizeBusinessType } from "@/lib/business-types";
+import { businessTypeQuickStarts, normalizeBusinessType } from "@/lib/business-types";
 import {
   getPost,
   createPostDraft,
@@ -302,14 +302,21 @@ function PostEditor() {
   const activeBrand = brand;
 
   async function chooseBusinessType(value: string) {
-    if (businessTypeSaving || generating || value === normalizeBusinessType(activeBrand.profile.businessType)) return;
+    if (
+      businessTypeSaving ||
+      generating ||
+      value === normalizeBusinessType(activeBrand.profile.businessType)
+    )
+      return;
     setBusinessTypeSaving(true);
     try {
       await saveBusinessType({ data: { brandId: activeBrand.id, businessType: value } });
       await router.invalidate();
       toast.success("A vállalkozástípus mentve a márkádhoz.");
     } catch (cause) {
-      toast.error(cause instanceof Error ? cause.message : "A vállalkozástípus mentése sikertelen.");
+      toast.error(
+        cause instanceof Error ? cause.message : "A vállalkozástípus mentése sikertelen.",
+      );
     } finally {
       setBusinessTypeSaving(false);
     }
@@ -391,6 +398,15 @@ function PostEditor() {
       publicationInFlight.current
     )
       return false;
+    if (
+      !data.post &&
+      !form.topic.trim() &&
+      !variants.some((variant) => variant.content.trim()) &&
+      !form.mediaAssetIds.length
+    ) {
+      toast.error("Írd le az ötletedet, mielőtt piszkozatot mentesz.");
+      return false;
+    }
     setSaving(true);
     try {
       const values = schedule ? { ...form, ...schedule, status: "scheduled" as const } : form;
@@ -747,12 +763,6 @@ function PostEditor() {
             )}
             {(simpleMode || step === 3) && (
               <div className="space-y-6">
-                {!data.post && <PostBusinessTypePicker
-                  value={brand.profile.businessType}
-                  disabled={businessTypeSaving || generating || saving || creativeBusy}
-                  onChange={(value) => void chooseBusinessType(value)}
-                  onTopic={(topic) => setForm((current) => ({ ...current, topic, title: current.title || topic }))}
-                />}
                 <StepContent
                   form={form}
                   update={update}
@@ -786,6 +796,7 @@ function PostEditor() {
                   extrasBusy={extrasBusy}
                   quick={simpleMode}
                   onTogglePlatform={togglePlatform}
+                  briefPlaceholder={`Például: ${brand.name} — ${businessTypeQuickStarts(brand.profile.businessType)[0]}. Írd le az ajánlatot, az időpontot és a fontos részleteket.`}
                   contextLabel={`${brand.name} · ${form.language} · ${form.tone}`}
                   publication={data.publication}
                   publishingPlatform={publishingPlatform}
@@ -803,6 +814,18 @@ function PostEditor() {
                   )}
                   onPublish={(platform, attemptId) => void handlePublish(platform, attemptId)}
                 />
+                {!data.post && (
+                  <OptionalSection title="Vállalkozástípus módosítása — opcionális">
+                    <PostBusinessTypePicker
+                      value={brand.profile.businessType}
+                      disabled={businessTypeSaving || generating || saving || creativeBusy}
+                      onChange={(value) => void chooseBusinessType(value)}
+                      onTopic={(topic) =>
+                        setForm((current) => ({ ...current, topic, title: current.title || topic }))
+                      }
+                    />
+                  </OptionalSection>
+                )}
                 {simpleMode && (
                   <OptionalSection title="Márkaadatok, cél és kampány — opcionális">
                     <div className="space-y-6">
@@ -821,50 +844,55 @@ function PostEditor() {
                     </div>
                   </OptionalSection>
                 )}
-                <PostCreativeComposer
-                  postId={data.post?.post.id}
-                  brand={activeBrand}
-                  title={form.title || form.topic}
-                  content={
-                    variants.find((variant) => variant.platform === "instagram")
-                      ? postCopyText(variants.find((variant) => variant.platform === "instagram")!)
-                      : variants[0]
-                        ? postCopyText(variants[0])
-                        : form.topic
-                  }
-                  assets={activeMedia}
-                  locked={
-                    saving ||
-                    generating ||
-                    extrasBusy !== null ||
-                    imageBusy ||
-                    publishingPlatform !== null ||
-                    form.status === "published"
-                  }
-                  onPrepare={saveDraft}
-                  onBusyChange={setCreativeBusy}
-                  onSaved={async (result) => {
-                    if (!data.post) return;
-                    const snapshot = await loadPost({ data: { postId: data.post.post.id } });
-                    if (!snapshot) throw new Error("A mentett poszt nem tölthető be.");
-                    if (result.mediaAssetIds.length) update("mediaAssetIds", result.mediaAssetIds);
-                    const instagram = snapshot.variants.find(
-                      (variant) => variant.platform === "instagram",
-                    );
-                    if (instagram) {
-                      setVariants((current) => [
-                        ...current.filter((variant) => variant.platform !== "instagram"),
-                        instagram,
-                      ]);
-                      setSelectedPlatform("instagram");
-                      setForm((current) => ({
-                        ...current,
-                        platforms: [...new Set([...current.platforms, "instagram" as const])],
-                      }));
+                <OptionalSection title="Képposzt és carousel — opcionális">
+                  <PostCreativeComposer
+                    postId={data.post?.post.id}
+                    brand={activeBrand}
+                    title={form.title || form.topic}
+                    content={
+                      variants.find((variant) => variant.platform === "instagram")
+                        ? postCopyText(
+                            variants.find((variant) => variant.platform === "instagram")!,
+                          )
+                        : variants[0]
+                          ? postCopyText(variants[0])
+                          : form.topic
                     }
-                    await router.invalidate();
-                  }}
-                />
+                    assets={activeMedia}
+                    locked={
+                      saving ||
+                      generating ||
+                      extrasBusy !== null ||
+                      imageBusy ||
+                      publishingPlatform !== null ||
+                      form.status === "published"
+                    }
+                    onPrepare={saveDraft}
+                    onBusyChange={setCreativeBusy}
+                    onSaved={async (result) => {
+                      if (!data.post) return;
+                      const snapshot = await loadPost({ data: { postId: data.post.post.id } });
+                      if (!snapshot) throw new Error("A mentett poszt nem tölthető be.");
+                      if (result.mediaAssetIds.length)
+                        update("mediaAssetIds", result.mediaAssetIds);
+                      const instagram = snapshot.variants.find(
+                        (variant) => variant.platform === "instagram",
+                      );
+                      if (instagram) {
+                        setVariants((current) => [
+                          ...current.filter((variant) => variant.platform !== "instagram"),
+                          instagram,
+                        ]);
+                        setSelectedPlatform("instagram");
+                        setForm((current) => ({
+                          ...current,
+                          platforms: [...new Set([...current.platforms, "instagram" as const])],
+                        }));
+                      }
+                      await router.invalidate();
+                    }}
+                  />
+                </OptionalSection>
                 <OptionalSection
                   enabled={simpleMode}
                   title="Kép vagy videó hozzáadása — opcionális"
@@ -1408,6 +1436,7 @@ function StepContent({
   quick = false,
   onTogglePlatform,
   contextLabel,
+  briefPlaceholder,
   publication,
   publishingPlatform,
   actionsBusy,
@@ -1443,6 +1472,7 @@ function StepContent({
   quick?: boolean;
   onTogglePlatform: (platform: PostPlatform) => void;
   contextLabel: string;
+  briefPlaceholder: string;
   publication: SafePublicationInfo | null;
   publishingPlatform: PublishPlatform | null;
   actionsBusy: boolean;
@@ -1499,13 +1529,18 @@ function StepContent({
             disabled={publishingPlatform !== null}
             value={form.topic}
             onChange={(event) => update("topic", event.target.value)}
-            placeholder="Például: Hétvégén 20% kedvezményt adunk a pizzákra, péntektől vasárnapig. Hívjuk meg a környékbeli családokat!"
+            placeholder={briefPlaceholder}
             className="mt-2 min-h-28"
           />
         </div>
         {quick && (
           <fieldset>
-            <legend className="mb-2 text-sm font-medium">Melyik csatornára készüljön?</legend>
+            <legend className="mb-2 text-sm font-medium">
+              Mely csatornákra készüljön? Többet is választhatsz.
+            </legend>
+            <p className="mb-3 text-sm text-muted-foreground">
+              Minden kijelölt csatornához külön szöveget készítünk.
+            </p>
             <div className="flex flex-wrap gap-2">
               {PLATFORMS.map((platform) => (
                 <button
