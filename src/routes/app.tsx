@@ -5,10 +5,10 @@ import { toast } from "sonner";
 import { requireCurrentUser, logoutUser } from "@/lib/auth.functions";
 import { getThemePreference } from "@/lib/theme.functions";
 import { getChannelConnections } from "@/lib/channel.functions";
-import { activeBrandRecords, connectedChannelCount } from "@/lib/dashboard";
 import {
   LayoutDashboard,
-  Sparkles,
+  Store,
+  Radio,
   Image as ImageIcon,
   Plus,
   Megaphone,
@@ -69,14 +69,7 @@ const NAV_GROUPS: Array<{ label: string; items: NavItem[] }> = [
     label: "MUNKATÉR",
     items: [
       { to: "/app", label: "Áttekintés", icon: LayoutDashboard, exact: true },
-      {
-        to: "/app/posts/$id",
-        params: { id: "new" },
-        label: "Posztkészítő",
-        icon: Sparkles,
-        activePrefixes: ["/app/posts/", "/app/ideas"],
-      },
-      { to: "/app/posts", label: "Posztok", icon: FileText, exact: true },
+      { to: "/app/posts", label: "Posztok", icon: FileText },
       {
         to: "/app/campaigns",
         label: "Kampányok",
@@ -85,9 +78,21 @@ const NAV_GROUPS: Array<{ label: string; items: NavItem[] }> = [
       },
       {
         to: "/app/media",
-        label: "Médiatár",
+        label: "Média",
         icon: ImageIcon,
         activePrefixes: ["/app/media", "/app/images"],
+      },
+      {
+        to: "/app/brand",
+        label: "Márka",
+        icon: Store,
+        activePrefixes: ["/app/brand", "/app/ideas", "/app/recommendations"],
+      },
+      {
+        to: "/app/channels",
+        label: "Csatornák és eredmények",
+        icon: Radio,
+        activePrefixes: ["/app/channels", "/app/analytics", "/app/content"],
       },
     ],
   },
@@ -103,14 +108,27 @@ function SectionNavigation({ path }: { path: string }) {
     : /^\/app\/(media|images)(\/|$)/.test(path)
       ? [
           { to: "/app/media", label: "Médiatár" },
-          { to: "/app/images", label: "AI képgenerálás" },
+          { to: "/app/images", label: "Kép készítése" },
         ]
-      : /^\/app\/(posts\/|ideas)/.test(path)
+      : /^\/app\/posts(\/|$)/.test(path)
         ? [
-            { to: "/app/posts/new", label: "Posztkészítő" },
-            { to: "/app/ideas", label: "Tartalomötletek" },
+            { to: "/app/posts", label: "Mentett posztok" },
+            { to: "/app/posts/new", label: "Poszt készítése" },
+            ...(path !== "/app/posts/new" && path.startsWith("/app/posts/")
+              ? [{ to: path, label: "Poszt szerkesztése" }]
+              : []),
           ]
-        : [];
+        : /^\/app\/(brand|ideas|recommendations)(\/|$)/.test(path)
+          ? [
+              { to: "/app/brand", label: "Márkaprofil" },
+              { to: "/app/ideas", label: "Ötletek és következő lépések" },
+            ]
+          : /^\/app\/(channels|analytics|content)(\/|$)/.test(path)
+            ? [
+                { to: "/app/channels", label: "Csatornák" },
+                { to: "/app/analytics", label: "Eredmények" },
+              ]
+            : [];
   if (!links.length) return null;
   return (
     <nav className="workspace-section-nav" aria-label="Kapcsolódó funkciók">
@@ -118,7 +136,13 @@ function SectionNavigation({ path }: { path: string }) {
         <Link
           key={to}
           to={to}
-          aria-current={path === to || path.startsWith(to + "/") ? "page" : undefined}
+          aria-current={
+            path === to ||
+            (to === "/app/ideas" && path === "/app/recommendations") ||
+            (to !== "/app/posts" && path.startsWith(to + "/"))
+              ? "page"
+              : undefined
+          }
         >
           {label}
         </Link>
@@ -131,9 +155,6 @@ function AppLayout() {
   const auth = Route.useLoaderData();
   const path = useRouterState({ select: (s) => s.location.pathname });
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const connectedChannels = connectedChannelCount(
-    activeBrandRecords(auth.channels, auth.workspace.id, auth.activeBrand?.id),
-  );
   const isActive = (to: string, exact?: boolean, activePrefixes?: string[]) => {
     if (exact) return path === to;
     return (activePrefixes ?? [to]).some((prefix) =>
@@ -168,24 +189,9 @@ function AppLayout() {
               <NavSection items={group.items} isActive={isActive} />
             </div>
           ))}
-          <div className="reference-side-plan mt-auto rounded-2xl px-4 py-4 text-xs">
-            <div className="flex items-center justify-between">
-              <span className="text-sidebar-foreground/70">Csatornák</span>
-              <strong className="text-sm text-sidebar-foreground">{connectedChannels}/6</strong>
-            </div>
-            <div className="reference-side-progress mt-3">
-              <span style={{ width: `${(connectedChannels / 6) * 100}%` }} />
-            </div>
-            <Link
-              to="/app/channels"
-              className="mt-3 inline-block text-[12px] font-bold text-primary"
-            >
-              Kapcsolatok kezelése →
-            </Link>
-          </div>
           <Link
             to="/app/brand"
-            className="reference-brand-switcher mt-4 flex items-center gap-3 rounded-2xl px-3 py-3"
+            className="reference-brand-switcher mt-auto flex items-center gap-3 rounded-2xl px-3 py-3"
           >
             <span className="reference-brand-avatar">
               {(auth.activeBrand?.name ?? auth.workspace.name).slice(0, 1).toUpperCase()}
@@ -308,7 +314,7 @@ function AppLayout() {
                       { to: "/app/brand", label: "Vállalkozás és márkahang" },
                       { to: "/app/channels", label: "Csatornák" },
                       { to: "/app/analytics", label: "Eredmények" },
-                      { to: "/app/recommendations", label: "AI ajánlások" },
+                      { to: "/app/recommendations", label: "Következő lépések" },
                       { to: "/app/settings", label: "Beállítások" },
                       { to: "/", label: "Nyilvános főoldal" },
                     ].map(({ to, label }) => (
@@ -503,29 +509,7 @@ function MobileNav({
 }: {
   isActive: (to: string, exact?: boolean, activePrefixes?: string[]) => boolean;
 }) {
-  const items: NavItem[] = [
-    { to: "/app", label: "Áttekintés", icon: LayoutDashboard, exact: true },
-    {
-      to: "/app/posts/$id",
-      params: { id: "new" },
-      label: "Poszt",
-      icon: Sparkles,
-      activePrefixes: ["/app/posts/"],
-    },
-    { to: "/app/posts", label: "Posztok", icon: LayoutDashboard, exact: true },
-    {
-      to: "/app/campaigns",
-      label: "Kampányok",
-      icon: Megaphone,
-      activePrefixes: ["/app/campaigns", "/app/calendar", "/app/planner"],
-    },
-    {
-      to: "/app/media",
-      label: "Média",
-      icon: ImageIcon,
-      activePrefixes: ["/app/media", "/app/images"],
-    },
-  ];
+  const items = NAV_GROUPS[0].items.slice(0, 5);
   return (
     <nav
       aria-label="Mobil navigáció"

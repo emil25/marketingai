@@ -1932,7 +1932,7 @@
   }
 }
 
-/* Compact navigation: five work areas; advanced tools stay inside their area. */
+/* Compact navigation: six work areas; advanced tools stay inside their area. */
 .marketing-workspace.theme-marketingpilot-v2 .reference-sidebar {
   overflow-y: auto !important;
   overscroll-behavior: contain;
@@ -2015,4 +2015,17 @@
     padding-block: 9px;
     font-size: 15px;
   }
+}
+
+/* Keep the business and settings below task navigation without clipping short windows. */
+.marketing-workspace .reference-sidebar {
+  overflow-y: auto !important;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+}
+.marketing-workspace .reference-sidebar > * {
+  flex-shrink: 0;
+}
+.marketing-workspace.theme-marketingpilot-v2 .reference-brand-switcher {
+  margin-top: auto;
 }

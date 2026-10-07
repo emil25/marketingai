@@ -21,7 +21,7 @@ import {
   Instagram,
   Linkedin,
   Music2,
-  Pin,
+  Globe,
   Radio,
   Sparkles,
   RefreshCw,
@@ -29,6 +29,7 @@ import {
   Youtube,
 } from "lucide-react";
 import { toast } from "sonner";
+import { activeBrandRecords, connectedChannelCount, isChannelConnected } from "@/lib/dashboard";
 
 export const Route = createFileRoute("/app/channels")({
   validateSearch: z.object({
@@ -61,14 +62,14 @@ const CHANNELS = [
   {
     id: "facebook",
     label: "Facebook",
-    description: "Oldalak és kampánytartalmak",
+    description: "Facebook-oldalra történő közzététel, megfelelő Meta-jogosultsággal",
     icon: Facebook,
     meta: true,
   },
   {
     id: "instagram",
     label: "Instagram",
-    description: "Feed, Story és Reels",
+    description: "Professional fiók képes bejegyzései, megfelelő Meta-jogosultsággal",
     icon: Instagram,
     meta: true,
   },
@@ -88,10 +89,10 @@ const CHANNELS = [
     meta: false,
   },
   {
-    id: "pinterest",
-    label: "Pinterest",
-    description: "Pin-ek és vizuális ötletek",
-    icon: Pin,
+    id: "google-business",
+    label: "Google Cégprofil",
+    description: "Helyi ajánlatok és bejegyzésszövegek",
+    icon: Globe,
     meta: false,
   },
 ] as const;
@@ -130,7 +131,7 @@ const STATUS: Record<
 
 const NOTICE: Record<string, string> = {
   config:
-    "A Meta OAuth még nincs konfigurálva ezen a környezeten. Állítsd be a szerver .env változóit.",
+    "A Meta-kapcsolódás szolgáltatói beállítása még hiányzik. Ezt a MarketingPilot üzemeltetőjének kell rendeznie; neked nem kell technikai beállítást végezned.",
   state: "Az OAuth munkamenet érvénytelen vagy lejárt. Indítsd újra a csatlakozást.",
   cancelled: "A Meta-kapcsolást megszakítottad.",
   no_page: "Nem található kezelhető Facebook-oldal ehhez a Meta-fiókhoz.",
@@ -142,7 +143,7 @@ const NOTICE: Record<string, string> = {
 };
 
 function Channels() {
-  const { workspace, connections, selection } = Route.useLoaderData();
+  const { workspace, connections: loadedConnections, selection } = Route.useLoaderData();
   const search = Route.useSearch();
   const router = useRouter();
   const disconnect = useServerFn(disconnectChannel);
@@ -150,9 +151,10 @@ function Channels() {
   const completeSelection = useServerFn(completeChannelOAuthSelection);
   const [busyId, setBusyId] = useState<string | null>(null);
   const brand = workspace.activeBrand;
-  const connectedCount = connections.filter(
-    (connection) => connection.status === "connected",
-  ).length;
+  const connections = activeBrandRecords(loadedConnections, workspace.workspace.id, brand?.id);
+  const connectedCount = connectedChannelCount(
+    connections.filter((item) => item.provider === "facebook" || item.provider === "instagram"),
+  );
 
   async function disconnectOne(connection: SafeChannelConnection) {
     if (
@@ -210,19 +212,15 @@ function Channels() {
     }
   }
 
-  function unsupported(label: string) {
-    toast.info(`${label} OAuth-kapcsolata egy későbbi provider-fázisban készül.`);
-  }
-
   return (
     <div className="space-y-7">
       <PageHeader
         title="Csatornák"
-        sub="Kapcsold össze a valódi csatornáidat; a hozzáférési tokenek csak a szerveren maradnak."
+        sub="Közvetlen közzététel Facebookra és Instagramra; más platformokra másolható posztszövegek."
         action={
           <Badge variant="secondary" className="rounded-full">
             <Radio className="mr-1 h-3.5 w-3.5" />
-            {connectedCount} / 6 kapcsolva
+            {connectedCount} Meta-csatorna kapcsolva
           </Badge>
         }
       />
@@ -288,8 +286,8 @@ function Channels() {
             </h2>
             <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
               {brand
-                ? "A Facebook és Instagram kapcsolás a Meta hivatalos OAuth-folyamatán keresztül történik. A többi szolgáltatónál az előkészített, őszinte állapotot látod."
-                : "Előbb ments egy márkát és Brand Voice-ot, hogy a csatornakapcsolat a megfelelő munkatérhez tartozzon."}
+                ? "A Facebook és Instagram a Meta jóváhagyásával csatlakoztatható. Közvetlen publikáláshoz érvényes kapcsolat és megfelelő jogosultság kell. A többi platformra elkészített szöveget kimásolhatod és magad teheted közzé."
+                : "Előbb ments egy márkát és márkahangot, hogy a csatornakapcsolat a megfelelő munkatérhez tartozzon."}
             </p>
           </div>
           {!brand && (
@@ -303,9 +301,12 @@ function Channels() {
       <div>
         <div className="mb-4 flex items-end justify-between gap-3">
           <div>
-            <h2 className="font-display text-xl font-bold tracking-tight">Social csatornák</h2>
+            <h2 className="font-display text-xl font-bold tracking-tight">
+              Közzététel és másolható tartalmak
+            </h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              A kapcsolat állapota mindig a szerveren tárolt valós rekordból jelenik meg.
+              Csatlakoztatás csak Facebookhoz és Instagramhoz érhető el. A többi platformnál nincs
+              automatikus közzététel.
             </p>
           </div>
           <Link
@@ -319,8 +320,21 @@ function Channels() {
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {CHANNELS.map((channel) => {
             const Icon = channel.icon;
-            const connection = connections.find((candidate) => candidate.provider === channel.id);
-            const state = STATUS[connection?.status ?? "not_connected"];
+            const connection = channel.meta
+              ? connections.find((candidate) => candidate.provider === channel.id)
+              : undefined;
+            const connected = isChannelConnected(connection);
+            const state = channel.meta
+              ? STATUS[
+                  connection?.status === "connected" && !connected
+                    ? "expired"
+                    : (connection?.status ?? "not_connected")
+                ]
+              : {
+                  label: "Szöveg másolható",
+                  className: "bg-muted text-muted-foreground",
+                  action: "Poszt készítése",
+                };
             const isBusy = busyId === connection?.id;
             return (
               <Card
@@ -340,7 +354,7 @@ function Channels() {
                 </div>
                 <h3 className="mt-5 font-semibold">{channel.label}</h3>
                 <p className="mt-1 text-sm text-muted-foreground">{channel.description}</p>
-                {connection?.status === "connected" && (
+                {connected && connection && (
                   <div className="mt-3 space-y-1 text-xs text-muted-foreground">
                     <div className="font-medium text-foreground">
                       {connection.externalAccountName || "Kapcsolt fiók"}
@@ -358,7 +372,7 @@ function Channels() {
                 )}
                 <div className="mt-4 flex flex-wrap items-center gap-2">
                   {channel.meta ? (
-                    connection?.status === "connected" ? (
+                    connected && connection ? (
                       <>
                         <Button
                           size="sm"
@@ -396,14 +410,11 @@ function Channels() {
                       </Button>
                     )
                   ) : (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="tt-outline"
-                      onClick={() => unsupported(channel.label)}
-                    >
-                      <Sparkles className="mr-1 h-3.5 w-3.5" />
-                      {state.action}
+                    <Button size="sm" variant="outline" className="tt-outline" asChild>
+                      <a href={`/app/posts/new?platform=${channel.id}`}>
+                        <Sparkles className="mr-1 h-3.5 w-3.5" />
+                        Poszt készítése
+                      </a>
                     </Button>
                   )}
                 </div>

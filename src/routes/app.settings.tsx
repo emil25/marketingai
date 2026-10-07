@@ -88,7 +88,7 @@ function SettingsPage() {
           },
           {
             to: "/app/recommendations",
-            title: "AI ajánlások",
+            title: "Következő lépések",
             text: "A márkádhoz tartozó következő lépések.",
           },
           {

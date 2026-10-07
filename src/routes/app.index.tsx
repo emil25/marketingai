@@ -106,7 +106,9 @@ function Dashboard() {
   const activeCampaigns = campaigns
     .filter((item) => !["completed", "archived"].includes(item.status))
     .slice(0, 3);
-  const connectionCount = connectedChannelCount(channels);
+  const connectionCount = connectedChannelCount(
+    channels.filter((item) => item.provider === "facebook" || item.provider === "instagram"),
+  );
 
   if (!brand)
     return (
@@ -143,7 +145,11 @@ function Dashboard() {
             {[
               { to: "/app/brand", label: "Márka létrehozva", done: Boolean(brand.name) },
               { to: "/app/posts/new", label: "Első poszt", done: posts.length > 0 },
-              { to: "/app/channels", label: "Csatorna csatlakoztatása", done: connectionCount > 0 },
+              {
+                to: "/app/channels",
+                label: "Facebook / Instagram kapcsolása",
+                done: connectionCount > 0,
+              },
               { to: "/app/campaigns", label: "Első kampány", done: campaigns.length > 0 },
             ].map(({ to, label, done }) => (
               <Link key={to} to={to}>
@@ -154,6 +160,12 @@ function Dashboard() {
               </Link>
             ))}
           </div>
+          {!connectionCount && (
+            <p className="mt-3 text-sm text-muted-foreground">
+              Facebookot és Instagramot kapcsolhatsz közvetlen közzétételhez, Meta-jóváhagyással. A
+              többi platformra készült szöveget csatlakoztatás nélkül is kimásolhatod.
+            </p>
+          )}
         </section>
       )}
       {(posts.length > 0 || weekly.length > 0 || connectionCount > 0) && (
@@ -181,7 +193,7 @@ function Dashboard() {
           />
           <Stat
             icon={Radio}
-            title="Kapcsolt csatornák"
+            title="Kapcsolt Meta-csatornák"
             value={connectionCount}
             detail="Ellenőrzött külső kapcsolatok"
             to="/app/channels"
@@ -291,7 +303,7 @@ function Dashboard() {
                 "Adj meg weboldalt és saját szolgáltatásokat, hogy az AI pontosabban dolgozzon."}
             </p>
             <Link to="/app/brand" className="owner-card-link">
-              Márka AI megnyitása <ArrowRight className="h-4 w-4" />
+              Márkaprofil megnyitása <ArrowRight className="h-4 w-4" />
             </Link>
           </div>
           <div>
