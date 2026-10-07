@@ -2,25 +2,23 @@ import { useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import {
   ArrowRight,
-  BarChart3,
   CalendarDays,
-  ChevronRight,
+  Check,
   FileText,
   Globe,
   Image as ImageIcon,
   Lightbulb,
   Link2,
   Megaphone,
-  MoreHorizontal,
   Plus,
+  Radio,
   Sparkles,
   WandSparkles,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { getWorkspace } from "@/lib/workspace.functions";
-import { getPosts, type PostSnapshot } from "@/lib/post.functions";
+import { getPosts } from "@/lib/post.functions";
 import { getMediaAssets } from "@/lib/media.functions";
 import {
   getCampaigns,
@@ -28,15 +26,16 @@ import {
   type CampaignSnapshot,
   type PlannerItemSnapshot,
 } from "@/lib/campaign.functions";
-import { getChannelConnections, type SafeChannelConnection } from "@/lib/channel.functions";
+import { getChannelConnections } from "@/lib/channel.functions";
 import { businessTypeQuickStarts, businessTypeLabel } from "@/lib/business-types";
 import {
   activeBrandRecords,
+  connectedChannelCount,
   hasPlannedPostContent,
-  isChannelConnected,
   weeklyPlanItems,
 } from "@/lib/dashboard";
-import { SocialPreview } from "@/components/social-preview";
+import { SocialPreview, PlatformMark } from "@/components/social-preview";
+import "@/dashboard-workspace.css";
 
 export const Route = createFileRoute("/app/")({
   loader: async () => ({
@@ -50,563 +49,513 @@ export const Route = createFileRoute("/app/")({
   component: Dashboard,
 });
 
-const PLATFORM_LABELS: Record<string, string> = {
-  facebook: "Facebook",
-  instagram: "Instagram",
-  tiktok: "TikTok",
-  linkedin: "LinkedIn",
-  youtube: "YouTube",
-  "google-business": "Google Business",
-};
-const PLATFORM_GLYPHS: Record<string, string> = {
-  facebook: "f",
-  instagram: "◎",
-  tiktok: "♪",
-  linkedin: "in",
-  youtube: "▶",
-  "google-business": "G",
+const STATUS_LABELS: Record<string, string> = {
+  idea: "Ötlet",
+  planned: "Tervezett",
+  draft: "Piszkozat",
+  review: "Ellenőrzésre vár",
+  scheduled: "Ütemezve",
+  published: "Közzétéve",
+  failed: "Sikertelen",
+  skipped: "Kihagyva",
+  ready: "Elkészült",
+  generated: "Elkészült",
 };
 
-function formatDate(value: string, time?: string | null) {
-  const date = new Date(`${value}T${time ?? "12:00"}:00`);
-  return `${date.toLocaleDateString("hu-HU", { month: "short", day: "numeric" })}${time ? ` · ${time}` : ""}`;
+type DashboardPost = Awaited<ReturnType<typeof getPosts>>[number];
+
+function formatDate(date: string, time?: string | null) {
+  const value = new Date(`${date}T12:00:00`);
+  if (!Number.isFinite(value.getTime())) return "Időpont beállítása szükséges";
+  return `${value.toLocaleDateString("hu-HU", { weekday: "short", month: "short", day: "numeric" })}${time ? ` · ${time}` : ""}`;
+}
+
+function starterUrl(topic: string) {
+  const platform = /instagram|reels/i.test(topic)
+    ? "instagram"
+    : /facebook/i.test(topic)
+      ? "facebook"
+      : /linkedin/i.test(topic)
+        ? "linkedin"
+        : /google/i.test(topic)
+          ? "google-business"
+          : undefined;
+  const query = new URLSearchParams({ topic, quickStart: topic, goal: "tartalomkészítés" });
+  if (platform) query.set("platform", platform);
+  return `/app/posts/new?${query}`;
 }
 
 function Dashboard() {
   const data = Route.useLoaderData();
   const brand = data.workspace.activeBrand;
-  const firstName = data.workspace.user.displayName.split(" ")[0];
   const now = new Date();
   const posts = activeBrandRecords(data.posts, data.workspace.workspace.id, brand?.id);
   const media = activeBrandRecords(data.media, data.workspace.workspace.id, brand?.id);
   const campaigns = activeBrandRecords(data.campaigns, data.workspace.workspace.id, brand?.id);
   const channels = activeBrandRecords(data.channels, data.workspace.workspace.id, brand?.id);
-  const weeklyPlanned = weeklyPlanItems(
+  const weekly = weeklyPlanItems(
     activeBrandRecords(data.planItems, data.workspace.workspace.id, brand?.id),
     now,
   );
-  const ready = weeklyPlanned.filter((item) => hasPlannedPostContent(item, posts));
-  const upcoming = weeklyPlanned.slice(0, 7);
-  const scheduledWithinFortnight = posts.filter(
-    (post) =>
-      post.status === "scheduled" &&
-      post.scheduledAt &&
-      Date.parse(post.scheduledAt) >= now.getTime() &&
-      Date.parse(post.scheduledAt) < now.getTime() + 14 * 24 * 60 * 60 * 1000,
-  ).length;
-  const activeCampaigns = campaigns
-    .filter((campaign) => !["archived", "completed"].includes(campaign.status))
+  const ready = weekly.filter((item) => hasPlannedPostContent(item, posts));
+  const recent = [...posts]
+    .sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt))
     .slice(0, 3);
+  const activeCampaigns = campaigns
+    .filter((item) => !["completed", "archived"].includes(item.status))
+    .slice(0, 3);
+  const connectionCount = connectedChannelCount(channels);
+
+  if (!brand)
+    return (
+      <div className="owner-dashboard">
+        <section className="owner-start owner-empty-brand">
+          <span className="owner-kicker">
+            <WandSparkles className="h-4 w-4" /> A VÁLLALKOZÁSODRA SZABVA
+          </span>
+          <h1>Kezdjük a vállalkozásoddal.</h1>
+          <p>
+            Add meg a vállalkozásod nevét és azt, mit kínálsz. Utána saját posztokat és
+            tartalomtervet készíthetsz.
+          </p>
+          <Link to="/app/brand">
+            <Button>
+              <Plus className="mr-2 h-4 w-4" />
+              Vállalkozás hozzáadása
+            </Button>
+          </Link>
+        </section>
+      </div>
+    );
 
   return (
-    <div className="reference-page workspace-dashboard space-y-6">
-      {brand ? (
-        <>
-          <section className="reference-hero workspace-hero">
-            <HeroArtwork />
-            <div className="reference-hero-copy">
-              <span className="reference-hero-pill">
-                <Sparkles className="h-3.5 w-3.5" /> KEVESEBB MUNKA. TÖBB JÓ TARTALOM.
-              </span>
-              <h2>
-                {weeklyPlanned.length
-                  ? ready.length
-                    ? `${ready.length} posztod már készen áll.`
-                    : `${weeklyPlanned.length} ötletből legyen kész poszt.`
-                  : "A következő jó posztod itt kezdődik."}
-              </h2>
-              <p>
-                {weeklyPlanned.length
-                  ? ready.length === weeklyPlanned.length
-                    ? "A heti szövegek elkészültek. Nézd át, adj képet, és állítsd be a következő lépést."
-                    : "A heti terv már megvan. Az AI segít a hiányzó szövegek elkészítésében."
-                  : "Mondd el az ötletedet. Az AI ismeri a márkádat, és segít megtalálni a megfelelő szavakat."}
-              </p>
-              <div className="reference-hero-actions">
-                <Link to="/app/posts/$id" params={{ id: "new" }}>
-                  <Button className="reference-hero-button">
-                    Készítsünk egy posztot <ArrowRight className="ml-1 h-4 w-4" />
-                  </Button>
-                </Link>
-                <Link to="/app/campaigns" search={{ mode: "weekly" }}>
-                  <Button variant="outline" className="reference-hero-secondary">
-                    Készítsd el a heti marketingemet
-                  </Button>
-                </Link>
-              </div>
-            </div>
-            <div className="workspace-hero-progress">
-              <div
-                className="reference-progress"
-                style={
-                  {
-                    "--progress": `${weeklyPlanned.length ? Math.round((ready.length / weeklyPlanned.length) * 100) : 0}%`,
-                  } as React.CSSProperties
-                }
-              >
-                <strong>
-                  {ready.length}/{weeklyPlanned.length}
-                </strong>
-                <span>szöveg kész</span>
-              </div>
-              <small>A következő 7 nap terve</small>
-            </div>
-          </section>
-          <AiCommand />
-          <section className="reference-kpis">
-            <StatCard
-              icon={FileText}
-              tone="coral"
-              label="Összes poszt"
-              value={String(posts.length)}
-              detail="Az aktív márkádhoz"
-            />
-            <StatCard
-              icon={FileText}
-              tone="green"
-              label="Piszkozat"
-              value={String(posts.filter((post) => post.status === "draft").length)}
-              detail="Szerkesztésre vár"
-            />
-            <StatCard
-              icon={CalendarDays}
-              tone="blue"
-              label="Időzítve"
-              value={String(scheduledWithinFortnight)}
-              detail="A következő 14 napban"
-            />
-            <StatCard
-              icon={ImageIcon}
-              tone="yellow"
-              label="Média"
-              value={String(media.length)}
-              detail="Mentett kép és videó"
-            />
-          </section>
-          <NextStep
-            hasProfile={Boolean(
-              brand.audience && (brand.products || brand.services || brand.profile.description),
-            )}
-            hasPost={posts.some((post) => post.variants.some((variant) => variant.content.trim()))}
-            hasCampaign={campaigns.length > 0}
-            hasConnection={channels.some((channel) => isChannelConnected(channel))}
-          />
-          <section className="workspace-recent">
-            <div className="reference-section-head">
-              <div>
-                <span className="reference-section-label">A TARTALMAID, ÉLETRE KELTVE</span>
-                <h2>A stúdiódból</h2>
-              </div>
-              <Link to="/app/posts" className="legacy-link">
-                Összes poszt <ArrowRight className="ml-1 inline h-4 w-4" />
-              </Link>
-            </div>
-            {posts.length ? (
-              <div className="workspace-content-grid">
-                {[...posts]
-                  .sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt))
-                  .slice(0, 3)
-                  .map((post) => (
-                    <Link
-                      key={post.id}
-                      to="/app/posts/$id"
-                      params={{ id: post.id }}
-                      className="workspace-content-card"
-                    >
-                      <div className="workspace-content-meta">
-                        <strong>{post.title}</strong>
-                        <Badge variant="secondary">
-                          {
-                            {
-                              idea: "Ötlet",
-                              draft: "Piszkozat",
-                              review: "Ellenőrzés",
-                              scheduled: "Ütemezve",
-                              published: "Közzétéve",
-                              failed: "Sikertelen",
-                            }[post.status]
-                          }
-                        </Badge>
-                      </div>
-                      <SocialPreview
-                        compact
-                        brandName={brand.name}
-                        variants={post.variants}
-                        media={post.media}
-                      />
-                      <span className="workspace-content-open">
-                        Szerkesztés és előnézet <ArrowRight className="h-4 w-4" />
-                      </span>
-                    </Link>
-                  ))}
-              </div>
-            ) : (
-              <div className="workspace-empty-content">
-                <span>
-                  <ImageIcon className="h-7 w-7" />
-                </span>
-                <div>
-                  <h3>Még üres a stúdiód. Kezdjük egy ötlettel.</h3>
-                  <p>Az első mentett posztod itt jelenik meg valódi előnézettel.</p>
+    <div className="owner-dashboard">
+      <QuickCreator brandName={brand.name} businessType={brand.profile.businessType} />
+      <section className="owner-stats" aria-label="A vállalkozásod valódi adatai">
+        <Stat
+          icon={FileText}
+          title="Mentett posztok"
+          value={posts.length}
+          detail="Az aktív vállalkozásod tartalmai"
+          to="/app/posts"
+        />
+        <Stat
+          icon={WandSparkles}
+          title="Piszkozatok"
+          value={posts.filter((post) => post.status === "draft").length}
+          detail="Folytasd a szerkesztést"
+          to="/app/posts"
+        />
+        <Stat
+          icon={CalendarDays}
+          title="Heti terv"
+          value={weekly.length}
+          detail={`${ready.length} posztszöveg elkészült`}
+          to="/app/planner"
+        />
+        <Stat
+          icon={Radio}
+          title="Kapcsolt csatornák"
+          value={connectionCount}
+          detail="Ellenőrzött külső kapcsolatok"
+          to="/app/channels"
+        />
+      </section>
+      <div className="owner-week-layout">
+        <WeeklyRhythm items={weekly} posts={posts} ready={ready.length} />
+        <NextAction
+          hasProfile={Boolean(
+            brand.audience && (brand.products || brand.services || brand.profile.description),
+          )}
+          hasPost={posts.some((post) => post.variants.some((variant) => variant.content.trim()))}
+          items={weekly}
+          posts={posts}
+        />
+      </div>
+      <section className="owner-panel owner-recent">
+        <SectionHead
+          title="Legutóbbi posztjaid"
+          sub="A mentett szövegek és képek. Innen folytathatod a szerkesztést."
+          to="/app/posts"
+          action="Összes poszt"
+        />
+        {recent.length ? (
+          <div className="owner-post-grid">
+            {recent.map((post) => (
+              <article key={post.id} className="owner-post-card">
+                <div className="owner-post-heading">
+                  <h3>{post.title}</h3>
+                  <Badge variant="secondary">{STATUS_LABELS[post.status] ?? post.status}</Badge>
                 </div>
-                <Link to="/app/posts/$id" params={{ id: "new" }}>
-                  <Button>Első poszt készítése</Button>
+                <SocialPreview
+                  compact
+                  brandName={brand.name}
+                  variants={post.variants}
+                  media={post.media}
+                />
+                <Link to="/app/posts/$id" params={{ id: post.id }} className="owner-card-link">
+                  Szerkesztés és előnézet <ArrowRight className="h-4 w-4" />
                 </Link>
-              </div>
-            )}
-          </section>
-          <div className="legacy-grid reference-lower-grid">
-            <UpcomingPosts items={upcoming} posts={posts} />
-            <ChannelStatus brandName={brand.name} connections={channels} />
+              </article>
+            ))}
           </div>
-          <CampaignOverview campaigns={activeCampaigns} />
-          <QuickActions businessType={brand.profile.businessType} />
-          <WebsitePlan website={brand.website} />
-        </>
-      ) : (
-        <EmptyBrand firstName={firstName} />
-      )}
+        ) : (
+          <Empty
+            icon={FileText}
+            title="Az első posztod itt fog megjelenni."
+            text="Válassz fent egy ötletet, vagy írd le saját szavaiddal, mit szeretnél megosztani."
+            to="/app/posts/new"
+            action="Első poszt készítése"
+          />
+        )}
+      </section>
+      <Campaigns campaigns={activeCampaigns} />
+      <section className="owner-tools" aria-label="További marketingeszközök">
+        {[
+          {
+            to: "/app/posts/new",
+            icon: ImageIcon,
+            title: "Képposzt és carousel",
+            sub: "Szöveg, saját kép és szerkeszthető grafika együtt.",
+          },
+          {
+            to: "/app/media",
+            icon: ImageIcon,
+            title: "Saját képeid",
+            sub: `${media.length} mentett média. Tölts fel képet a következő poszthoz.`,
+          },
+          {
+            to: "/app/planner",
+            icon: CalendarDays,
+            title: "30 napos terv",
+            sub: "Lásd át a témákat, és készíts posztot a tervedből.",
+          },
+          {
+            to: "/app/analytics",
+            icon: Lightbulb,
+            title: "Eredmények",
+            sub: "A ténylegesen beérkezett teljesítményadatok.",
+          },
+        ].map(({ to, icon: Icon, title, sub }) => (
+          <Link key={title} to={to} className="owner-tool">
+            <Icon className="h-5 w-5" />
+            <div>
+              <strong>{title}</strong>
+              <span>{sub}</span>
+            </div>
+            <ArrowRight className="h-4 w-4" />
+          </Link>
+        ))}
+      </section>
+      <details className="owner-settings">
+        <summary>
+          Vállalkozás és csatornák <span>Profil, weboldal, kapcsolatok</span>
+        </summary>
+        <div className="owner-settings-grid">
+          <div>
+            <Globe className="h-5 w-5" />
+            <h3>A vállalkozásod profilja</h3>
+            <p>
+              {brand.website ||
+                "Adj meg weboldalt és saját szolgáltatásokat, hogy az AI pontosabban dolgozzon."}
+            </p>
+            <Link to="/app/brand" className="owner-card-link">
+              Márka AI megnyitása <ArrowRight className="h-4 w-4" />
+            </Link>
+          </div>
+          <div>
+            <Link2 className="h-5 w-5" />
+            <h3>Csatornák és publikálás</h3>
+            <p>
+              {connectionCount
+                ? `${connectionCount} ellenőrzött csatornakapcsolat. A publikálás feltételeit a poszt szerkesztőjében ellenőrizheted.`
+                : "Még nincs ellenőrzött kapcsolat. A mentett poszt nem jelent automatikus közzétételt."}
+            </p>
+            <Link to="/app/channels" className="owner-card-link">
+              Kapcsolatok kezelése <ArrowRight className="h-4 w-4" />
+            </Link>
+          </div>
+        </div>
+      </details>
     </div>
   );
 }
 
-function HeroArtwork() {
-  return (
-    <svg className="workspace-hero-art" viewBox="0 0 580 330" fill="none" aria-hidden="true">
-      <defs>
-        <linearGradient
-          id="workspace-orbit"
-          x1="75"
-          y1="40"
-          x2="480"
-          y2="330"
-          gradientUnits="userSpaceOnUse"
-        >
-          <stop stopColor="#87b3a4" stopOpacity=".18" />
-          <stop offset="1" stopColor="#e6b49b" stopOpacity=".04" />
-        </linearGradient>
-      </defs>
-      <circle cx="325" cy="160" r="245" stroke="url(#workspace-orbit)" strokeWidth="70" />
-      <circle cx="325" cy="160" r="175" stroke="#bfddcc" strokeOpacity=".12" />
-      <circle
-        cx="325"
-        cy="160"
-        r="122"
-        stroke="#bfddcc"
-        strokeOpacity=".15"
-        strokeDasharray="5 14"
-      />
-      <path
-        d="M60 290C170 230 220 160 360 155s160-70 220-115"
-        stroke="#f18d72"
-        strokeOpacity=".65"
-        strokeWidth="2"
-      />
-      <circle cx="207" cy="204" r="6" fill="#ff9b7f" />
-      <circle cx="515" cy="90" r="4" fill="#bfddcc" />
-      <path d="m130 68 5 12 12 5-12 5-5 12-5-12-12-5 12-5z" fill="#f3ccad" fillOpacity=".7" />
-    </svg>
-  );
-}
-
-function AiCommand() {
+function QuickCreator({ brandName, businessType }: { brandName: string; businessType?: string }) {
   const [brief, setBrief] = useState("");
   const navigate = useNavigate();
   return (
-    <form
-      className="workspace-command"
-      onSubmit={(event) => {
-        event.preventDefault();
-        if (brief.trim())
-          void navigate({ to: `/app/posts/new?topic=${encodeURIComponent(brief.trim())}` });
-      }}
-    >
-      <span className="workspace-command-icon">
-        <Sparkles className="h-5 w-5" />
+    <section className="owner-start">
+      <span className="owner-kicker">
+        <Sparkles className="h-4 w-4" /> KEVESEBB MUNKA. TÖBB JÓ TARTALOM.
       </span>
-      <label htmlFor="dashboard-brief" className="sr-only">
-        Milyen tartalmat készítsünk?
-      </label>
-      <input
-        id="dashboard-brief"
-        value={brief}
-        onChange={(event) => setBrief(event.target.value)}
-        placeholder="Van egy ötleted? Írd le, és készítsünk belőle posztot…"
-        maxLength={4000}
-      />
-      <Button type="submit" disabled={!brief.trim()}>
-        Készítsük el <ArrowRight className="ml-1 h-4 w-4" />
-      </Button>
-    </form>
-  );
-}
-
-function NextStep({
-  hasProfile,
-  hasPost,
-  hasCampaign,
-  hasConnection,
-}: {
-  hasProfile: boolean;
-  hasPost: boolean;
-  hasCampaign: boolean;
-  hasConnection: boolean;
-}) {
-  const steps = [
-    { title: "Márkád hangja", sub: "Profil és közönség", done: hasProfile, to: "/app/brand" },
-    {
-      title: "Az első poszt",
-      sub: "Egy ötletből kész szöveg",
-      done: hasPost,
-      to: "/app/posts/new",
-    },
-    {
-      title: "Tartalomterv",
-      sub: "Tervezd meg a következő heteket",
-      done: hasCampaign,
-      to: "/app/campaigns",
-    },
-    {
-      title: "Csatornák",
-      sub: "Kapcsold össze a fiókjaidat",
-      done: hasConnection,
-      to: "/app/channels",
-    },
-  ];
-  const next = steps.findIndex((step) => !step.done);
-  return (
-    <section className="workspace-workflow">
-      <div className="workspace-workflow-title">
-        <span className="reference-section-label">EGY LÉPÉSSEL ELŐRÉBB</span>
-        <strong>{next < 0 ? "A munkatered készen áll." : "Innen érdemes folytatnod."}</strong>
-      </div>
-      <div className="workspace-workflow-steps">
-        {steps.map((step, index) => (
-          <Link
-            key={step.title}
-            to={step.to}
-            className={`workspace-workflow-step ${step.done ? "is-done" : index === next ? "is-next" : ""}`}
-          >
-            <span>{step.done ? "✓" : String(index + 1).padStart(2, "0")}</span>
-            <div>
-              <strong>{step.title}</strong>
-              <small>{step.sub}</small>
-            </div>
-            <ArrowRight className="h-3.5 w-3.5" />
+      <h1>A következő jó posztod itt kezdődik.</h1>
+      <p>
+        Mit szeretnél megosztani? Írd le pár szóban az ötletedet. A MarketingPilot a{" "}
+        <strong>{brandName}</strong> mentett márkahangjával dolgozik.
+      </p>
+      <form
+        className="owner-brief"
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (brief.trim()) void navigate({ to: starterUrl(brief.trim()) });
+        }}
+      >
+        <label htmlFor="dashboard-brief" className="sr-only">
+          Milyen tartalmat készítsünk?
+        </label>
+        <input
+          id="dashboard-brief"
+          value={brief}
+          maxLength={4000}
+          onChange={(event) => setBrief(event.target.value)}
+          placeholder="Például: szeretném bemutatni az új szolgáltatásunkat…"
+        />
+        <Button type="submit" disabled={!brief.trim()}>
+          <Sparkles className="mr-2 h-4 w-4" />
+          Poszt készítése <ArrowRight className="ml-2 h-4 w-4" />
+        </Button>
+      </form>
+      <div className="owner-starters" aria-label="Vállalkozásodhoz illő gyorsindítók">
+        <span>Vagy indulj egy ötletből:</span>
+        {businessTypeQuickStarts(businessType).map((topic) => (
+          <Link key={topic} to={starterUrl(topic)}>
+            + {topic}
           </Link>
         ))}
       </div>
-    </section>
-  );
-}
-
-function WebsitePlan({ website }: { website: string }) {
-  return (
-    <section className="reference-website">
-      <div className="reference-website-copy">
-        <span className="reference-section-label">MÁRKÁD WEBOLDALA</span>
-        <h2>Egészítsd ki a vállalkozásod profilját</h2>
-        <p>
-          A weboldalcímet és a vállalkozásod bemutatását a Márka AI oldalon mentheted. Ezeket az AI
-          felhasználja a tartalomkészítésnél.
-        </p>
-      </div>
-      <div className="reference-website-action">
-        <span className="reference-link-icon">
-          <Link2 className="h-4 w-4" />
+      <div className="owner-business">
+        <span>
+          <strong>{businessTypeLabel(businessType)}</strong> · a mentett vállalkozásodra szabva
         </span>
-        <input
-          value={website}
-          placeholder="Még nincs weboldal megadva"
-          readOnly
-          aria-label="Mentett weboldalcím"
-        />
-        <Link to="/app/brand">
-          <Button className="reference-coral-button">
-            {website ? "Márkaprofil szerkesztése" : "Weboldal megadása"}
-          </Button>
+        <Link to="/app/brand" hash="business-type">
+          Típus módosítása <ArrowRight className="h-3.5 w-3.5" />
         </Link>
       </div>
     </section>
   );
 }
 
-function StatCard({
+function Stat({
   icon: Icon,
-  tone,
-  label,
+  title,
   value,
   detail,
+  to,
 }: {
   icon: typeof FileText;
-  tone: "coral" | "green" | "blue" | "yellow";
-  label: string;
-  value: string;
+  title: string;
+  value: number;
   detail: string;
+  to: string;
 }) {
   return (
-    <article className="reference-kpi">
-      <span className={`reference-kpi-icon ${tone}`}>
-        <Icon className="h-4 w-4" />
-      </span>
-      <div>
-        <small>{label}</small>
+    <Link to={to} className="owner-stat">
+      <Icon className="h-5 w-5" />
+      <span>
+        {title}
         <strong>{value}</strong>
-        <em>{detail}</em>
-      </div>
-    </article>
+        <small>{detail}</small>
+      </span>
+      <ArrowRight className="h-3.5 w-3.5" />
+    </Link>
   );
 }
 
-function UpcomingPosts({
-  items,
-  posts,
+function SectionHead({
+  title,
+  sub,
+  to,
+  action,
 }: {
-  items: PlannerItemSnapshot[];
-  posts: Array<
-    PostSnapshot["post"] & {
-      variants: unknown[];
-      media: Array<{ id: string; altText?: string | null }>;
-    }
-  >;
+  title: string;
+  sub: string;
+  to: string;
+  action: string;
 }) {
   return (
-    <section className="legacy-card reference-posts-card">
-      <div className="legacy-cardhead">
-        <div>
-          <h3>Következő posztok</h3>
-          <p>A következő 7 nap tartalmai</p>
-        </div>
-        <Link to="/app/calendar" className="legacy-link">
-          Összes megtekintése <ArrowRight className="ml-1 inline h-3.5 w-3.5" />
+    <div className="owner-section-head">
+      <div>
+        <h2>{title}</h2>
+        <p>{sub}</p>
+      </div>
+      <Link to={to}>
+        {action} <ArrowRight className="h-4 w-4" />
+      </Link>
+    </div>
+  );
+}
+
+function Empty({
+  icon: Icon,
+  title,
+  text,
+  to,
+  action,
+}: {
+  icon: typeof FileText;
+  title: string;
+  text: string;
+  to: string;
+  action: string;
+}) {
+  return (
+    <div className="owner-empty">
+      <Icon className="h-6 w-6" />
+      <div>
+        <h3>{title}</h3>
+        <p>{text}</p>
+        <Link to={to}>
+          {action} <ArrowRight className="h-4 w-4" />
         </Link>
       </div>
+    </div>
+  );
+}
+
+function WeeklyRhythm({
+  items,
+  posts,
+  ready,
+}: {
+  items: PlannerItemSnapshot[];
+  posts: DashboardPost[];
+  ready: number;
+}) {
+  return (
+    <section className="owner-panel owner-week">
+      <SectionHead
+        title="A következő 7 napod"
+        sub={
+          items.length
+            ? `${items.length} tervtétel · ${ready} elkészült posztszöveg`
+            : "Egy rövid briefből indulhat a heti tartalomterved."
+        }
+        to="/app/planner"
+        action="Teljes terv"
+      />
       {items.length ? (
-        <div className="reference-post-list">
-          {items.map((item) => {
-            const post = item.postId
-              ? posts.find((candidate) => candidate.id === item.postId)
-              : undefined;
-            const media = post?.media[0];
+        <div className="owner-week-grid">
+          {items.slice(0, 3).map((item) => {
+            const post = posts.find((candidate) => candidate.id === item.postId);
             return (
               <Link
                 key={item.id}
-                to={item.postId ? "/app/posts/$id" : "/app/planner"}
-                params={item.postId ? { id: item.postId } : undefined}
-                className="reference-post-row"
+                to={post ? "/app/posts/$id" : "/app/planner"}
+                params={post ? { id: post.id } : undefined}
+                className={`owner-plan-card ${post ? "has-post" : ""}`}
               >
-                <span className="reference-post-thumbnail">
-                  {media ? (
-                    <img src={`/api/media/${media.id}`} alt={media.altText ?? ""} />
-                  ) : (
-                    <CalendarDays className="h-5 w-5" />
-                  )}
-                </span>
-                <span className="reference-post-copy">
-                  <strong>{post?.title ?? item.topic}</strong>
-                  <small>{item.contentType || "Tartalom"}</small>
-                </span>
-                <span className="reference-platform-pill">
-                  <b>{PLATFORM_GLYPHS[item.platform] ?? "•"}</b>
-                  <span>{PLATFORM_LABELS[item.platform] ?? item.platform}</span>
-                </span>
-                <time>{formatDate(item.date, item.time)}</time>
-                <Badge className="legacy-badge">{item.postStatus ?? item.status}</Badge>
-                <span className="reference-post-menu" aria-label="Poszt megnyitása">
-                  <MoreHorizontal className="h-4 w-4" />
+                <div>
+                  <time>{formatDate(item.date, item.time)}</time>
+                  <Badge variant="secondary">
+                    {STATUS_LABELS[item.postStatus ?? item.status] ?? "Tervezett"}
+                  </Badge>
+                </div>
+                <h3>{post?.title || item.topic}</h3>
+                <p>{item.contentType || "Poszt"}</p>
+                <span className="owner-plan-platform">
+                  <PlatformMark platform={item.platform} />
+                  <span>{post ? "Átnézem a posztot" : "Megnyitom a tervben"}</span>
+                  <ArrowRight className="h-3.5 w-3.5" />
                 </span>
               </Link>
             );
           })}
         </div>
       ) : (
-        <div className="legacy-empty">
-          <CalendarDays className="h-5 w-5" />
-          <span>
-            <strong>Még nincs megtervezett posztod.</strong>
-            <small>Indíts egy kampányt, hogy valódi tervtételek jelenjenek meg itt.</small>
-          </span>
-          <Link to="/app/campaigns" className="legacy-link">
-            Kampány indítása <ArrowRight className="ml-1 inline h-3.5 w-3.5" />
-          </Link>
-        </div>
+        <Empty
+          icon={CalendarDays}
+          title="Még nincs heti tartalomterved."
+          text="Mondd el, mit szeretnél népszerűsíteni. Az AI megtervezi a témákat, és segít elkészíteni a posztokat."
+          to="/app/campaigns?mode=weekly"
+          action="Heti marketing megtervezése"
+        />
+      )}
+      {items.length > 3 && (
+        <Link to="/app/calendar" className="owner-week-more">
+          Még {items.length - 3} tervtétel · naptár megnyitása <ArrowRight className="h-4 w-4" />
+        </Link>
       )}
     </section>
   );
 }
 
-function ChannelStatus({
-  brandName,
-  connections,
+function NextAction({
+  hasProfile,
+  hasPost,
+  items,
+  posts,
 }: {
-  brandName: string;
-  connections: SafeChannelConnection[];
+  hasProfile: boolean;
+  hasPost: boolean;
+  items: PlannerItemSnapshot[];
+  posts: DashboardPost[];
 }) {
-  const channels = [
-    { id: "facebook", label: "Facebook", glyph: "f", tone: "fb" },
-    { id: "instagram", label: "Instagram", glyph: "◎", tone: "ig" },
-    { id: "tiktok", label: "TikTok", glyph: "♪", tone: "tt" },
-    { id: "youtube", label: "YouTube", glyph: "▶", tone: "yt" },
-    { id: "linkedin", label: "LinkedIn", glyph: "in", tone: "li" },
-    { id: "pinterest", label: "Pinterest", glyph: "p", tone: "pi" },
-  ] as const;
-  const statusLabel = (connection?: SafeChannelConnection) => {
-    if (!connection || connection.status === "not_connected") return "Nincs külső kapcsolat";
-    if (isChannelConnected(connection)) return connection.externalAccountName || "Kapcsolva";
-    if (connection.status === "connected") return "Kapcsolat ellenőrzése szükséges";
-    if (connection.status === "connecting") return "Kapcsolódás folyamatban";
-    if (connection.status === "expired") return "Lejárt kapcsolat";
-    return "Kapcsolat ellenőrzése szükséges";
-  };
-  const actionLabel = (connection?: SafeChannelConnection) =>
-    isChannelConnected(connection) ? "Kapcsolat kezelése" : "Csatlakoztatás";
+  const missing = items.find((item) => !hasPlannedPostContent(item, posts));
+  const action = !hasProfile
+    ? {
+        title: "Ismerjük meg a vállalkozásodat",
+        text: "Add meg, mit kínálsz és kiknek. Ettől lesznek igazán hozzád illők az AI szövegei.",
+        to: "/app/brand",
+        cta: "Márkaprofil kiegészítése",
+      }
+    : !hasPost
+      ? {
+          title: "Készítsük el az első posztodat",
+          text: "Válassz fent egy gyorsötletet, vagy írd le a saját ajánlatodat. A kész szöveget még szerkesztheted.",
+          to: "/app/posts/new",
+          cta: "Poszt készítése",
+        }
+      : !items.length
+        ? {
+            title: "Ne kelljen minden nap ötletelned",
+            text: "Egy rövid briefből tervezzük meg a következő heted marketingjét.",
+            to: "/app/campaigns?mode=weekly",
+            cta: "Készítsd el a heti marketingemet",
+          }
+        : missing
+          ? {
+              title: "A következő ötletből legyen poszt",
+              text: missing.topic,
+              to: "/app/planner",
+              cta: "Folytatom a tervet",
+            }
+          : {
+              title: "A heti szövegek elkészültek",
+              text: "Nézd át őket, adj hozzá saját képet, és ellenőrizd a közzétételi lehetőségeket.",
+              to: "/app/calendar",
+              cta: "Átnézem a naptárban",
+            };
   return (
-    <section className="legacy-card">
-      <div className="legacy-cardhead">
-        <div>
-          <h3>Csatornák állapota</h3>
-          <p>{brandName} · kapcsolatok kezelése</p>
-        </div>
-        <Link to="/app/channels" className="legacy-link">
-          Részletek <ArrowRight className="ml-1 inline h-3.5 w-3.5" />
-        </Link>
-      </div>
-      <div className="legacy-channels">
-        {channels.map((channel) => {
-          const connection = connections.find((item) => item.provider === channel.id);
-          return (
-            <div key={channel.label}>
-              <b className={`legacy-channel-icon ${channel.tone}`}>{channel.glyph}</b>
-              <span>
-                <strong>{channel.label}</strong>
-                <small>{statusLabel(connection)}</small>
-              </span>
-              <Link to="/app/channels" className="reference-channel-status">
-                {actionLabel(connection)}
-              </Link>
-              <ChevronRight className="reference-channel-arrow h-4 w-4" />
-            </div>
-          );
-        })}
-      </div>
-    </section>
+    <aside className="owner-next">
+      <span className="owner-kicker">
+        <Sparkles className="h-4 w-4" /> KÖVETKEZŐ LÉPÉS
+      </span>
+      <h2>{action.title}</h2>
+      <p>{action.text}</p>
+      <Link to={action.to}>
+        <Button>
+          {action.cta} <ArrowRight className="ml-2 h-4 w-4" />
+        </Button>
+      </Link>
+      <Link to="/app/campaigns" className="owner-next-secondary">
+        Kampányok és hosszabb tervek <ArrowRight className="h-4 w-4" />
+      </Link>
+    </aside>
   );
 }
 
-function CampaignOverview({ campaigns }: { campaigns: CampaignSnapshot[] }) {
+function Campaigns({ campaigns }: { campaigns: CampaignSnapshot[] }) {
   return (
-    <section className="reference-campaigns">
-      <div className="reference-section-head">
-        <div>
-          <span className="reference-section-label">KAMPÁNYOK</span>
-          <h2>Aktív kampányok</h2>
-        </div>
-        <Link to="/app/campaigns" className="legacy-link">
-          Összes kampány <ArrowRight className="ml-1 inline h-3.5 w-3.5" />
-        </Link>
-      </div>
+    <section className="owner-panel owner-campaigns">
+      <SectionHead
+        title="Kampányaid"
+        sub="A célból tartalomterv, a tervből mentett posztok."
+        to="/app/campaigns"
+        action="Összes kampány"
+      />
       {campaigns.length ? (
-        <div className="reference-campaign-grid">
+        <div className="owner-campaign-list">
           {campaigns.map((campaign) => {
             const progress = campaign.counts.planned
               ? Math.round((campaign.counts.created / campaign.counts.planned) * 100)
@@ -616,123 +565,58 @@ function CampaignOverview({ campaigns }: { campaigns: CampaignSnapshot[] }) {
                 key={campaign.id}
                 to="/app/campaigns/$id"
                 params={{ id: campaign.id }}
-                className="reference-campaign-card"
+                className="owner-campaign"
               >
-                <div className="reference-campaign-visual">
-                  <span>{campaign.name.slice(0, 1).toUpperCase()}</span>
-                  <Badge>
-                    {campaign.status === "active"
-                      ? "Aktív"
-                      : campaign.status === "planning"
-                        ? "Tervezés"
-                        : campaign.status === "paused"
-                          ? "Szünetel"
-                          : "Piszkozat"}
-                  </Badge>
-                </div>
-                <div className="reference-campaign-body">
+                <span className="owner-campaign-icon">
+                  <Megaphone className="h-5 w-5" />
+                </span>
+                <div>
                   <h3>{campaign.name}</h3>
-                  <p>{campaign.objective || "Kampánycél még nincs megadva."}</p>
-                  <div className="reference-campaign-meta">
-                    <span>
-                      {campaign.counts.planned} poszt · {campaign.channels.length} csatorna
-                    </span>
-                    <strong>{progress}%</strong>
-                  </div>
-                  <div className="reference-campaign-progress">
-                    <span style={{ width: `${progress}%` }} />
-                  </div>
+                  <p>{campaign.objective || "Nyisd meg a kampánybriefet."}</p>
+                  <small>
+                    {campaign.counts.created}/{campaign.counts.planned} tervtételhez készült poszt ·{" "}
+                    {campaign.channels.length} csatorna
+                  </small>
                 </div>
+                <div className="owner-campaign-state">
+                  <Badge variant="secondary">
+                    {{
+                      active: "Aktív",
+                      planning: "Tervezés",
+                      paused: "Szünetel",
+                      draft: "Piszkozat",
+                      completed: "Lezárva",
+                      archived: "Archiválva",
+                    }[campaign.status] ?? campaign.status}
+                  </Badge>
+                  <span
+                    className="owner-progress"
+                    role="progressbar"
+                    aria-label={`${campaign.name} elkészült posztjai`}
+                    aria-valuenow={progress}
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                  >
+                    <i style={{ width: `${progress}%` }} />
+                  </span>
+                </div>
+                <ArrowRight className="h-4 w-4" />
               </Link>
             );
           })}
         </div>
       ) : (
-        <div className="reference-inline-empty">
-          <Megaphone className="h-5 w-5" />
-          <span>
-            <strong>Még nincs kampányod.</strong>
-            <small>
-              Hozd létre az első briefet, hogy az AI valódi 30 napos tervet készíthessen.
-            </small>
-          </span>
-          <Link to="/app/campaigns">
-            <Button className="reference-coral-button">Kampány létrehozása</Button>
-          </Link>
-        </div>
+        <Empty
+          icon={Megaphone}
+          title="Még nincs kampányod."
+          text="Adj meg egy célt vagy ajánlatot, és készíts hozzá összefüggő marketingtervet."
+          to="/app/campaigns"
+          action="Kampány létrehozása"
+        />
       )}
-    </section>
-  );
-}
-
-function QuickActions({ businessType }: { businessType?: string }) {
-  const starts = businessTypeQuickStarts(businessType);
-  const icons = [Sparkles, WandSparkles, Megaphone, Globe, ImageIcon, FileText];
-  const actions = starts.map((title, index) => {
-    const platform = /instagram|reels/i.test(title)
-      ? "instagram"
-      : /facebook/i.test(title)
-        ? "facebook"
-        : /linkedin/i.test(title)
-          ? "linkedin"
-          : /google/i.test(title)
-            ? "google-business"
-            : undefined;
-    const platformQuery = platform ? `&platform=${platform}` : "";
-    return {
-      to: `/app/posts/new?quickStart=${encodeURIComponent(title)}&topic=${encodeURIComponent(title)}&goal=${encodeURIComponent("tartalomkészítés")}${platformQuery}`,
-      icon: icons[index] ?? Sparkles,
-      title,
-      description: `${businessTypeLabel(businessType)} számára személyre szabott posztindító.`,
-    };
-  });
-  return (
-    <section className="reference-quick-actions">
-      <div className="reference-section-head">
-        <div>
-          <span className="reference-section-label">GYORSFUNKCIÓK</span>
-          <h2>Dolgozz tovább egy kattintással</h2>
-        </div>
-        <Link to="/app/brand" hash="business-type" className="text-sm font-medium text-primary">
-          Vállalkozásodra szabva <ArrowRight className="ml-1 inline h-4 w-4" />
-        </Link>
-      </div>
-      <div className="reference-quick-grid">
-        {actions.map(({ to, icon: Icon, title, description }) => (
-          <Link key={to} to={to} className="reference-quick-card">
-            <span className="reference-quick-icon">
-              <Icon className="h-5 w-5" />
-            </span>
-            <span className="reference-quick-copy">
-              <strong>{title}</strong>
-              <small>{description}</small>
-              <em>
-                Megnyitás <ArrowRight className="ml-1 inline h-3.5 w-3.5" />
-              </em>
-            </span>
-          </Link>
-        ))}
+      <div className="owner-campaign-note">
+        <Check className="h-4 w-4" /> A mentett tervek és posztok újratöltés után is megmaradnak.
       </div>
     </section>
-  );
-}
-
-function EmptyBrand({ firstName }: { firstName: string }) {
-  return (
-    <Card className="reference-empty-brand">
-      <WandSparkles className="h-8 w-8" />
-      <span className="reference-section-label">MAI MUNKATÉR</span>
-      <h2>Építsd fel a marketingközpontodat, {firstName}.</h2>
-      <p>
-        A Brand Voice mentése után a MarketingPilot AI valódi márka- és kampánykontextussal
-        dolgozik.
-      </p>
-      <Link to="/app/brand">
-        <Button className="reference-coral-button">
-          <Plus className="mr-1 h-4 w-4" />
-          Márka létrehozása
-        </Button>
-      </Link>
-    </Card>
   );
 }
