@@ -78,6 +78,12 @@ function optionalString(value: unknown): string | null {
   return value == null ? null : String(value);
 }
 
+// pg returns timestamptz columns as Date objects. String(Date) is a human-readable
+// timezone label that PostgreSQL cannot reliably parse on the next snapshot write.
+function optionalIso(value: unknown): string | null {
+  return value == null ? null : iso(value);
+}
+
 function numberOrNull(value: unknown): number | null {
   if (value == null) return null;
   const parsed = typeof value === "number" ? value : Number(value);
@@ -191,7 +197,7 @@ async function readDataFromClient(client: PoolClient): Promise<AppData> {
     fontFamily: String(row.font_family ?? ""),
     learningSamples: stringArray(row.learning_samples),
     learnedSummary: String(row.learned_summary ?? ""),
-    learnedAt: optionalString(row.learned_at),
+    learnedAt: optionalIso(row.learned_at),
     createdAt: iso(row.created_at),
     updatedAt: iso(row.updated_at),
   }));
@@ -227,7 +233,7 @@ async function readDataFromClient(client: PoolClient): Promise<AppData> {
     language: String(row.language),
     tone: String(row.tone),
     status: row.status as PostRecord["status"],
-    scheduledAt: optionalString(row.scheduled_at),
+    scheduledAt: optionalIso(row.scheduled_at),
     timezone: String(row.timezone),
     mediaAssetIds: stringArray(row.media_asset_ids),
     platforms: stringArray(row.platforms) as PostRecord["platforms"],
@@ -317,7 +323,7 @@ async function readDataFromClient(client: PoolClient): Promise<AppData> {
     status: row.status as AiJobRecord["status"],
     input: (row.input ?? {}) as Record<string, unknown>,
     createdAt: iso(row.created_at),
-    completedAt: optionalString(row.completed_at) ?? undefined,
+    completedAt: optionalIso(row.completed_at) ?? undefined,
     error: optionalString(row.error) ?? undefined,
   }));
   const channelConnections: ChannelConnectionRecord[] = connectionRows.map((row) => ({
@@ -330,9 +336,9 @@ async function readDataFromClient(client: PoolClient): Promise<AppData> {
     externalAccountName: optionalString(row.external_account_name),
     accessToken: optionalString(row.access_token),
     refreshToken: optionalString(row.refresh_token),
-    tokenExpiresAt: optionalString(row.token_expires_at),
+    tokenExpiresAt: optionalIso(row.token_expires_at),
     scopes: stringArray(row.scopes),
-    connectedAt: optionalString(row.connected_at),
+    connectedAt: optionalIso(row.connected_at),
     updatedAt: iso(row.updated_at),
     lastError: optionalString(row.last_error),
   }));
@@ -368,8 +374,8 @@ async function readDataFromClient(client: PoolClient): Promise<AppData> {
     platform: row.platform as PublishAttemptRecord["platform"],
     status: row.status as PublishAttemptRecord["status"],
     requestedAt: iso(row.requested_at),
-    startedAt: optionalString(row.started_at) ?? undefined,
-    completedAt: optionalString(row.completed_at) ?? undefined,
+    startedAt: optionalIso(row.started_at) ?? undefined,
+    completedAt: optionalIso(row.completed_at) ?? undefined,
     externalId: optionalString(row.external_id) ?? undefined,
     error: optionalString(row.error) ?? undefined,
     retryOf: optionalString(row.retry_of) ?? undefined,
