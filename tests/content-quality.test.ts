@@ -109,6 +109,42 @@ test("30-day windows use four complete weeks and a short final week without dupl
 });
 
 test("channel format, unknown daily claims and accented calls to action are checked", () => {
+  assert.deepEqual(
+    contentRuleViolations("Kenyér elvitelre. Látogasson el hozzánk!", "facebook", "kenyér"),
+    [],
+  );
+  assert.ok(
+    contentRuleViolations(
+      "Sziasztok! Ha sietsz, elviheted a reggelit. Gyere el!",
+      "facebook",
+      "reggeli",
+    ).some((error) => error.includes("te és ti")),
+  );
+  assert.deepEqual(
+    contentRuleViolations("Friss kenyér elvitelre. Te mit kérsz reggelire?", "facebook", "kenyér"),
+    [],
+  );
+  assert.deepEqual(
+    contentRuleViolations("Kenyér elvitelre. 🍞 Mentsd el, ha erre jársz!", "instagram", "kenyér", [
+      "#kenyér",
+      "#helyi",
+      "#pékség",
+      "#reggeli",
+    ]),
+    [],
+  );
+  assert.ok(
+    contentRuleViolations("Kenyér 🍞. Mentsd el!", "instagram", "kenyér", ["", "", "", ""]).some(
+      (error) => error.includes("hashtag"),
+    ),
+  );
+  assert.ok(
+    contentRuleViolations(
+      "A pékség reggelije kenyérrel vár. Látogass el!",
+      "facebook",
+      "kenyér",
+    ).some((error) => error.includes("nyitómondat")),
+  );
   assert.ok(
     contentRuleViolations("Naponta friss kenyér. Látogass el!", "facebook", "kenyér").some(
       (error) => error.includes("napi rendszeresség"),
@@ -154,6 +190,97 @@ test("channel format, unknown daily claims and accented calls to action are chec
     ),
     [],
   );
+});
+
+test("a separate second CTA is rejected and the repaired closing sentence is copied only once", async () => {
+  let attempts = 0;
+  const result = await generateFactualPost(
+    {
+      businessContext: context,
+      brief: "Reggeli elvitelre",
+      title: "TESZT",
+      platforms: ["facebook"],
+      ctaStyle: "Kérdés",
+    },
+    async (request) => {
+      attempts++;
+      if (attempts === 2) assert.match(request.messages.at(-1)!.content, /cta mező/);
+      return Response.json({
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({
+                variants: [
+                  {
+                    platform: "facebook",
+                    content:
+                      attempts === 1
+                        ? "Kenyér elvitelre. Gyere el!"
+                        : "Kenyér elvitelre. Te mit kérsz reggelire?",
+                    cta: "Te mit kérsz reggelire?",
+                    hashtags: [],
+                    ellenorizendo: [],
+                  },
+                ],
+              }),
+            },
+          },
+        ],
+      });
+    },
+  );
+  assert.equal(attempts, 2);
+  assert.ok(result.variants[0].content.endsWith(result.variants[0].cta));
+});
+
+test("nearly copied Facebook and Instagram posts are repaired and complete copied text retains hashtags", async () => {
+  let requests = 0;
+  const { postCopyText } = await import("../src/lib/post-editor");
+  const output = await generateFactualPost(
+    {
+      businessContext: context,
+      brief: "Mutasd be a kenyeret elvitelre.",
+      title: "Kenyér",
+      platforms: ["facebook", "instagram"],
+      ctaStyle: "A célhoz illő CTA",
+    },
+    async (request) => {
+      requests++;
+      if (requests === 2) assert.match(request.messages.at(-1)!.content, /túlságosan azonos/);
+      return Response.json({
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({
+                variants: [
+                  {
+                    platform: "facebook",
+                    content: "Frissen sült kenyér elvitelre a pékségben. Te mit kérsz reggelire?",
+                    cta: "Te mit kérsz reggelire?",
+                    hashtags: ["#kenyér"],
+                    ellenorizendo: [],
+                  },
+                  {
+                    platform: "instagram",
+                    content:
+                      requests === 1
+                        ? "Frissen sült kenyér elvitelre a pékségben. 🍞 Mentsd el, ha erre jársz!"
+                        : "🍞 Kenyér a reggeli mellé.\n\nElvitelre is kérheted.\n\nMentsd el, ha erre jársz!",
+                    cta: "Mentsd el, ha erre jársz!",
+                    hashtags: ["#kenyér", "#pékség", "#reggeli", "#helyi"],
+                    ellenorizendo: [],
+                  },
+                ],
+              }),
+            },
+          },
+        ],
+      });
+    },
+  );
+  assert.equal(requests, 2);
+  assert.match(postCopyText(output.variants[1]), /#kenyér #pékség #reggeli #helyi$/);
+  assert.equal(postCopyText(output.variants[1]).match(/Mentsd el/g)?.length, 1);
 });
 
 test("a schema failure retries with the rejected output and a specific repair instruction", async () => {

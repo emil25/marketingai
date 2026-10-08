@@ -5,6 +5,7 @@ import { getOptionalAuthContext, requireAuthContext } from "@/lib/server/auth-co
 import { newId, nowIso, publicUser, transact } from "@/lib/server/store.server";
 import { useAppSession } from "@/lib/server/session.server";
 import { normalizeBusinessType } from "@/lib/business-types";
+import { normalizeBusinessWebsite } from "@/lib/onboarding-details";
 
 const CredentialsSchema = z.object({
   email: z.string().trim().email().max(180),
@@ -18,12 +19,15 @@ const RegisterSchema = CredentialsSchema.extend({
   brandDetails: z
     .object({
       name: z.string().trim().min(2).max(160),
-      website: z.string().trim().max(500),
+      website: z.string().trim().max(500).transform(normalizeBusinessWebsite),
       logoUrl: z.string().trim().max(1000),
       openingHours: z.string().trim().max(1000),
       address: z.string().trim().max(1000).optional().default(""),
       cityRegion: z.string().trim().max(160).optional().default(""),
       offers: z.string().trim().max(4000).optional().default(""),
+      contactMethod: z.string().trim().max(1000).optional().default(""),
+      addressing: z.enum(["te", "Ön"]).optional().default("te"),
+      audience: z.string().trim().max(2000).optional().default(""),
       services: z.string().trim().max(4000),
       products: z.string().trim().max(4000),
       tone: z.string().trim().min(1).max(120),
@@ -89,7 +93,7 @@ export const registerUser = createServerFn({ method: "POST" })
         products: data.brandDetails?.products ?? "",
         services: data.brandDetails?.services ?? "",
         offers: data.brandDetails?.offers ?? "",
-        audience: "",
+        audience: data.brandDetails?.audience ?? "",
         createdAt: timestamp,
         updatedAt: timestamp,
       };
@@ -100,15 +104,13 @@ export const registerUser = createServerFn({ method: "POST" })
         businessType: normalizeBusinessType(data.businessType),
         address: data.brandDetails?.address ?? "",
         openingHours: data.brandDetails?.openingHours ?? "",
-        ctaStyle: "Barátságos és közvetlen",
+        ctaStyle: data.brandDetails?.contactMethod || "A célhoz illő, egyetlen konkrét felhívás",
         values: "",
         preferredPhrases: "",
         avoidedPhrases: "",
-        description: data.brandDetails?.openingHours
-          ? `Nyitvatartás: ${data.brandDetails.openingHours}`
-          : "",
+        description: "",
         approvedExamples: "",
-        aiGuardrails: "Ne találj ki árakat, akciókat, nyitvatartást vagy ügyfélvéleményeket.",
+        aiGuardrails: `Ne találj ki árakat, akciókat, nyitvatartást vagy ügyfélvéleményeket. Megszólítás: ${data.brandDetails?.addressing === "Ön" ? "magázás, egyes szám harmadik személy (Ön)" : "tegezés, egyes szám második személy (te)"}.`,
         logoUrl: data.brandDetails?.logoUrl ?? "",
         colors: data.brandDetails ? [data.brandDetails.color] : [],
         fontFamily: "Plus Jakarta Sans",

@@ -1,0 +1,69 @@
+{
+  "testedAt": "2026-10-08T04:59:22.818Z",
+  "source": "Real OpenRouter calls via shared MarketingPilot generation helpers. Isolated test input, no production writes.",
+  "context": {
+    "businessType": "local_business",
+    "businessTypeLabel": "Helyi vállalkozás",
+    "brandName": "Műhely Pékség · TESZT",
+    "industry": "pékség",
+    "website": "",
+    "region": "Csíkszereda",
+    "language": "magyar",
+    "products": "frissen sült kenyér és péksütemények",
+    "services": "reggeli elvitelre",
+    "offers": "Reggeli elvitelre · TESZT, ár nincs megadva",
+    "audience": "környékbeli dolgozók és családok",
+    "tone": "barátságos, közvetlen",
+    "ctaStyle": "Látogass el hozzánk",
+    "preferredPhrases": "",
+    "avoidedPhrases": "",
+    "learnedBrandVoice": "",
+    "address": "TESZT utca 1., Csíkszereda",
+    "openingHours": "Hétfő–péntek 8:00–16:00 · TESZT",
+    "guardrails": "Ne találj ki árat, címet vagy kedvezményt.",
+    "brandDescription": "Családi pékség",
+    "goal": "Több helyi reggeliző",
+    "platform": "facebook, instagram"
+  },
+  "post": {
+    "variants": [
+      {
+        "platform": "facebook",
+        "content": "Csíkszeredában reggelizni nem csak otthon lehet. A Műhely Pékségben családi hangulatban, a TESZT utca 1. szám alatt várunk hétfőtől péntekig 8 és 16 óra között.\n\nFrissen sült kenyér és péksütemények közül választhatsz, melyeket elvitelre kérhetsz, ha útközben vagy a munkahelyeden szeretnéd elfogyasztani a reggelidet.\n\nTe szoktál reggel elvinni valamit a pékségből vagy inkább helyben eszed meg?",
+        "hashtags": [
+          "#Csíkszereda",
+          "#reggeli"
+        ],
+        "cta": "Te szoktál reggel elvinni valamit a pékségből vagy inkább helyben eszed meg?",
+        "ellenorizendo": []
+      },
+      {
+        "platform": "instagram",
+        "content": "Elvitelre kérhető reggeli Csíkszeredában! 🥖🥐\n\nA Műhely Pékségben friss kenyér és péksütemény vár, a TESZT utca 1. szám alatt.\n\nHétfőtől péntekig 8:00–16:00-ig nyitva.\n\nMentsd el, ha erre jársz!",
+        "hashtags": [
+          "#reggeli",
+          "#pékség",
+          "#Csíkszereda",
+          "#frissen",
+          "#elvitelre",
+          "#péksütemény"
+        ],
+        "cta": "Mentsd el, ha erre jársz!",
+        "ellenorizendo": []
+      }
+    ],
+    "publicationTexts": [
+      {
+        "platform": "facebook",
+        "text": "Csíkszeredában reggelizni nem csak otthon lehet. A Műhely Pékségben családi hangulatban, a TESZT utca 1. szám alatt várunk hétfőtől péntekig 8 és 16 óra között.\n\nFrissen sült kenyér és péksütemények közül választhatsz, melyeket elvitelre kérhetsz, ha útközben vagy a munkahelyeden szeretnéd elfogyasztani a reggelidet.\n\nTe szoktál reggel elvinni valamit a pékségből vagy inkább helyben eszed meg?\n\n#Csíkszereda #reggeli"
+      },
+      {
+        "platform": "instagram",
+        "text": "Elvitelre kérhető reggeli Csíkszeredában! 🥖🥐\n\nA Műhely Pékségben friss kenyér és péksütemény vár, a TESZT utca 1. szám alatt.\n\nHétfőtől péntekig 8:00–16:00-ig nyitva.\n\nMentsd el, ha erre jársz!\n\n#reggeli #pékség #Csíkszereda #frissen #elvitelre #péksütemény"
+      }
+    ]
+  },
+  "weeks": [],
+  "status": "blocked",
+  "error": "Az AI-hozzáférés kreditkerete nem elegendő ehhez a kéréshez. A már elmentett tartalmaid megmaradnak."
+}

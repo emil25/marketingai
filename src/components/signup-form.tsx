@@ -21,13 +21,18 @@ export interface OnboardingBrandDetails {
   address?: string;
   cityRegion?: string;
   offers?: string;
+  contactMethod?: string;
+  addressing?: "te" | "Ön";
+  audience?: string;
 }
 export function SignupForm({
   businessType = "other",
   brandDetails,
+  logoFile,
 }: {
   businessType?: string;
   brandDetails?: OnboardingBrandDetails;
+  logoFile?: File | null;
 }) {
   const register = useServerFn(registerUser);
   const [form, setForm] = useState({
@@ -39,6 +44,7 @@ export function SignupForm({
   });
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
+  const [registered, setRegistered] = useState(false);
   const update = (key: keyof typeof form) => (event: React.ChangeEvent<HTMLInputElement>) =>
     setForm((current) => ({ ...current, [key]: event.target.value }));
   async function submit(event: FormEvent) {
@@ -46,7 +52,27 @@ export function SignupForm({
     setError("");
     setPending(true);
     try {
-      await register({ data: { ...form, brandDetails } });
+      if (!registered) {
+        await register({ data: { ...form, brandDetails } });
+        setRegistered(true);
+      }
+      if (logoFile) {
+        const body = new FormData();
+        body.set("file", logoFile);
+        body.set("purpose", "brand-logo");
+        body.set("altText", "Vállalkozás logója");
+        const response = await fetch("/api/media", { method: "POST", body }).catch(() => {
+          throw new Error(
+            "A fiókod elkészült, de a logó feltöltése megszakadt. Próbáld újra, vagy folytasd logó nélkül.",
+          );
+        });
+        if (!response.ok) {
+          const result = await response.json().catch(() => ({}));
+          throw new Error(
+            `A fiókod elkészült, de a logó mentése nem sikerült. ${result.error || "Próbáld újra, vagy folytasd logó nélkül."}`,
+          );
+        }
+      }
       window.location.assign("/app/channels");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Nem sikerült regisztrálni.");
@@ -68,70 +94,86 @@ export function SignupForm({
           Indítsd a saját MarketingPilot munkateredet.
         </p>
         <form onSubmit={submit} className="mt-8 space-y-4">
-          <div>
-            <Label htmlFor="businessType">Vállalkozás típusa (opcionális)</Label>
-            <select
-              id="businessType"
-              value={form.businessType}
-              onChange={(event) =>
-                setForm((current) => ({ ...current, businessType: event.target.value }))
-              }
-              className="mt-2 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-            >
-              {BUSINESS_TYPES.map((item) => (
-                <option key={item.value} value={item.value}>
-                  {item.value === "other" ? "Később adom meg / Egyéb" : item.label}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <Label htmlFor="displayName">Neved</Label>
-            <Input
-              id="displayName"
-              required
-              value={form.displayName}
-              onChange={update("displayName")}
-              className="mt-2"
-            />
-          </div>
-          <div>
-            <Label htmlFor="workspaceName">Munkatér neve</Label>
-            <Input
-              id="workspaceName"
-              required
-              value={form.workspaceName}
-              onChange={update("workspaceName")}
-              className="mt-2"
-            />
-          </div>
-          <div>
-            <Label htmlFor="email">Email</Label>
-            <Input
-              id="email"
-              type="email"
-              required
-              value={form.email}
-              onChange={update("email")}
-              className="mt-2"
-            />
-          </div>
-          <div>
-            <Label htmlFor="password">Jelszó (legalább 8 karakter)</Label>
-            <Input
-              id="password"
-              type="password"
-              minLength={8}
-              required
-              value={form.password}
-              onChange={update("password")}
-              className="mt-2"
-            />
-          </div>
-          {error && <p className="text-sm text-destructive">{error}</p>}
+          <fieldset disabled={registered} className="space-y-4">
+            <div>
+              <Label htmlFor="businessType">Vállalkozás típusa (opcionális)</Label>
+              <select
+                id="businessType"
+                value={form.businessType}
+                onChange={(event) =>
+                  setForm((current) => ({ ...current, businessType: event.target.value }))
+                }
+                className="mt-2 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              >
+                {BUSINESS_TYPES.map((item) => (
+                  <option key={item.value} value={item.value}>
+                    {item.value === "other" ? "Később adom meg / Egyéb" : item.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <Label htmlFor="displayName">Neved</Label>
+              <Input
+                id="displayName"
+                required
+                value={form.displayName}
+                onChange={update("displayName")}
+                className="mt-2"
+              />
+            </div>
+            <div>
+              <Label htmlFor="workspaceName">Munkatér neve</Label>
+              <Input
+                id="workspaceName"
+                required
+                value={form.workspaceName}
+                onChange={update("workspaceName")}
+                className="mt-2"
+              />
+            </div>
+            <div>
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
+                type="email"
+                required
+                value={form.email}
+                onChange={update("email")}
+                className="mt-2"
+              />
+            </div>
+            <div>
+              <Label htmlFor="password">Jelszó (legalább 8 karakter)</Label>
+              <Input
+                id="password"
+                type="password"
+                minLength={8}
+                required
+                value={form.password}
+                onChange={update("password")}
+                className="mt-2"
+              />
+            </div>
+          </fieldset>
+          {error && (
+            <p role="alert" className="text-sm text-destructive">
+              {error}
+            </p>
+          )}
           <Button className="w-full rounded-full" disabled={pending}>
-            {pending ? "Létrehozás…" : "Regisztráció"}
+            {pending ? "Mentés…" : registered ? "Logó mentésének újrapróbálása" : "Regisztráció"}
           </Button>
+          {registered && (
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full rounded-full"
+              onClick={() => window.location.assign("/app/channels")}
+            >
+              Folytatás logó nélkül
+            </Button>
+          )}
         </form>
         <p className="mt-6 text-center text-sm text-muted-foreground">
           Van már fiókod?{" "}

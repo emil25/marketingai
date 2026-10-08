@@ -1,4 +1,5 @@
 import { contentPlaceholders, contentReviewItems } from "@/lib/content-quality";
+import { Link } from "@tanstack/react-router";
 
 export function ContentReviewNotice({
   warnings = [],
@@ -25,6 +26,15 @@ export function ContentReviewNotice({
         <p className="mt-2">
           A szögletes zárójeles adatokat töltsd ki a szövegben. Addig nem ütemezhető és nem tehető
           közzé.
+        </p>
+      )}
+      {missing.some((item) => /\[(?:cím|nyitvatartás)\]/iu.test(item)) && (
+        <p className="mt-2">
+          <Link to="/app/brand" className="font-medium underline underline-offset-4">
+            Cím és nyitvatartás megadása a Márkaprofilban →
+          </Link>
+          <br />A mentett adatokat a következő generálás használja. A már elkészült szöveg
+          helykitöltőit itt kell kitöltened.
         </p>
       )}
     </div>

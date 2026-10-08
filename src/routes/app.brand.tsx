@@ -20,6 +20,7 @@ import {
 import { FileText, Loader2, Palette, Save, Sparkles, Trash2, Plus } from "lucide-react";
 import { BUSINESS_TYPES } from "@/lib/business-types";
 import { BusinessTypePicker } from "@/components/business-type-picker";
+import { BrandLogoUpload } from "@/components/brand-logo-upload";
 
 export const Route = createFileRoute("/app/brand")({
   loader: () => getWorkspace(),
@@ -426,7 +427,22 @@ function BrandPage() {
               value={form.aiGuardrails}
               onChange={set("aiGuardrails")}
             />
-            <Field label="Logó URL" value={form.logoUrl} onChange={set("logoUrl")} />
+            {form.id && (
+              <BrandLogoUpload
+                key={form.id}
+                brandId={form.id}
+                logoUrl={form.logoUrl}
+                onUploaded={(logoUrl) => setForm((current) => ({ ...current, logoUrl }))}
+              />
+            )}
+            <details>
+              <summary className="cursor-pointer text-sm">
+                Logó megadása URL-lel (másodlagos lehetőség)
+              </summary>
+              <div className="mt-2">
+                <Field label="Logó URL" value={form.logoUrl} onChange={set("logoUrl")} />
+              </div>
+            </details>
             <Field label="Színek (vesszővel)" value={form.colors} onChange={set("colors")} />
           </div>
           <div className="mt-6 rounded-2xl border border-dashed bg-secondary/30 p-4">

@@ -1,7 +1,7 @@
 import { redirectSignedInUser } from "@/lib/guest-route";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { SignupForm } from "@/components/signup-form";
-import { useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -10,6 +10,13 @@ import { Progress } from "@/components/ui/progress";
 import { TONES } from "@/lib/marketing-config";
 import { BUSINESS_TYPES } from "@/lib/business-types";
 import { ArrowRight, ArrowLeft, Sparkles } from "lucide-react";
+import { BusinessHoursFields } from "@/components/business-hours-fields";
+import {
+  normalizeBusinessWebsite,
+  serializeBusinessHours,
+  validateLogoFile,
+  emptyBusinessHours,
+} from "@/lib/onboarding-details";
 
 export const Route = createFileRoute("/onboarding")({
   beforeLoad: redirectSignedInUser,
@@ -34,6 +41,19 @@ function Onboarding() {
   const [businessType, setBusinessType] = useState("other");
   const [tone, setTone] = useState("Barátságos");
   const [color, setColor] = useState("#7c3aed");
+  const [hours, setHours] = useState(emptyBusinessHours);
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [logoPreview, setLogoPreview] = useState("");
+  const [error, setError] = useState("");
+  useEffect(() => {
+    if (!logoFile) {
+      setLogoPreview("");
+      return;
+    }
+    const url = URL.createObjectURL(logoFile);
+    setLogoPreview(url);
+    return () => URL.revokeObjectURL(url);
+  }, [logoFile]);
   const [details, setDetails] = useState({
     name: "",
     website: "",
@@ -44,10 +64,32 @@ function Onboarding() {
     offers: "",
     services: "",
     products: "",
+    contactMethod: "",
+    addressing: "te" as "te" | "Ön",
+    audience: "",
   });
   const setDetail = (key: keyof typeof details, value: string) =>
     setDetails((current) => ({ ...current, [key]: value }));
   const pct = ((step + 1) / STEPS.length) * 100;
+  function next() {
+    setError("");
+    try {
+      if (step === 1) {
+        if (details.name.trim().length < 2)
+          throw new Error("A továbblépéshez add meg a cég nevét (legalább 2 karakter).");
+        const website = normalizeBusinessWebsite(details.website);
+        const openingHours = serializeBusinessHours(hours);
+        setDetails((current) => ({
+          ...current,
+          website,
+          openingHours,
+        }));
+      }
+      setStep((current) => current + 1);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Ellenőrizd a megadott adatokat.");
+    }
+  }
 
   return (
     <div className="theme-marketingpilot-v2 public-site min-h-screen gradient-hero">
@@ -59,20 +101,22 @@ function Onboarding() {
           <span className="font-semibold tracking-tight">MarketingPilot AI</span>
         </Link>
 
-        <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl border bg-card p-4">
-          <div>
-            <p className="font-semibold">Van már fiókod?</p>
-            <p className="text-sm text-muted-foreground">
-              Lépj be, a korábbi cégbeállításaid megmaradnak.
-            </p>
+        {step === 0 && (
+          <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl border bg-card p-4">
+            <div>
+              <p className="font-semibold">Van már fiókod?</p>
+              <p className="text-sm text-muted-foreground">
+                Lépj be, a korábbi cégbeállításaid megmaradnak.
+              </p>
+            </div>
+            <Button asChild>
+              <Link to="/login">Belépés a munkatérbe</Link>
+            </Button>
+            <Link to="/signup" className="text-sm font-medium underline underline-offset-4">
+              Kihagyom, később töltöm ki
+            </Link>
           </div>
-          <Button asChild>
-            <Link to="/login">Belépés a munkatérbe</Link>
-          </Button>
-          <Link to="/signup" className="text-sm font-medium underline underline-offset-4">
-            Új fiók – beállítás később
-          </Link>
-        </div>
+        )}
         <div className="mb-6 flex items-center justify-between text-xs text-muted-foreground">
           <span>
             {step + 1}. lépés / {STEPS.length}
@@ -110,7 +154,9 @@ function Onboarding() {
                   value={details.name}
                   onChange={(value) => setDetail("name", value)}
                   maxLength={160}
-                  label="Cég neve"
+                  label="Cég neve *"
+                  required
+                  hint="Kötelező, legalább 2 karakter."
                   placeholder="pl. A vállalkozás neve"
                 />
                 <Field
@@ -119,20 +165,65 @@ function Onboarding() {
                   maxLength={500}
                   label="Weboldal"
                   placeholder="pelda.hu"
+                  hint="A https:// előtagot elég ránk bíznod. A weboldalból most nem töltünk ki automatikusan adatokat."
                 />
-                <Field
-                  value={details.logoUrl}
-                  onChange={(value) => setDetail("logoUrl", value)}
-                  maxLength={1000}
-                  label="Logó URL (opcionális)"
-                  placeholder="https://…"
-                />
+                <div>
+                  <Label htmlFor="onboarding-logo-file">Logó feltöltése (opcionális)</Label>
+                  <Input
+                    id="onboarding-logo-file"
+                    className="mt-2"
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp"
+                    onChange={(event) => {
+                      const file = event.target.files?.[0];
+                      setError("");
+                      if (!file) {
+                        setLogoFile(null);
+                        return;
+                      }
+                      try {
+                        validateLogoFile(file);
+                        setLogoFile(file);
+                        setDetail("logoUrl", "");
+                      } catch (cause) {
+                        setLogoFile(null);
+                        event.target.value = "";
+                        setError(cause instanceof Error ? cause.message : "Érvénytelen logó.");
+                      }
+                    }}
+                  />
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    PNG, JPEG vagy WebP, legfeljebb 2 MB. A regisztráció után a saját, privát
+                    Médiatáradba mentjük.
+                  </p>
+                  {logoPreview && (
+                    <img
+                      src={logoPreview}
+                      alt="Kiválasztott logó előnézete"
+                      className="mt-2 h-16 max-w-full rounded-lg object-contain"
+                    />
+                  )}
+                  <details className="mt-2 text-sm">
+                    <summary className="cursor-pointer">Inkább képhivatkozást adok meg</summary>
+                    <Field
+                      value={details.logoUrl}
+                      onChange={(value) => {
+                        setDetail("logoUrl", value);
+                        if (value) setLogoFile(null);
+                      }}
+                      maxLength={1000}
+                      label="Logó webcíme"
+                      placeholder="https://…"
+                    />
+                  </details>
+                </div>
                 <Field
                   value={details.address}
                   onChange={(value) => setDetail("address", value)}
                   maxLength={1000}
                   label="Pontos cím (opcionális)"
                   placeholder="Utca, házszám"
+                  hint="Ezzel a címet említő posztokban nem kell [cím] helykitöltőt kitöltened. Később a Márkaprofilban is pótolhatod."
                 />
                 <Field
                   value={details.cityRegion}
@@ -141,14 +232,12 @@ function Onboarding() {
                   label="Város / régió (opcionális)"
                   placeholder="pl. Csíkszereda"
                 />
-                <Field
-                  value={details.openingHours}
-                  onChange={(value) => setDetail("openingHours", value)}
-                  maxLength={1000}
-                  label="Nyitvatartás (opcionális)"
-                  placeholder="H–V: 11:00–22:00"
-                />
               </div>
+              <BusinessHoursFields value={hours} onChange={setHours} />
+              <p className="mt-2 text-sm text-muted-foreground">
+                A megadott időpontokkal a nyitvatartásról szóló poszt is kitöltés nélkül készülhet
+                el. Nem kell minden posztban címet vagy nyitvatartást szerepeltetned.
+              </p>
             </>
           )}
 
@@ -183,7 +272,7 @@ function Onboarding() {
             <>
               <H
                 title="Termékek és szolgáltatások"
-                sub="Sorolj fel párat — az AI ez alapján tervez."
+                sub="Adj meg 3–5 konkrét terméket vagy szolgáltatást. Az AI csak a valódi kínálatodból dolgozik."
               />
               <div className="mt-6 grid gap-4">
                 <div>
@@ -204,10 +293,25 @@ function Onboarding() {
                     maxLength={4000}
                     value={details.products}
                     onChange={(event) => setDetail("products", event.target.value)}
-                    placeholder="Sorold fel a kiemelt termékeidet vagy ajánlataidat…"
+                    placeholder="Például egy pékségnél: kovászos kenyér, kakaós csiga, sajtos pogácsa — csak ami valóban kapható."
                     className="mt-2 min-h-24"
                   />
                 </div>
+                <Field
+                  label="Kapcsolattartás / rendelési mód (opcionális)"
+                  placeholder="pl. Időpontfoglalás telefonon: …; rendelés Messengerben"
+                  value={details.contactMethod}
+                  onChange={(value) => setDetail("contactMethod", value)}
+                  maxLength={1000}
+                  hint="A poszt végén erre a valódi elérhetőségre irányíthat az AI."
+                />
+                <Field
+                  label="Kinek szól az ajánlatod? (opcionális)"
+                  placeholder="pl. Környékbeli dolgozók, családok"
+                  value={details.audience}
+                  onChange={(value) => setDetail("audience", value)}
+                  maxLength={2000}
+                />
                 <div>
                   <Label htmlFor="onboarding-offers">Aktuális ajánlat (opcionális)</Label>
                   <Textarea
@@ -258,18 +362,39 @@ function Onboarding() {
                   <Sparkles className="mb-1 h-4 w-4" />
                   Előnézet: a mentett munkatérben az AI a saját márkaadataidból készít tervet.
                 </div>
+                <div>
+                  <Label htmlFor="onboarding-addressing">
+                    Hogyan szólítsuk meg a közönségedet?
+                  </Label>
+                  <select
+                    id="onboarding-addressing"
+                    value={details.addressing}
+                    onChange={(event) => setDetail("addressing", event.target.value)}
+                    className="mt-2 h-10 w-full rounded-md border bg-background px-3 text-sm"
+                  >
+                    <option value="te">Tegezve (te)</option>
+                    <option value="Ön">Magázva (Ön)</option>
+                  </select>
+                </div>
               </div>
             </>
           )}
 
           {step === 5 && (
-            <SignupForm businessType={businessType} brandDetails={{ ...details, tone, color }} />
+            <SignupForm
+              businessType={businessType}
+              brandDetails={{ ...details, tone, color }}
+              logoFile={logoFile}
+            />
           )}
 
           <div className="mt-8 flex items-center justify-between">
             <Button
               variant="ghost"
-              onClick={() => setStep((s) => Math.max(0, s - 1))}
+              onClick={() => {
+                setError("");
+                setStep((s) => Math.max(0, s - 1));
+              }}
               disabled={step === 0}
             >
               <ArrowLeft className="mr-1 h-4 w-4" /> Vissza
@@ -278,12 +403,25 @@ function Onboarding() {
               <Button
                 className="rounded-full"
                 disabled={step === 1 && details.name.trim().length < 2}
-                onClick={() => setStep((s) => s + 1)}
+                aria-describedby={
+                  step === 1 && details.name.trim().length < 2 ? "onboarding-next-help" : undefined
+                }
+                onClick={next}
               >
                 Tovább <ArrowRight className="ml-1 h-4 w-4" />
               </Button>
             ) : null}
           </div>
+          {step === 1 && details.name.trim().length < 2 && (
+            <p id="onboarding-next-help" className="mt-2 text-sm">
+              A továbblépéshez töltsd ki a Cég neve mezőt (legalább 2 karakter).
+            </p>
+          )}
+          {error && (
+            <p role="alert" className="mt-3 text-sm text-destructive">
+              {error}
+            </p>
+          )}
         </div>
       </div>
     </div>
@@ -304,24 +442,36 @@ function Field({
   value,
   onChange,
   maxLength,
+  required = false,
+  hint,
 }: {
   label: string;
   placeholder: string;
   value: string;
   onChange: (value: string) => void;
   maxLength: number;
+  required?: boolean;
+  hint?: string;
 }) {
+  const id = useId();
   return (
     <div>
-      <Label htmlFor={`onboarding-${label}`}>{label}</Label>
+      <Label htmlFor={id}>{label}</Label>
       <Input
-        id={`onboarding-${label}`}
+        id={id}
         className="mt-2"
         placeholder={placeholder}
         value={value}
         maxLength={maxLength}
+        required={required}
+        aria-describedby={hint ? `${id}-hint` : undefined}
         onChange={(event) => onChange(event.target.value)}
       />
+      {hint && (
+        <p id={`${id}-hint`} className="mt-1 text-sm text-muted-foreground">
+          {hint}
+        </p>
+      )}
     </div>
   );
 }

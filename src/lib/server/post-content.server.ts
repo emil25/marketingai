@@ -89,6 +89,11 @@ export async function generateFactualPost(
       campaign: input.campaignContext,
     });
     for (const variant of value.variants) {
+      if (variant.cta.trim() && !variant.content.trim().endsWith(variant.cta.trim()))
+        ctx.addIssue({
+          code: "custom",
+          message: `${variant.platform}: A cta mező pontosan a content utolsó mondata legyen; ne írj külön második felhívást. Facebooknál ez egy lezáró kérdés is lehet.`,
+        });
       for (const placeholder of requiredPlaceholders)
         if (!variant.content.includes(placeholder))
           ctx.addIssue({
@@ -102,7 +107,7 @@ export async function generateFactualPost(
         variant.hashtags,
         input.businessContext.language,
       ))
-        ctx.addIssue({ code: "custom", message });
+        ctx.addIssue({ code: "custom", message: `${variant.platform}: ${message}` });
     }
     if (
       value.variants.length !== selected.length ||
@@ -112,13 +117,44 @@ export async function generateFactualPost(
         code: "custom",
         message: "Minden kiválasztott csatornához pontosan egy változat szükséges.",
       });
+    const facebook = value.variants.find((variant) => variant.platform === "facebook");
+    const instagram = value.variants.find((variant) => variant.platform === "instagram");
+    if (facebook && instagram) {
+      const normalize = (text: string) =>
+        text
+          .toLocaleLowerCase("hu")
+          .replace(/[^\p{L}\p{N}\s]/gu, "")
+          .replace(/\s+/g, " ")
+          .trim();
+      const opening = (text: string) => normalize(text.split(/[\n.!?]/u)[0]);
+      const words = (text: string) =>
+        new Set(
+          normalize(text.replace(/\[[^\]]+\]/g, "").replace(/#[\p{L}\p{N}_]+/gu, ""))
+            .split(" ")
+            .filter((word) => word.length > 3),
+        );
+      const fbWords = words(facebook.content);
+      const igWords = words(instagram.content);
+      const shared = [...fbWords].filter((word) => igWords.has(word)).length;
+      const union = new Set([...fbWords, ...igWords]).size;
+      if (
+        (opening(facebook.content).length > 25 &&
+          opening(facebook.content) === opening(instagram.content)) ||
+        (Math.min(fbWords.size, igWords.size) >= 15 && shared / union > 0.8)
+      )
+        ctx.addIssue({
+          code: "custom",
+          message:
+            "A Facebook és Instagram szöveg túlságosan azonos. Írj külön rövid, erős Instagram-nyitósort és tömör vizuális szöveget; Facebookra beszélgetősebb, eltérő felépítésű posztot. A tények maradjanak azonosak, ne találj ki új terméket.",
+        });
+    }
   });
   const result = await requestAiJson(
     {
       messages: [
         {
           role: "system",
-          content: `${FACTUAL_CONTENT_RULES}\nHasználd a strukturált márkakontextust. A content mezőben legyen a végső CTA, a külön cta mező ugyanaz a mondat legyen. A hashtags csak a külön tömbben szerepeljen. Egy briefből minden kiválasztott platformra önálló, optimalizált, szerkeszthető posztot adj. A hiányzó cél/közönség irányát a briefből állapítsd meg, üzleti tényt ne következtess.\n${businessContextPrompt(input.businessContext)}`,
+          content: `${FACTUAL_CONTENT_RULES}\nHasználd a strukturált márkakontextust. A content mezőben legyen a végső CTA vagy Facebooknál a lezáró kérdés, a külön cta mező ugyanaz a mondat legyen. A hashtags csak a külön tömbben szerepeljen, Instagramnál kötelező 4–6 valódi #hashtag, nem hagyható el. Egy briefből minden kiválasztott platformra önálló, optimalizált, szerkeszthető posztot adj. A hiányzó cél/közönség irányát a briefből állapítsd meg, üzleti tényt ne következtess.\n${businessContextPrompt(input.businessContext)}`,
         },
         {
           role: "user",
@@ -129,6 +165,15 @@ export async function generateFactualPost(
             ctaStyle: input.ctaStyle,
             campaignContext: input.campaignContext ?? "",
             requiredPlaceholders,
+            channelInstructions: selected.map((platform) => ({
+              platform,
+              writing:
+                platform === "facebook"
+                  ? "Beszélgetős, végig te megszólítás (kivéve a profil kifejezett eltérő kérését). Ne legyen Sziasztok vagy Nektek. Saját nyitósor és rövid bekezdések; a végén egyetlen konkrét kérdés VAGY felhívás. A cta mező a content utolsó mondata legyen. Legfeljebb 2 hashtag a külön tömbben."
+                  : platform === "instagram"
+                    ? "Saját, rövid, erős nyitósor. Rövidebb, más felépítésű poszt, mint a Facebook. 1–3 emoji. A végén egy közvetlen CTA, például Mentsd el, ha erre jársz! Ne írd azt, hogy Mentésre ajánljuk. A cta ugyanaz a zárómondat legyen. 4–6 hashtag a külön tömbben."
+                    : "A csatornához illeszkedő önálló szöveg.",
+            })),
           }),
         },
       ],

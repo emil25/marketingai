@@ -1,5 +1,5 @@
 {
-  "status": "Élő böngészős AI-poszt teszt sikeres. A teljes havi terv végső újratesztelése OpenRouter 402 kredit miatt blokkolt.",
+  "status": "Korábbi, valódi böngészős AI-válasz, a mostani finomítás ELŐTT. A hashtagek a mentett változatokból pontosítva. A javított prompt végső élő tesztje OpenRouter 402 miatt blokkolt.",
   "source": "Valódi AI-válasz a MarketingPilot böngészős posztkészítőjéből, tesztmárka",
   "brand": "Műhely Pékség · TESZT",
   "facebook": "A Műhely Pékség reggelije frissen sült kenyérrel és péksüteménnyel vár Csíkszeredában. Ha sietsz, nálunk elvitelre is kérheted a reggelit, hogy a napod igazán jól kezdődjön.\n\nCím: [cím]\nNyitvatartás: [nyitvatartás]\n\nLátogass el hozzánk!",
@@ -8,5 +8,21 @@
     "[cím]",
     "[nyitvatartás]"
   ],
-  "scheduling": "A helykitöltőkkel a szerver elutasította az ütemezést. Kitöltés és mentés után az ütemezés sikerült."
+  "scheduling": "A helykitöltőkkel a szerver elutasította az ütemezést. Kitöltés és mentés után az ütemezés sikerült.",
+  "hashtags": {
+    "facebook": [
+      "#Csíkszereda",
+      "#MűhelyPékség"
+    ],
+    "instagram": [
+      "#MűhelyPékség",
+      "#Csíkszereda",
+      "#FrissPékáru",
+      "#ReggeliElvitel"
+    ]
+  },
+  "publicationText": {
+    "facebook": "A Műhely Pékség reggelije frissen sült kenyérrel és péksüteménnyel vár Csíkszeredában. Ha sietsz, nálunk elvitelre is kérheted a reggelit, hogy a napod igazán jól kezdődjön.\n\nCím: [cím]\nNyitvatartás: [nyitvatartás]\n\nLátogass el hozzánk!\n\n#Csíkszereda #MűhelyPékség",
+    "instagram": "🥐 Frissen sült kenyér és péksütemények várnak a Műhely Pékségben Csíkszeredában. Reggelit elvitelre is kérhetsz, hogy az indulás gyors és finom legyen.\n\n📍 Cím: [cím]\n⏰ Nyitvatartás: [nyitvatartás]\n\nLátogass el hozzánk!\n\n#MűhelyPékség #Csíkszereda #FrissPékáru #ReggeliElvitel"
+  }
 }
