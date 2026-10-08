@@ -1,7 +1,6 @@
-import { useId, useState } from "react";
-import { Input } from "@/components/ui/input";
+import { useState } from "react";
 import { Label } from "@/components/ui/label";
-import { validateLogoFile } from "@/lib/onboarding-details";
+import { LogoFilePicker } from "@/components/logo-file-picker";
 
 export function BrandLogoUpload({
   brandId,
@@ -12,28 +11,23 @@ export function BrandLogoUpload({
   logoUrl: string;
   onUploaded: (url: string) => void;
 }) {
-  const id = useId();
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
   return (
     <div>
-      <Label htmlFor={id}>Logó feltöltése</Label>
-      <Input
-        id={id}
-        type="file"
-        accept="image/png,image/jpeg,image/webp"
-        className="mt-2"
+      <Label>Logó feltöltése</Label>
+      <LogoFilePicker
         disabled={pending}
-        onChange={async (event) => {
-          const input = event.currentTarget;
-          const file = input.files?.[0];
-          if (!file) return;
+        onError={(message) => {
+          setError(message);
+          if (message) setSaved(false);
+        }}
+        onSelected={async (file) => {
           setError("");
           setSaved(false);
           setPending(true);
           try {
-            validateLogoFile(file);
             const body = new FormData();
             body.set("file", file);
             body.set("purpose", "brand-logo");
@@ -55,13 +49,9 @@ export function BrandLogoUpload({
             );
           } finally {
             setPending(false);
-            input.value = "";
           }
         }}
       />
-      <p className="mt-1 text-sm text-muted-foreground">
-        PNG, JPEG vagy WebP, legfeljebb 2 MB. A logó a márkához és a Médiatárba is mentődik.
-      </p>
       {pending && (
         <p role="status" className="mt-2 text-sm">
           Logó mentése…
