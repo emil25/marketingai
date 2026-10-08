@@ -138,6 +138,16 @@ Az `npm run build:vercel` a Nitro Vercel szerveres buildjét készíti el. A Ver
 
 Hivatkozások: [Nitro Vercel deployment](https://nitro.build/deploy/providers/vercel), [Vercel privát Blob](https://vercel.com/docs/vercel-blob/private-storage).
 
+## Tényalapú AI-tartalom és heti kampánytervezés
+
+A posztok és a Plannerből indított posztgenerálás közös szerveroldali szabályokat használnak. A hiányzó üzleti adatok `[helykitöltő]` formában szerepelnek; az `ellenorizendo` lista a platformváltozat mellett jelenik meg. A szerver a szöveg, CTA és hashtagek helykitöltőit is ellenőrzi ütemezés/közzététel előtt. Ez nem teljes szemantikus tényellenőrzés: a felhasználó továbbra is ellenőrizze az AI állításait.
+
+A 30 napos kampány négy teljes hétre és egy rövid záró hétre bontott AI-hívásból készül, legfeljebb 4000 kimeneti token/hívás mellett. Az előző hetek témái és `temak_osszefoglalo` mezői bekerülnek a következő kérésbe. Hetenként mentjük a valódi planItem rekordokat. Későbbi hiba nem törli a már elkészült heteket, a kampány piszkozat marad; a teljes terv elkészülte előtt nincs sikerüzenet. Automatikus háttérfolytatás nincs.
+
+A JSON parser eltávolítja a külső Markdown-kódblokkot. Üres/hibás JSON vagy séma/szabályhiba után egyszer, konkrét javítási utasítással kér új választ. Szolgáltatói hibát, így kredit miatti 402 választ nem ismétel automatikusan. A heti hívások közös 240 másodperces időkeretet használnak; az újrapróbálás is ebből fogyaszt. A Vercel build a szerverfüggvény maximális futását 300 másodpercre állítja, így marad idő a hibaállapot és részeredmények mentésére. Ez továbbra is véges időkeret, nem háttér-worker.
+
+Az opcionális márkaprofil-adatok: `address`, `openingHours`; a fő termékek, szolgáltatások és ajánlat a meglévő Brand mezőibe kerülnek. A `004_content_quality.sql` kizárólag oszlopokat ad hozzá, régi adatot nem töröl. A PostgreSQL adapter olvassa/írja az új mezőket. Az AI példák elkülönített, TESZT jelölésű helyi adatállományban készültek, nem valódi ügyféladatokkal. Célzott ellenőrzések: `tests/content-quality.test.ts`.
+
 ## Nyilvános béta, kapcsolat és jogi tájékoztatók
 
 A nyitóoldal a tényleges funkciókat kommunikálja: szövegkészítés, saját fotós kreatív, mentés és tartalomtervezés. A naptárba mentett dátum **nem automatikus publikálás**. Nincs aktív bankkártyás előfizetés; a korábbi, még nem vásárolható Starter/Pro árlista helyett díjmentes béta szerepel, korlátlan AI-használat ígérete nélkül.

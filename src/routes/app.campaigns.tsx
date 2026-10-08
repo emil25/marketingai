@@ -95,6 +95,7 @@ function Campaigns() {
   const [form, setForm] = useState(initialForm);
   const [showForm, setShowForm] = useState(data.campaigns.length === 0);
   const [pending, setPending] = useState(false);
+  const [generationError, setGenerationError] = useState("");
   const [weeklyPending, setWeeklyPending] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const startDateRef = useRef<HTMLInputElement>(null);
@@ -131,13 +132,19 @@ function Campaigns() {
     event.preventDefault();
     if (pending || !form.channels.length) return;
     setPending(true);
+    setGenerationError("");
     try {
       await create({ data: { ...form, budget: form.budget.trim() ? Number(form.budget) : null } });
       toast.success("A kampány és a 30 napos AI-terv elkészült.");
       await router.invalidate();
       setShowForm(false);
     } catch (cause) {
-      toast.error(cause instanceof Error ? cause.message : "Nem sikerült kampánytervet készíteni.");
+      const message =
+        cause instanceof Error ? cause.message : "Nem sikerült kampánytervet készíteni.";
+      setGenerationError(message);
+      toast.error(message);
+      // Earlier weekly chunks can already be saved even when a later AI request fails.
+      await router.invalidate();
     } finally {
       setPending(false);
     }
@@ -403,6 +410,11 @@ function Campaigns() {
                 {pending ? "AI-terv készül…" : "Kampányterv készítése"}
               </Button>
             </div>
+            {generationError && (
+              <p role="alert" className="text-sm text-destructive">
+                {generationError}
+              </p>
+            )}
           </form>
         </Card>
       )}

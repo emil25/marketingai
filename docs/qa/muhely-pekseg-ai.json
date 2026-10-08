@@ -1,0 +1,290 @@
+{
+  "note": "Elkülönített TESZT márka valódi OpenRouter-válaszai, nem ügyféladat vagy demó KPI.",
+  "brand": {
+    "businessType": "local_business",
+    "businessTypeLabel": "Helyi vállalkozás",
+    "brandName": "Műhely Pékség · TESZT",
+    "industry": "pékség",
+    "website": "",
+    "region": "Csíkszereda",
+    "language": "magyar",
+    "products": "frissen sült kenyér és péksütemények",
+    "services": "reggeli elvitelre",
+    "offers": "",
+    "audience": "környékbeli dolgozók és családok",
+    "tone": "barátságos, közvetlen",
+    "ctaStyle": "Látogass el hozzánk",
+    "preferredPhrases": "",
+    "avoidedPhrases": "",
+    "learnedBrandVoice": "",
+    "address": "",
+    "openingHours": "",
+    "guardrails": "Ne találj ki árat, címet vagy kedvezményt.",
+    "brandDescription": "Családi pékség",
+    "goal": "Több helyi reggeliző",
+    "platform": "facebook, instagram"
+  },
+  "latestBrowserPost": {
+    "source": "Valódi AI-válasz a MarketingPilot böngészős posztkészítőjéből, tesztmárka",
+    "facebook": "A Műhely Pékség reggelije frissen sült kenyérrel és péksüteménnyel vár Csíkszeredában. Ha sietsz, nálunk elvitelre is kérheted a reggelit, hogy a napod igazán jól kezdődjön.\n\nCím: [cím]\nNyitvatartás: [nyitvatartás]\n\nLátogass el hozzánk!",
+    "instagram": "🥐 Frissen sült kenyér és péksütemények várnak a Műhely Pékségben Csíkszeredában. Reggelit elvitelre is kérhetsz, hogy az indulás gyors és finom legyen.\n\n📍 Cím: [cím]\n⏰ Nyitvatartás: [nyitvatartás]\n\nLátogass el hozzánk!"
+  },
+  "initialSameBriefComparison": [
+    {
+      "model": "openai/gpt-4.1-mini",
+      "post": {
+        "variants": [
+          {
+            "platform": "facebook",
+            "content": "Reggeli elvitelre Csíkszeredában – Kényeztesd magad friss péksüteményekkel és kenyérrel, amit könnyen magaddal vihetsz, ha már sietsz a munkába vagy otthon vár a család.\n\nNyitvatartás: [nyitvatartás]\nHelyszín: [cím]\n\nLátogass el hozzánk!",
+            "hashtags": [
+              "#Reggeli",
+              "#Csíkszereda"
+            ],
+            "cta": "Látogass el hozzánk!",
+            "ellenorizendo": [
+              "Hiányzik a pontos cím és nyitvatartás, ezek helyett szövegben helykitöltő szerepel.",
+              "A tartalom megfelel a barátságos, közvetlen hangnak.",
+              "A célközönség reggeli otthoni vagy munkába induló környékbeliek.",
+              "Nem került bele ár vagy kedvezmény, a guardrail szerint.",
+              "[nyitvatartás]",
+              "[cím]"
+            ]
+          },
+          {
+            "platform": "instagram",
+            "content": "Reggelit gyorsan, egyszerűen, elvitelre? Csíkszeredában a Műhely Pékség · TESZT kínál friss kenyereket és péksüteményeket, hogy a reggelig mindig könnyed legyen.\nNyitvatartás: [nyitvatartás]\nCím: [cím]\n\nLátogass el hozzánk! 🥐🍞🥖",
+            "hashtags": [
+              "reggeli",
+              "elvitelre",
+              "Csíkszereda",
+              "pékség",
+              "frisssütik",
+              "MűhelyPékség"
+            ],
+            "cta": "Látogass el hozzánk!",
+            "ellenorizendo": [
+              "Instagram posztban benne vannak a megfelelő emojik és releváns hashtagek.",
+              "A cím és nyitvatartás helyőrzőként szerepel a szövegben.",
+              "A hangnem barátságos, közvetlen, a célközönség környékbeli dolgozók és családok.",
+              "Nincs benne árinformáció vagy kedvezmény a megadott szabályok szerint.",
+              "[nyitvatartás]",
+              "[cím]"
+            ]
+          }
+        ]
+      },
+      "plan": {
+        "het": 1,
+        "szakasz": "ismertség",
+        "posztok": [
+          {
+            "datum": "2026-10-09",
+            "idopont": "08:00",
+            "csatorna": "facebook",
+            "tipus": "termékbemutató",
+            "forma": "egyképes",
+            "tema": "Frissen sült kenyér reggelre",
+            "cel": "ismertség",
+            "vazlat": "Szuper reggel kezdete egy szelet frissen sült kenyérrel a Műhely Pékségből! Minden nap frissen sülnek a kenyereink, hogy neked csak élvezned kelljen. Látogass el hozzánk! #frisskenyér #pékáru #Csíkszereda",
+            "vizualis_otlet": "Közeli kép egy gőzölgő, frissen szeletelt kenyérről egy fa vágódeszkán.",
+            "ellenorizendo": [
+              "Frissen sült kenyér mindig elérhető reggelente?",
+              "Használhatók-e a #frisskenyér, #pékáru és #Csíkszereda hashtagek?"
+            ]
+          },
+          {
+            "datum": "2026-10-12",
+            "idopont": "07:30",
+            "csatorna": "instagram",
+            "tipus": "kulissza",
+            "forma": "reel",
+            "tema": "Reggeli készülődés a pékségben",
+            "cel": "bizalom",
+            "vazlat": "Nézd meg, hogyan készülnek reggelente a finom péksüteményeink! Minden lépésből süt a gondoskodás és a családi hangulat. Látogass el hozzánk! #kulisszatitkok #pékség #frisssütik #Csíkszereda",
+            "vizualis_otlet": "Videó 5 jelenetben: liszt mérés, dagasztás, formázás, sütés, kipakolás a pultba; meleg, barátságos zene alatt, feliratokkal.",
+            "ellenorizendo": [
+              "Biztos, hogy van lehetőség kulisszák bemutatására videó formában?",
+              "Felhasználhatók-e a megadott hashtagek?"
+            ]
+          },
+          {
+            "datum": "2026-10-15",
+            "idopont": "08:00",
+            "csatorna": "facebook",
+            "tipus": "ajánlat",
+            "forma": "szöveges",
+            "tema": "Frissen sült kenyér és reggeli elvitelre",
+            "cel": "forgalom",
+            "vazlat": "Kezdd a napot a Műhely Pékség frissen sült kenyerével és reggelijével! Gyere be, és vidd el kedvencedet, hogy otthon vagy az irodában is jól induljon a reggel. Látogass el hozzánk! #reggeli #frisssütik",
+            "vizualis_otlet": "Egyszerű grafika vagy illusztráció friss kenyérrel és kávéval egy asztalon, hívogató hangulatban.",
+            "ellenorizendo": [
+              "Valóban elérhető-e reggeli elvitelre?",
+              "A szöveg megfelel-e a helyi szabályoknak az ajánlat kommunikálására?"
+            ]
+          }
+        ],
+        "temak_osszefoglalo": [
+          "Frissen sült kenyér reggelre",
+          "Reggeli kulisszatitkok",
+          "Frissen sült kenyér és reggeli elvitelre"
+        ]
+      }
+    },
+    {
+      "model": "google/gemini-2.5-flash",
+      "post": {
+        "variants": [
+          {
+            "platform": "facebook",
+            "content": "Jól indul a nap egy finom reggelivel, igaz? Gyere, kapj be valami finomat nálunk a Műhely Pékségben! Frissen sült kenyérrel és péksüteményekkel várunk Csíkszeredában.\n\nElvitelre is kérheted a reggelid, ha épp sietsz! Kényelmes és gyors megoldás, hogy ne maradj éhesen.\n\n[Cím] alatt találsz minket, [nyitvatartás] vagyunk nyitva.\n\nLátogass el hozzánk!",
+            "hashtags": [],
+            "cta": "Látogass el hozzánk!",
+            "ellenorizendo": [
+              "cím",
+              "nyitvatartás",
+              "[Cím]",
+              "[nyitvatartás]"
+            ]
+          },
+          {
+            "platform": "instagram",
+            "content": "Szereted a frissen sült finomságokat? 🥐 Nálunk a Műhely Pékségben Csíkszeredában megtalálod a tökéletes reggelit! Akár elvitelre is kérheted, ha sietős a napod. Gyere és kóstold meg!\n\n[Cím] alatt várunk, [nyitvatartás]! ☀️\n\nLátogass el hozzánk!",
+            "hashtags": [
+              "#műhelypékség",
+              "#csíkszereda",
+              "#reggeli",
+              "#péksütemény",
+              "#frissenkészült"
+            ],
+            "cta": "Látogass el hozzánk!",
+            "ellenorizendo": [
+              "cím",
+              "nyitvatartás",
+              "[Cím]",
+              "[nyitvatartás]"
+            ]
+          }
+        ]
+      },
+      "plan": {
+        "het": 1,
+        "szakasz": "ismertség",
+        "posztok": [
+          {
+            "datum": "2026-10-09",
+            "idopont": "07:00",
+            "csatorna": "facebook",
+            "tipus": "kulissza",
+            "forma": "egyképes",
+            "tema": "Kenyérsütés hajnalban",
+            "cel": "ismertség",
+            "vazlat": "Még a város alszik, de nálunk már javában készülnek a friss kenyerek. \n\nSzeretettel várunk mindenkit, aki egy szelet meleg, illatos kenyérrel indítaná a napot. \n\nLátogass el hozzánk!",
+            "vizualis_otlet": "Fotó a hajnali pékségből, ahogy a pék kiveszi a friss kenyeret a kemencéből.",
+            "ellenorizendo": [
+              "pontos cím",
+              "nyitvatartás"
+            ]
+          },
+          {
+            "datum": "2026-10-11",
+            "idopont": "08:00",
+            "csatorna": "instagram",
+            "tipus": "termékbemutató",
+            "forma": "carousel",
+            "tema": "Péksütemények reggelire",
+            "cel": "ismertség",
+            "vazlat": "Ébredj velünk minden reggel! \n\nFriss péksütemények várnak, hogy jól induljon a napod. \n\nLátogass el hozzánk!",
+            "vizualis_otlet": "Carousel képek különböző péksüteményekről, közelről, frissen sülve.",
+            "ellenorizendo": [
+              "pontos cím",
+              "nyitvatartás"
+            ]
+          },
+          {
+            "datum": "2026-10-13",
+            "idopont": "09:00",
+            "csatorna": "facebook",
+            "tipus": "kérdés",
+            "forma": "szöveges",
+            "tema": "Kedvenc reggeliző hely",
+            "cel": "beszélgetés",
+            "vazlat": "Szereted a friss, meleg reggelit? \n\nNeked mi a kedvenc reggeliző helyed Csíkszeredában? \n\nLátogass el hozzánk!",
+            "vizualis_otlet": "Egyszerű, ízléses grafika a pékség logójával.",
+            "ellenorizendo": [
+              "pontos cím",
+              "nyitvatartás"
+            ]
+          }
+        ],
+        "temak_osszefoglalo": [
+          "Kenyérsütés hajnalban",
+          "Péksütemények reggelire",
+          "Kedvenc reggeliző hely"
+        ]
+      }
+    }
+  ],
+  "limitations": {
+    "comparison": "A kezdeti közös prompt után a szabályokat tovább javítottuk; az új végső prompttal Gemini és GPT-4.1 újratesztelés kredit miatt blokkolt. Nem teljes végső modellranglista.",
+    "fullMonthlyLiveTest": "Két hét / hat poszt mentése igazolt, harmadik héten minőségellenőrzés elutasított ismételt témát. Konkrét javítási utasítás elkészült, új havi próba 402 miatt blokkolt.",
+    "scheduling": "Hiányzó cím/nyitvatartás mellett a szerver tiltott; a helykitöltők kitöltése után ütemezés és újratöltés sikeres.",
+    "humanReview": "A minták nem teljes szemantikus tényellenőrzés eredményei. Az AI nem garantáltan hibátlan magyar szöveg.",
+    "weekSample": "Korábbi promptverzió válasza, nem végső minőségi PASS. Az Ismerd meg/Látogass CTA-duplázást és korai munkakezdés állítását utólag külön ellenőrzés fogja meg; ezt az új változatot 402 miatt nem sikerült teljes havi élő kérésben újratesztelni."
+  },
+  "earlierWeekSample": {
+    "het": 1,
+    "szakasz": "ismertség",
+    "posztok": [
+      {
+        "datum": "2026-10-09",
+        "idopont": "08:00",
+        "csatorna": "facebook",
+        "tipus": "termékbemutató",
+        "forma": "egyképes",
+        "tema": "Frissen sült kenyér",
+        "cel": "ismertség",
+        "vazlat": "Ismerd meg a Műhely Pékség frissen sült, illatos kenyereit, amelyek [elkészítési gyakoriság] készülnek otthonodba varázsolva a pékség hangulatát. Látogass el hozzánk! #frisskenyér #műhelypékség",
+        "vizualis_otlet": "Egy közelkép egy frissen sült, gőzölgő cipóról egy fa vágódeszkán, a háttérben részben látható pékség belső tér.",
+        "ellenorizendo": [
+          "a pékség pontos címe hiányzik, ezért nem szerepel a posztban",
+          "a kenyér elkészítési gyakorisága nincs megadva",
+          "[elkészítési gyakoriság]"
+        ]
+      },
+      {
+        "datum": "2026-10-12",
+        "idopont": "07:30",
+        "csatorna": "instagram",
+        "tipus": "kulissza",
+        "forma": "reel",
+        "tema": "Reggeli elvitelre a pékségből",
+        "cel": "ismertség",
+        "vazlat": "Reggeli elvitelre vár a Műhely Pékség! Nézd meg, hogyan készülnek el gyorsan és frissen a reggeli finomságok, hogy a munkába indulásod könnyebb legyen! 🥐☕️🍞 #reggeli #frissen #pékség #elvitelre",
+        "vizualis_otlet": "Videó 4 jelenetben: 1. friss tészták előkészítése, 2. sütőből kivett péksütemények, 3. csomagolás elvitelre, 4. mosolygó pék a pultnál.",
+        "ellenorizendo": [
+          "hivatalos nyitvatartási idő hiányzik, nem szerepel a videóban vagy szövegben"
+        ]
+      },
+      {
+        "datum": "2026-10-14",
+        "idopont": "10:00",
+        "csatorna": "facebook",
+        "tipus": "kérdés",
+        "forma": "szöveges",
+        "tema": "Mi a kedvenc péksüteményed?",
+        "cel": "ismertség",
+        "vazlat": "Mi a kedvenc péksüteményed a Műhely Pékség kínálatából? Látogass el hozzánk! #kedvencpéksütemény #műhelypékség",
+        "vizualis_otlet": "Egyszerű grafika színes háttérrel: 'Melyik a kedvenc péksüteményed? Írd meg kommentben!'.",
+        "ellenorizendo": [
+          "a péksütemények pontos névsora hiányzik, így általános kérdés marad"
+        ]
+      }
+    ],
+    "temak_osszefoglalo": [
+      "frissen sült kenyér bemutatása",
+      "reggeli elvitelre készítésének kulisszái",
+      "közösségi kérdés a kedvenc péksüteményről"
+    ]
+  }
+}

@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
+import { ContentReviewNotice } from "@/components/content-review-notice";
 import { useServerFn } from "@tanstack/react-start";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -340,6 +341,17 @@ function CampaignDetail() {
                   </Link>
                 )}
               </div>
+              <ContentReviewNotice
+                warnings={item.verificationWarnings}
+                texts={[item.draftContent ?? ""]}
+              />
+              {item.draftContent && (
+                <details className="mt-3 text-sm">
+                  <summary className="cursor-pointer">Posztvázlat és képi ötlet</summary>
+                  <p className="mt-2 whitespace-pre-wrap">{item.draftContent}</p>
+                  <p className="mt-2 text-muted-foreground">{item.visualIdea}</p>
+                </details>
+              )}
               {weekly &&
                 item.postId &&
                 (() => {

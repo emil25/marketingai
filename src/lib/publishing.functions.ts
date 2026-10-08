@@ -9,6 +9,7 @@ import type {
 import { requireAuthContext } from "@/lib/server/auth-context.server";
 import { decryptToken, signMediaAccess } from "@/lib/server/token-crypto.server";
 import { newId, nowIso, readData, transact } from "@/lib/server/store.server";
+import { assertContentReady } from "@/lib/content-quality";
 import { postCopyText } from "@/lib/post-editor";
 import { selectedCreativeIds } from "@/lib/post-creative";
 import {
@@ -266,6 +267,7 @@ async function preparePublication(postId: string, platform: PublishPlatform) {
       "validation",
       `Nincs mentett ${platform === "facebook" ? "Facebook" : "Instagram"} platformváltozat ehhez a poszthoz.`,
     );
+  assertContentReady(variant.content, variant.cta, ...variant.hashtags);
   let imageUrl: string | undefined;
   const creativeIds = selectedCreativeIds(database.aiJobs, post);
   const imageUrls = creativeIds.map((id) => {

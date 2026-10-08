@@ -9,14 +9,34 @@ import { Card } from "@/components/ui/card";
 import { BUSINESS_TYPES } from "@/lib/business-types";
 import { PublicInfoLinks } from "@/components/public-info-page";
 
-
 export interface OnboardingBrandDetails {
-  name: string; website: string; logoUrl: string; openingHours: string;
-  services: string; products: string; tone: string; color: string;
+  name: string;
+  website: string;
+  logoUrl: string;
+  openingHours: string;
+  services: string;
+  products: string;
+  tone: string;
+  color: string;
+  address?: string;
+  cityRegion?: string;
+  offers?: string;
 }
-export function SignupForm({ businessType = "other", brandDetails }: { businessType?: string; brandDetails?: OnboardingBrandDetails }) {
+export function SignupForm({
+  businessType = "other",
+  brandDetails,
+}: {
+  businessType?: string;
+  brandDetails?: OnboardingBrandDetails;
+}) {
   const register = useServerFn(registerUser);
-  const [form, setForm] = useState({ displayName: "", workspaceName: brandDetails?.name ?? "", email: "", password: "", businessType });
+  const [form, setForm] = useState({
+    displayName: "",
+    workspaceName: brandDetails?.name ?? "",
+    email: "",
+    password: "",
+    businessType,
+  });
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
   const update = (key: keyof typeof form) => (event: React.ChangeEvent<HTMLInputElement>) =>
@@ -50,8 +70,19 @@ export function SignupForm({ businessType = "other", brandDetails }: { businessT
         <form onSubmit={submit} className="mt-8 space-y-4">
           <div>
             <Label htmlFor="businessType">Vállalkozás típusa (opcionális)</Label>
-            <select id="businessType" value={form.businessType} onChange={(event) => setForm((current) => ({ ...current, businessType: event.target.value }))} className="mt-2 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
-              {BUSINESS_TYPES.map((item) => <option key={item.value} value={item.value}>{item.value === "other" ? "Később adom meg / Egyéb" : item.label}</option>)}
+            <select
+              id="businessType"
+              value={form.businessType}
+              onChange={(event) =>
+                setForm((current) => ({ ...current, businessType: event.target.value }))
+              }
+              className="mt-2 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+            >
+              {BUSINESS_TYPES.map((item) => (
+                <option key={item.value} value={item.value}>
+                  {item.value === "other" ? "Később adom meg / Egyéb" : item.label}
+                </option>
+              ))}
             </select>
           </div>
           <div>
@@ -108,7 +139,12 @@ export function SignupForm({ businessType = "other", brandDetails }: { businessT
             Bejelentkezés
           </Link>
         </p>
-        <div className="mt-6 border-t pt-4 text-muted-foreground"><PublicInfoLinks /><p className="mt-3 text-center text-sm">Nyilvános béta. Az üzemeltetői és végleges jogi adatok előkészítés alatt állnak.</p></div>
+        <div className="mt-6 border-t pt-4 text-muted-foreground">
+          <PublicInfoLinks />
+          <p className="mt-3 text-center text-sm">
+            Nyilvános béta. Az üzemeltetői és végleges jogi adatok előkészítés alatt állnak.
+          </p>
+        </div>
       </Card>
     </div>
   );

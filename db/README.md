@@ -51,3 +51,13 @@ phase.
 
 Without a configured PostgreSQL URL, the commands fail clearly and leave the
 JSON store untouched. No fake database or sample records are created.
+
+## Tényalapú tartalom mezői (004)
+
+A `004_content_quality.sql` migráció meglévő rekordok törlése nélkül hozzáadja:
+
+- `brand_profiles.address`, `opening_hours` (opcionális cím és nyitvatartás);
+- `post_variants.verification_warnings` (JSON szöveglista);
+- `plan_items.draft_content`, `visual_idea`, `topic_summary`, `verification_warnings`.
+
+A régi rekordok üres szöveg/lista alapértékkel kompatibilisek. A workspace/brand kapcsolatok és foreign key szabályok változatlanok; a JSON import és PostgreSQL store az opcionális mezőket is átviszi.

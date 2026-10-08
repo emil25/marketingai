@@ -240,6 +240,10 @@ export type BusinessContext = {
   preferredPhrases: string;
   avoidedPhrases: string;
   learnedBrandVoice: string;
+  address: string;
+  openingHours: string;
+  guardrails: string;
+  brandDescription: string;
   goal?: string;
   platform?: PostPlatform | string;
 };
@@ -270,6 +274,10 @@ export function buildBusinessContext(
     preferredPhrases: profile.preferredPhrases,
     avoidedPhrases: profile.avoidedPhrases,
     learnedBrandVoice: profile.learnedSummary ?? "",
+    address: profile.address ?? "",
+    openingHours: profile.openingHours ?? "",
+    guardrails: profile.aiGuardrails,
+    brandDescription: profile.description,
     ...(overrides.goal ? { goal: overrides.goal } : {}),
     ...(overrides.platform ? { platform: overrides.platform } : {}),
   };

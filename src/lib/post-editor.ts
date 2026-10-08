@@ -1,3 +1,4 @@
+import { contentPlaceholders } from "./content-quality";
 import type { ChannelConnectionStatus, PostPlatform, PostVariantRecord } from "./data-model";
 
 type PublicationConnection = {
@@ -9,9 +10,14 @@ type PublicationConnection = {
 export function publicationBlockReason(
   platform: "facebook" | "instagram",
   connection: PublicationConnection | undefined,
-  variant: Pick<PostVariantRecord, "content" | "status"> | undefined,
+  variant:
+    | (Pick<PostVariantRecord, "content" | "status"> &
+        Partial<Pick<PostVariantRecord, "cta" | "hashtags">>)
+    | undefined,
   hasJpeg: boolean,
 ): string | null {
+  if (contentPlaceholders(variant?.content, variant?.cta, ...(variant?.hashtags ?? [])).length)
+    return "Előbb töltsd ki a szögletes zárójeles adatokat a posztban.";
   if (variant?.status === "published") return "Ez a változat már közzé van téve.";
   if (!connection || connection.status !== "connected" || !connection.hasAccessToken)
     return `Csatlakoztasd ${platform === "facebook" ? "a Facebook-oldaladat" : "az Instagram-fiókodat"} a közzétételhez.`;

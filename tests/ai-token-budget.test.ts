@@ -20,12 +20,15 @@ test("short campaign requests use their own token budget without changing other 
     await openRouterChat({ ...input, maxTokens: 3500 });
     await openRouterChat({ ...input, maxTokens: 2000 });
     await openRouterChat(input);
+    await openRouterChat({ ...input, maxTokens: 4000, deadlineAt: Date.now() + 5000 });
+    assert.throws(() => openRouterChat({ ...input, deadlineAt: Date.now() - 1 }), /időkorlát/);
     assert.deepEqual(
       bodies.map((body) => body.max_tokens),
-      [3500, 2000, 16000],
+      [3500, 2000, 16000, 4000],
     );
     assert(bodies.every((body) => JSON.stringify(body.response_format).includes('"strict":true')));
     assert(bodies.every((body) => !JSON.stringify(body).includes("unit-test-transport-only")));
+    assert(bodies.every((body) => !("deadlineAt" in body)));
   } finally {
     globalThis.fetch = originalFetch;
     if (originalKey === undefined) delete process.env.OPENROUTER_API_KEY;

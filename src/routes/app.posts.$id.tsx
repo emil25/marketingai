@@ -6,6 +6,7 @@ import {
   useRouter,
   useRouterState,
 } from "@tanstack/react-router";
+import { ContentReviewNotice } from "@/components/content-review-notice";
 import { useServerFn } from "@tanstack/react-start";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -1628,6 +1629,10 @@ function StepContent({
                   {variantStatusLabel(variant.status)}
                 </Badge>
               </div>
+              <ContentReviewNotice
+                warnings={variant.verificationWarnings}
+                texts={[variant.content, variant.cta, ...variant.hashtags]}
+              />
               <Textarea
                 aria-label={`${platformLabel(variant.platform)} poszt szövege`}
                 disabled={publishingPlatform !== null || variant.status === "published"}

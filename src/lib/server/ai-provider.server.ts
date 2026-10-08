@@ -66,7 +66,13 @@ export function openRouterChat(input: {
   schema: JsonSchema;
   maxTokens?: number;
   model?: string;
+  /** A shared deadline for a sequence of weekly calls; never sent to the provider. */
+  deadlineAt?: number;
 }) {
+  const remaining =
+    input.deadlineAt === undefined ? TEXT_REQUEST_TIMEOUT_MS : input.deadlineAt - Date.now();
+  if (remaining < 1000)
+    throw new Error("Az AI-tervezés elérte az időkorlátot. A már elmentett hetek megmaradnak.");
   return request(
     `${OPENROUTER_BASE_URL}/chat/completions`,
     {
@@ -80,7 +86,7 @@ export function openRouterChat(input: {
         json_schema: { name: input.schemaName, strict: true, schema: input.schema },
       },
     },
-    TEXT_REQUEST_TIMEOUT_MS,
+    Math.min(TEXT_REQUEST_TIMEOUT_MS, remaining),
   );
 }
 

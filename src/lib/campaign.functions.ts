@@ -19,8 +19,10 @@ import {
   startAiJob,
   transact,
 } from "@/lib/server/store.server";
-import { openRouterChat } from "@/lib/server/ai-provider.server";
-import { buildBusinessContext, businessContextPrompt } from "@/lib/business-types";
+import { generateFactualPost } from "@/lib/server/post-content.server";
+import { campaignWeeks, generateWeeklyPlan } from "@/lib/server/weekly-plan.server";
+import { assertContentReady } from "@/lib/content-quality";
+import { buildBusinessContext } from "@/lib/business-types";
 import { parsePostScheduleInput } from "@/lib/post-schedule";
 
 const platforms = [
@@ -91,97 +93,6 @@ const PlanItemUpdateSchema = z.object({
     status: PlanStatusSchema.optional(),
   }),
 });
-
-const CampaignPlanSchema = z.object({
-  summary: z.string().max(6000),
-  mainMessage: z.string().max(2000),
-  cta: z.string().max(1000),
-  contentPillars: z.array(z.string().max(300)).min(1).max(8),
-  recommendedFrequency: z.string().max(300),
-  channelStrategies: z.record(z.string(), z.string().max(1200)),
-  items: z
-    .array(
-      z.object({
-        day: z.number().int().min(1).max(30),
-        time: z.string().max(20).nullable().optional(),
-        platform: PlatformSchema,
-        contentType: z.string().max(120),
-        topic: z.string().max(1000),
-        objective: z.string().max(240),
-      }),
-    )
-    .min(30)
-    .max(90),
-});
-
-const SingleVariantSchema = z.object({
-  content: z.string().trim().min(1).max(30000),
-  hashtags: z.array(z.string().max(80)).max(40).default([]),
-  cta: z.string().max(1000).default(""),
-});
-
-const CAMPAIGN_PLAN_RESULT = {
-  type: "object",
-  additionalProperties: false,
-  required: [
-    "summary",
-    "mainMessage",
-    "cta",
-    "contentPillars",
-    "recommendedFrequency",
-    "channelStrategies",
-    "items",
-  ],
-  properties: {
-    summary: { type: "string" },
-    mainMessage: { type: "string" },
-    cta: { type: "string" },
-    contentPillars: { type: "array", items: { type: "string" } },
-    recommendedFrequency: { type: "string" },
-    channelStrategies: {
-      type: "object",
-      additionalProperties: false,
-      required: [...platforms],
-      properties: {
-        facebook: { type: "string" },
-        instagram: { type: "string" },
-        tiktok: { type: "string" },
-        linkedin: { type: "string" },
-        youtube: { type: "string" },
-        "google-business": { type: "string" },
-      },
-    },
-    items: {
-      type: "array",
-      minItems: 30,
-      maxItems: 90,
-      items: {
-        type: "object",
-        additionalProperties: false,
-        required: ["day", "time", "platform", "contentType", "topic", "objective"],
-        properties: {
-          day: { type: "integer", minimum: 1, maximum: 30 },
-          time: { type: ["string", "null"] },
-          platform: { type: "string", enum: [...platforms] },
-          contentType: { type: "string" },
-          topic: { type: "string" },
-          objective: { type: "string" },
-        },
-      },
-    },
-  },
-} as const;
-
-const SINGLE_VARIANT_RESULT = {
-  type: "object",
-  additionalProperties: false,
-  required: ["content", "hashtags", "cta"],
-  properties: {
-    content: { type: "string" },
-    hashtags: { type: "array", items: { type: "string" } },
-    cta: { type: "string" },
-  },
-} as const;
 
 export type CampaignSnapshot = CampaignRecord & {
   brandName: string;
@@ -450,120 +361,103 @@ async function createCampaignPlan(data: z.infer<typeof CampaignInputSchema>, day
   );
   await transact((database) => startAiJob(database, job.id));
   try {
-    const planningInstruction =
-      days === 7
-        ? "Készíts rövid heti stratégiát és pontosan 4 különböző posztot 7 napra. Minden kiválasztott csatorna szerepeljen legalább egyszer. Különböző napokra oszd a tartalmakat; day 1–7. Ne találj ki árakat, kedvezményt, elérhetőséget vagy tényeket."
-        : "Készíts szerkeszthető, strukturált stratégiai összefoglalót és legalább 30 tervtételt. A day mező 1 és 30 közötti legyen, és minden nap legalább egyszer szerepeljen.";
-    const system = `Magyar nyelvű marketingstratéga vagy. A strukturált üzleti kontextus, amelyet minden kampányszerkezethez használnod kell: ${businessContextPrompt(businessContext)}. Munkatér: ${context.workspace.name}. Márka: ${brand.name}. Iparág: ${brand.industry}. Termékek: ${brand.products}. Szolgáltatások: ${brand.services}. Ajánlatok: ${brand.offers}. Régió: ${brand.cityRegion}. Nyelv: ${brand.languageMarket}. Brand Voice: ${brand.profile.tone}; CTA: ${brand.profile.ctaStyle}; értékek: ${brand.profile.values}; kerülendő kifejezések: ${brand.profile.avoidedPhrases}; tanult márkahang: ${brand.profile.learnedSummary ?? "nincs még tanult összefoglaló"}; guardrail: ${brand.profile.aiGuardrails}. Kitalált tényeket ne írj. ${planningInstruction}`;
-    const user = `Kampány neve: ${data.name}\nCél: ${data.objective}\nKözönség: ${data.audience || brand.audience}\nAjánlat: ${data.offer}\nLeírás: ${data.description}\nIdőtartam: ${data.startDate}–${data.endDate} (${data.timezone})\nCsatornák: ${data.channels.join(", ")}\nCTA: ${data.cta || brand.profile.ctaStyle}\nSikerfeltétel: ${data.successCriteria}.`;
-    const weeklySchema = {
-      ...CAMPAIGN_PLAN_RESULT,
-      properties: {
-        ...CAMPAIGN_PLAN_RESULT.properties,
-        items: {
-          ...CAMPAIGN_PLAN_RESULT.properties.items,
-          minItems: 4,
-          maxItems: 4,
-          items: {
-            ...CAMPAIGN_PLAN_RESULT.properties.items.items,
-            properties: {
-              ...CAMPAIGN_PLAN_RESULT.properties.items.items.properties,
-              day: { type: "integer", minimum: 1, maximum: 7 },
-            },
-          },
-        },
-      },
-    };
-    const response = await openRouterChat({
-      messages: [
-        { role: "system", content: system },
-        { role: "user", content: user },
-      ],
-      schemaName: "campaign_plan",
-      schema: days === 7 ? weeklySchema : CAMPAIGN_PLAN_RESULT,
-      maxTokens: days === 7 ? 3500 : undefined,
-    });
-    if (!response.ok)
-      throw new Error(`AI hiba (${response.status}): ${(await response.text()).slice(0, 200)}`);
-    const json = (await response.json()) as { choices?: { message?: { content?: string } }[] };
-    const raw = json.choices?.[0]?.message?.content;
-    if (!raw) throw new Error("Az AI üres kampánytervet adott.");
-    const strategy = (
-      days === 30
-        ? CampaignPlanSchema
-        : CampaignPlanSchema.extend({
-            items: CampaignPlanSchema.shape.items.element
-              .extend({
-                day: z.number().int().min(1).max(7),
-                time: CalendarTimeSchema.nullable(),
-                topic: z.string().trim().min(1).max(1000),
-              })
-              .array()
-              .length(4),
-          })
-    ).parse(JSON.parse(raw));
-    const allowed = new Set(data.channels);
-    const usableItems = strategy.items.filter((item) => allowed.has(item.platform)).slice(0, 90);
-    if (usableItems.length < (days === 7 ? 4 : 30))
-      throw new Error("Az AI nem adott elegendő, kiválasztott csatornához tartozó tervtételt.");
-    if (
-      days === 7 &&
-      data.channels.some((channel) => !usableItems.some((item) => item.platform === channel))
-    )
-      throw new Error("Az AI-terv nem tartalmazza az összes kiválasztott csatornát. Próbáld újra.");
-    const missingDays = Array.from({ length: days === 7 ? 0 : 30 }, (_, index) => index + 1).filter(
-      (day) => !usableItems.some((item) => item.day === day),
-    );
-    // Models can occasionally repeat a day even when they return 30 items.
-    // Preserve the generated content and cover missing calendar days by
-    // assigning the existing plan item to the missing day.
-    const coverageItems = missingDays.map((day, index) => ({
-      ...(usableItems[index % usableItems.length] ?? usableItems[0]),
-      day,
-    }));
-    const planItems = [...usableItems, ...coverageItems];
+    const plannedTopics: string[] = [];
+    const channelCounts: Record<string, number> = {};
+    const weeks = campaignWeeks(data.startDate, days);
+    // Finish before the Vercel server budget so failure/partial results can be persisted.
+    const deadlineAt = Date.now() + 240_000;
+    for (const week of weeks) {
+      let plan;
+      try {
+        plan = await generateWeeklyPlan({
+          businessContext,
+          campaign: { ...data, audience: data.audience || brand.audience },
+          channels: data.channels,
+          week,
+          plannedTopics,
+          channelCounts,
+          localEvents: [],
+          weekly: days === 7,
+          deadlineAt,
+        });
+      } catch (cause) {
+        throw new Error(
+          `A(z) ${week.week}. hét tervezése nem sikerült. ${week.week > 1 ? "Az előző hetek mentett terve megmaradt. " : ""}${cause instanceof Error ? cause.message : "Próbáld újra."}`,
+        );
+      }
+      await transact((database) => {
+        const current = findCampaign(database, context, campaign.id);
+        const timestamp = nowIso();
+        for (const [index, item] of plan.posztok.entries()) {
+          const platform = item.csatorna === "google_business" ? "google-business" : item.csatorna;
+          database.planItems.push({
+            id: newId("plan"),
+            workspaceId: context.workspace.id,
+            brandId: brand.id,
+            campaignId: current.id,
+            postId: null,
+            date: item.datum,
+            time: item.idopont,
+            timezone: current.timezone,
+            platform,
+            contentType: item.forma,
+            topic: item.tema,
+            objective: item.cel,
+            status: "planned",
+            aiGenerated: true,
+            draftContent: item.vazlat,
+            visualIdea: item.vizualis_otlet,
+            verificationWarnings: item.ellenorizendo,
+            topicSummary: plan.temak_osszefoglalo[index],
+            createdAt: timestamp,
+            updatedAt: timestamp,
+          });
+        }
+        const all = database.planItems.filter(
+          (item) =>
+            item.campaignId === current.id &&
+            item.workspaceId === current.workspaceId &&
+            item.brandId === current.brandId,
+        );
+        current.strategy = {
+          summary: `${days} napos kampány, heti 3–4 poszttal. Eddig ${all.length} poszt megtervezve. Az időpontok javaslatok, nem mért adatok.`,
+          mainMessage: current.offer || current.objective,
+          cta: current.cta,
+          contentPillars: [...new Set(all.map((item) => item.topicSummary || item.topic))].slice(
+            0,
+            8,
+          ),
+          recommendedFrequency: "Heti 3–4 poszt; a rövid záró hétre arányosan kevesebb.",
+          channelStrategies: Object.fromEntries(
+            data.channels.map((platform) => [
+              platform,
+              `${all.filter((item) => item.platform === platform).length} tervezett poszt a kampányban.`,
+            ]),
+          ),
+        } satisfies CampaignStrategy;
+        current.updatedAt = timestamp;
+        const currentJob = database.aiJobs.find(
+          (item) => item.id === job.id && item.workspaceId === context.workspace.id,
+        );
+        if (currentJob)
+          currentJob.input = {
+            ...currentJob.input,
+            completedWeeks: week.week,
+            plannedTopics: [
+              ...plannedTopics,
+              ...plan.temak_osszefoglalo,
+              ...plan.posztok.map((item) => item.tema),
+            ],
+          };
+      });
+      plannedTopics.push(...plan.temak_osszefoglalo, ...plan.posztok.map((item) => item.tema));
+      for (const item of plan.posztok)
+        channelCounts[item.csatorna] = (channelCounts[item.csatorna] ?? 0) + 1;
+    }
     const saved = await transact((database) => {
-      const current = database.campaigns.find(
-        (item) =>
-          item.id === campaign.id &&
-          item.workspaceId === context.workspace.id &&
-          item.brandId === brand.id,
-      );
-      if (!current) throw new Error("A kampány nem található.");
-      const normalizedStrategy: CampaignStrategy = {
-        summary: strategy.summary,
-        mainMessage: strategy.mainMessage,
-        cta: strategy.cta,
-        contentPillars: strategy.contentPillars,
-        recommendedFrequency: strategy.recommendedFrequency,
-        channelStrategies: strategy.channelStrategies,
-      };
-      current.strategy = normalizedStrategy;
+      const current = findCampaign(database, context, campaign.id);
       current.status = "active";
       current.updatedAt = nowIso();
-      const timestamp = nowIso();
-      for (const item of planItems) {
-        const validTime =
-          item.time && CalendarTimeSchema.safeParse(item.time).success ? item.time : null;
-        database.planItems.push({
-          id: newId("plan"),
-          workspaceId: context.workspace.id,
-          brandId: brand.id,
-          campaignId: current.id,
-          postId: null,
-          date: addDays(current.startDate, item.day - 1),
-          time: validTime,
-          timezone: current.timezone,
-          platform: item.platform,
-          contentType: item.contentType,
-          topic: item.topic,
-          objective: item.objective || current.objective,
-          status: "planned",
-          aiGenerated: true,
-          createdAt: timestamp,
-          updatedAt: timestamp,
-        });
-      }
       return current.id;
     });
     await transact((database) => completeAiJob(database, job.id));
@@ -670,6 +564,22 @@ export const updatePlanItem = createServerFn({ method: "POST" })
       const finalStatus = data.fields.status ?? item.status;
       if (finalStatus === "scheduled" && !nextTime)
         throw new Error("Az ütemezett tervtételhez időpont szükséges.");
+      if (finalStatus === "scheduled") {
+        const linkedVariants = item.postId
+          ? database.postVariants.filter((variant) => variant.postId === item.postId)
+          : [];
+        if (item.postId && !linkedVariants.length)
+          throw new Error("Az ütemezéshez előbb készíts platformváltozatot.");
+        assertContentReady(
+          ...(linkedVariants.length
+            ? linkedVariants.flatMap((variant) => [
+                variant.content,
+                variant.cta,
+                ...variant.hashtags,
+              ])
+            : [item.draftContent, item.topic]),
+        );
+      }
       const nextScheduledAt = nextTime
         ? parsePostScheduleInput(`${nextDate}T${nextTime}`, item.timezone)
         : null;
@@ -680,6 +590,12 @@ export const updatePlanItem = createServerFn({ method: "POST" })
         (data.fields.topic !== undefined && data.fields.topic !== item.topic) ||
         (data.fields.objective !== undefined && data.fields.objective !== item.objective);
       Object.assign(item, data.fields, { updatedAt: timestamp });
+      if (contentContextChanged) {
+        item.draftContent = "";
+        item.visualIdea = "";
+        item.verificationWarnings = [];
+        item.topicSummary = "";
+      }
       if (item.postId) {
         const post = database.posts.find(
           (candidate) =>
@@ -804,23 +720,16 @@ async function generatePlanItemPost(
   );
   await transact((database) => startAiJob(database, job.id));
   try {
-    const system = `Magyar nyelvű social media szövegíró vagy. A strukturált üzleti kontextus: ${businessContextPrompt(businessContext)}. Munkatér: ${context.workspace.name}. Márka: ${brand.name}. Iparág: ${brand.industry}. Termékek: ${brand.products}. Szolgáltatások: ${brand.services}. Ajánlatok: ${brand.offers}. Márka közönsége: ${brand.audience}. Régió: ${brand.cityRegion}. Nyelv: ${brand.languageMarket}. Brand Voice: ${brand.profile.tone}; CTA: ${brand.profile.ctaStyle}; értékek: ${brand.profile.values}; preferált kifejezések: ${brand.profile.preferredPhrases}; kerülendő: ${brand.profile.avoidedPhrases}; tanult márkahang: ${brand.profile.learnedSummary ?? "nincs még tanult összefoglaló"}; guardrail: ${brand.profile.aiGuardrails}. Kitalált tényeket ne írj. Egyetlen, szerkeszthető platformváltozatot adj vissza.`;
-    const user = `Kampány: ${campaign?.name ?? "Önálló tervtétel"}\nKampány célja: ${campaign?.objective ?? item.objective}\nKampány közönsége: ${campaign?.audience ?? brand.audience}\nKampány ajánlata: ${campaign?.offer ?? brand.offers}\nKampány leírása: ${campaign?.description ?? ""}\nKampány stratégiai összefoglaló: ${campaign?.strategy?.summary ?? ""}\nFő üzenet: ${campaign?.strategy?.mainMessage ?? ""}\nTervtétel dátuma: ${item.date}\nPlatform: ${item.platform}\nTartalomtípus: ${item.contentType}\nTéma: ${item.topic}\nTervtétel célja: ${item.objective}\nKampány CTA: ${campaign?.cta ?? brand.profile.ctaStyle}`;
-    const response = await openRouterChat({
-      messages: [
-        { role: "system", content: system },
-        { role: "user", content: user },
-      ],
-      schemaName: "plan_item_variant",
-      schema: SINGLE_VARIANT_RESULT,
-      maxTokens: 2000,
+    const user = `Kampány: ${campaign?.name ?? "Önálló tervtétel"}\nKampány célja: ${campaign?.objective ?? item.objective}\nKampány közönsége: ${campaign?.audience ?? brand.audience}\nKampány ajánlata: ${campaign?.offer ?? brand.offers}\nKampány leírása: ${campaign?.description ?? ""}\nKampány stratégiai összefoglaló: ${campaign?.strategy?.summary ?? ""}\nFő üzenet: ${campaign?.strategy?.mainMessage ?? ""}\nTervtétel dátuma: ${item.date}\nPlatform: ${item.platform}\nTartalomtípus: ${item.contentType}\nTéma: ${item.topic}\nTervtétel célja: ${item.objective}\nJóváhagyandó tervvázlat: ${item.draftContent ?? ""}\nEllenőrizendő: ${(item.verificationWarnings ?? []).join(", ")}\nKampány CTA: ${campaign?.cta ?? brand.profile.ctaStyle}`;
+    const generated = await generateFactualPost({
+      businessContext,
+      brief: `Téma: ${item.topic}. Tartalomtípus: ${item.contentType}. Cél: ${item.objective}.`,
+      title: item.topic,
+      platforms: [item.platform],
+      ctaStyle: campaign?.cta || brand.profile.ctaStyle,
+      campaignContext: user,
     });
-    if (!response.ok)
-      throw new Error(`AI hiba (${response.status}): ${(await response.text()).slice(0, 200)}`);
-    const json = (await response.json()) as { choices?: { message?: { content?: string } }[] };
-    const raw = json.choices?.[0]?.message?.content;
-    if (!raw) throw new Error("Az AI üres posztváltozatot adott.");
-    const variant = SingleVariantSchema.parse(JSON.parse(raw));
+    const variant = generated.variants[0];
     const postId = await transact((database) => {
       const currentItem = findPlanItem(database, context, item.id);
       if (currentItem.status === "skipped")
@@ -861,6 +770,7 @@ async function generatePlanItemPost(
           id: newId("variant"),
           postId: post.id,
           platform: currentItem.platform,
+          verificationWarnings: variant.ellenorizendo,
           content: variant.content,
           hashtags: variant.hashtags,
           cta: variant.cta,
@@ -886,6 +796,7 @@ async function generatePlanItemPost(
             createdBy: context.user.id,
           });
           Object.assign(existingVariant, {
+            verificationWarnings: variant.ellenorizendo,
             content: variant.content,
             hashtags: variant.hashtags,
             cta: variant.cta,
@@ -897,6 +808,7 @@ async function generatePlanItemPost(
             id: newId("variant"),
             postId: post.id,
             platform: currentItem.platform,
+            verificationWarnings: variant.ellenorizendo,
             content: variant.content,
             hashtags: variant.hashtags,
             cta: variant.cta,

@@ -15,16 +15,21 @@ const RegisterSchema = CredentialsSchema.extend({
   displayName: z.string().trim().min(2).max(120),
   workspaceName: z.string().trim().min(2).max(160),
   businessType: z.string().optional().default("other"),
-  brandDetails: z.object({
-    name: z.string().trim().min(2).max(160),
-    website: z.string().trim().max(500),
-    logoUrl: z.string().trim().max(1000),
-    openingHours: z.string().trim().max(1000),
-    services: z.string().trim().max(4000),
-    products: z.string().trim().max(4000),
-    tone: z.string().trim().min(1).max(120),
-    color: z.string().regex(/^#[0-9a-fA-F]{6}$/),
-  }).optional(),
+  brandDetails: z
+    .object({
+      name: z.string().trim().min(2).max(160),
+      website: z.string().trim().max(500),
+      logoUrl: z.string().trim().max(1000),
+      openingHours: z.string().trim().max(1000),
+      address: z.string().trim().max(1000).optional().default(""),
+      cityRegion: z.string().trim().max(160).optional().default(""),
+      offers: z.string().trim().max(4000).optional().default(""),
+      services: z.string().trim().max(4000),
+      products: z.string().trim().max(4000),
+      tone: z.string().trim().min(1).max(120),
+      color: z.string().regex(/^#[0-9a-fA-F]{6}$/),
+    })
+    .optional(),
 });
 
 export const getCurrentUser = createServerFn({ method: "GET" }).handler(async () => {
@@ -78,12 +83,12 @@ export const registerUser = createServerFn({ method: "POST" })
         workspaceId: workspace.id,
         name: data.brandDetails?.name ?? data.workspaceName,
         website: data.brandDetails?.website ?? "",
-        cityRegion: "",
+        cityRegion: data.brandDetails?.cityRegion ?? "",
         languageMarket: "magyar",
         industry: "",
         products: data.brandDetails?.products ?? "",
         services: data.brandDetails?.services ?? "",
-        offers: "",
+        offers: data.brandDetails?.offers ?? "",
         audience: "",
         createdAt: timestamp,
         updatedAt: timestamp,
@@ -93,11 +98,15 @@ export const registerUser = createServerFn({ method: "POST" })
         brandId: brand.id,
         tone: data.brandDetails?.tone ?? "Barátságos",
         businessType: normalizeBusinessType(data.businessType),
+        address: data.brandDetails?.address ?? "",
+        openingHours: data.brandDetails?.openingHours ?? "",
         ctaStyle: "Barátságos és közvetlen",
         values: "",
         preferredPhrases: "",
         avoidedPhrases: "",
-        description: data.brandDetails?.openingHours ? `Nyitvatartás: ${data.brandDetails.openingHours}` : "",
+        description: data.brandDetails?.openingHours
+          ? `Nyitvatartás: ${data.brandDetails.openingHours}`
+          : "",
         approvedExamples: "",
         aiGuardrails: "Ne találj ki árakat, akciókat, nyitvatartást vagy ügyfélvéleményeket.",
         logoUrl: data.brandDetails?.logoUrl ?? "",

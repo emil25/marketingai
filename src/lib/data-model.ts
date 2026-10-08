@@ -44,6 +44,8 @@ export type BrandProfileRecord = {
   brandId: string;
   /** Stable business category used to tailor quick starts and AI context. */
   businessType?: string;
+  address?: string;
+  openingHours?: string;
   tone: string;
   ctaStyle: string;
   values: string;
@@ -129,6 +131,10 @@ export type PlanItemRecord = {
   topic: string;
   objective: string;
   status: PlanItemStatus;
+  draftContent?: string;
+  visualIdea?: string;
+  verificationWarnings?: string[];
+  topicSummary?: string;
   aiGenerated: boolean;
   createdAt: string;
   updatedAt: string;
@@ -187,6 +193,7 @@ export type PostAdCopyRecord = {
 };
 
 export type PostVariantRecord = {
+  verificationWarnings?: string[];
   id: string;
   postId: string;
   platform: PostPlatform;
@@ -243,7 +250,8 @@ export type AnalyticsSnapshotRecord = {
   shares: number | null;
   saves: number | null;
   videoViews: number | null;
-  source: "facebook" | "instagram" | "linkedin" | "tiktok" | "youtube" | "google-business" | "import";
+  source:
+    "facebook" | "instagram" | "linkedin" | "tiktok" | "youtube" | "google-business" | "import";
   createdAt: string;
   updatedAt: string;
 };
