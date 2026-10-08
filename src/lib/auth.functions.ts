@@ -6,6 +6,7 @@ import { newId, nowIso, publicUser, transact } from "@/lib/server/store.server";
 import { useAppSession } from "@/lib/server/session.server";
 import { normalizeBusinessType } from "@/lib/business-types";
 import { normalizeBusinessWebsite } from "@/lib/onboarding-details";
+import { brandVoiceGuardrails, defaultAddressing, BRAND_MOODS } from "@/lib/onboarding-brand";
 
 const CredentialsSchema = z.object({
   email: z.string().trim().email().max(180),
@@ -19,6 +20,7 @@ const RegisterSchema = CredentialsSchema.extend({
   brandDetails: z
     .object({
       name: z.string().trim().min(2).max(160),
+      industry: z.string().trim().max(160).optional().default(""),
       website: z.string().trim().max(500).transform(normalizeBusinessWebsite),
       logoUrl: z.string().trim().max(1000),
       openingHours: z.string().trim().max(1000),
@@ -26,7 +28,8 @@ const RegisterSchema = CredentialsSchema.extend({
       cityRegion: z.string().trim().max(160).optional().default(""),
       offers: z.string().trim().max(4000).optional().default(""),
       contactMethod: z.string().trim().max(1000).optional().default(""),
-      addressing: z.enum(["te", "Ön"]).optional().default("te"),
+      addressing: z.enum(["te", "Ön", "ti"]).optional(),
+      mood: z.enum(BRAND_MOODS).or(z.literal("")).optional().default(""),
       audience: z.string().trim().max(2000).optional().default(""),
       services: z.string().trim().max(4000),
       products: z.string().trim().max(4000),
@@ -89,7 +92,7 @@ export const registerUser = createServerFn({ method: "POST" })
         website: data.brandDetails?.website ?? "",
         cityRegion: data.brandDetails?.cityRegion ?? "",
         languageMarket: "magyar",
-        industry: "",
+        industry: data.brandDetails?.industry ?? "",
         products: data.brandDetails?.products ?? "",
         services: data.brandDetails?.services ?? "",
         offers: data.brandDetails?.offers ?? "",
@@ -110,7 +113,10 @@ export const registerUser = createServerFn({ method: "POST" })
         avoidedPhrases: "",
         description: "",
         approvedExamples: "",
-        aiGuardrails: `Ne találj ki árakat, akciókat, nyitvatartást vagy ügyfélvéleményeket. Megszólítás: ${data.brandDetails?.addressing === "Ön" ? "magázás, egyes szám harmadik személy (Ön)" : "tegezés, egyes szám második személy (te)"}.`,
+        aiGuardrails: brandVoiceGuardrails(
+          data.brandDetails?.addressing ?? defaultAddressing(data.businessType),
+          data.brandDetails?.mood,
+        ),
         logoUrl: data.brandDetails?.logoUrl ?? "",
         colors: data.brandDetails ? [data.brandDetails.color] : [],
         fontFamily: "Plus Jakarta Sans",

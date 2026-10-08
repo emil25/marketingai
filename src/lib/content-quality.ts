@@ -108,7 +108,7 @@ export function contentRuleViolations(
     );
   const calls =
     published.match(
-      /(?<![\p{L}])(?:látogass|gyere|írj|írd meg|foglalj|kérdezz|kóstold|nézd meg|vidd el|hozd magaddal|ugorj be|keresd fel|próbáld ki|kérj|válassz|oszd meg|ismerd meg|tudd meg|fedezd fel|mondd el|csatlakozz|rendelj|hívj|vásárolj|regisztrálj|jelentkezz|mentsd el|küldd el|vedd fel|látogasson|jöjjön|írjon|írja meg|foglaljon|kérdezzen|kóstolja|nézze meg|vigye el|hozza magával|ugorjon be|keresse fel|próbálja ki|kérjen|válasszon|ossza meg|ismerje meg|tudja meg|fedezze fel|mondja el|csatlakozzon|rendeljen|hívjon|vásároljon|regisztráljon|jelentkezzen|mentse el|küldje el|vegye fel)(?![\p{L}])/giu,
+      /(?<![\p{L}])(?:látogassatok|gyertek|írjatok|írjátok meg|foglaljatok|kérdezzetek|kóstoljátok|nézzétek meg|vigyétek el|hozzátok magatokkal|ugorjatok be|keressétek fel|próbáljátok ki|kérjetek|válasszatok|osszátok meg|ismerjétek meg|tudjátok meg|fedezzétek fel|mondjátok el|csatlakozzatok|rendeljetek|hívjatok|vásároljatok|regisztráljatok|jelentkezzetek|mentsétek el|küldjétek el|vegyétek fel|látogass|gyere|írj|írd meg|foglalj|kérdezz|kóstold|nézd meg|vidd el|hozd magaddal|ugorj be|keresd fel|próbáld ki|kérj|válassz|oszd meg|ismerd meg|tudd meg|fedezd fel|mondd el|csatlakozz|rendelj|hívj|vásárolj|regisztrálj|jelentkezz|mentsd el|küldd el|vedd fel|látogasson|jöjjön|írjon|írja meg|foglaljon|kérdezzen|kóstolja|nézze meg|vigye el|hozza magával|ugorjon be|keresse fel|próbálja ki|kérjen|válasszon|ossza meg|ismerje meg|tudja meg|fedezze fel|mondja el|csatlakozzon|rendeljen|hívjon|vásároljon|regisztráljon|jelentkezzen|mentse el|küldje el|vegye fel)(?![\p{L}])/giu,
     ) ?? [];
   if (calls.length > 1)
     errors.push(

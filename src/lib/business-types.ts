@@ -2,6 +2,30 @@ import type { BrandProfileRecord, BrandRecord, PostPlatform } from "@/lib/data-m
 
 export const BUSINESS_TYPES = [
   {
+    value: "bakery_cafe",
+    label: "Pékség / kávézó / cukrászda",
+    quickStarts: [
+      "Mai kínálat",
+      "Kiemelt termék",
+      "Reggeli ajánlat",
+      "Előrendelés",
+      "Instagram poszt",
+      "Google Cégprofil",
+    ],
+  },
+  {
+    value: "retail",
+    label: "Üzlet / bolt",
+    quickStarts: [
+      "Új termék",
+      "Heti ajánlat",
+      "Termékbemutató",
+      "Vásárlói tipp",
+      "Facebook poszt",
+      "Google Cégprofil",
+    ],
+  },
+  {
     value: "restaurant",
     label: "Étterem",
     quickStarts: [
@@ -186,6 +210,13 @@ export const BUSINESS_TYPES = [
 export type BusinessType = (typeof BUSINESS_TYPES)[number]["value"];
 
 const LEGACY_LABELS: Record<string, BusinessType> = {
+  pékség: "bakery_cafe",
+  kávézó: "bakery_cafe",
+  cukrászda: "bakery_cafe",
+  "pékség / kávézó / cukrászda": "bakery_cafe",
+  "üzlet / bolt": "retail",
+  bolt: "retail",
+  üzlet: "retail",
   étterem: "restaurant",
   "panzió / szálláshely": "accommodation",
   fodrászat: "hair_salon",
