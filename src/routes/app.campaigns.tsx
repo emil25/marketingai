@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createFileRoute, Link, Outlet, useLocation, useRouter } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { CalendarDays, Loader2, Megaphone, Plus, Sparkles, Trash2 } from "lucide-react";
+import { CalendarDays, List, Loader2, Megaphone, Plus, Sparkles, Trash2 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -157,59 +157,61 @@ function Campaigns() {
       toast.error(cause instanceof Error ? cause.message : "Nem sikerült törölni a kampányt.");
     }
   }
-  return (
-    <div className="space-y-8">
-      <PageHeader
-        title={showForm || mode === "weekly" ? "Új kampány" : "Kampányaid"}
-        sub="Válassz 7 napos posztcsomagot vagy 30 napos tartalomtervet a vállalkozásodnak."
-        action={
+  const creating = showForm || mode === "weekly";
+  const listAction = (
+    <Button
+      variant="outline"
+      size="sm"
+      className="rounded-full"
+      disabled={pending || weeklyPending}
+      onClick={async () => {
+        if (mode === "weekly") {
+          setShowForm(false);
+          await router.navigate({ to: "/app/campaigns", search: {} });
+        } else setShowForm((value) => !value);
+      }}
+    >
+      {creating ? <List className="mr-1 h-4 w-4" /> : <Plus className="mr-1 h-4 w-4" />}
+      {creating ? "Korábbi kampányok" : "Új kampány"}
+    </Button>
+  );
+  const durationSelector = (
+    <fieldset className="campaign-duration" disabled={pending || weeklyPending}>
+      <legend>Időtartam</legend>
+      <div className="flex flex-wrap gap-2">
+        {([7, 30] as const).map((days) => (
           <Button
-            variant="outline"
-            className="rounded-full"
-            disabled={pending || weeklyPending}
+            key={days}
+            type="button"
+            variant={(mode === "weekly" ? 7 : 30) === days ? "default" : "outline"}
+            aria-pressed={(mode === "weekly" ? 7 : 30) === days}
             onClick={async () => {
-              if (mode === "weekly") {
-                setShowForm(false);
-                await router.navigate({ to: "/app/campaigns", search: {} });
-              } else setShowForm((value) => !value);
+              setShowForm(true);
+              await router.navigate({
+                to: "/app/campaigns",
+                search: days === 7 ? { mode: "weekly" } : {},
+              });
             }}
           >
-            <Plus className="mr-1 h-4 w-4" />
-            {showForm || mode === "weekly" ? "Kampánylista" : "Új kampány"}
+            {days} nap
           </Button>
-        }
-      />
-      {(showForm || mode === "weekly") && (
-        <fieldset className="campaign-duration" disabled={pending || weeklyPending}>
-          <legend>Időtartam</legend>
-          <div className="flex flex-wrap gap-2">
-            {([7, 30] as const).map((days) => (
-              <Button
-                key={days}
-                type="button"
-                variant={(mode === "weekly" ? 7 : 30) === days ? "default" : "outline"}
-                aria-pressed={(mode === "weekly" ? 7 : 30) === days}
-                onClick={async () => {
-                  setShowForm(true);
-                  await router.navigate({
-                    to: "/app/campaigns",
-                    search: days === 7 ? { mode: "weekly" } : {},
-                  });
-                }}
-              >
-                {days} nap
-              </Button>
-            ))}
-          </div>
-          <p className="mt-2 text-sm text-muted-foreground">
-            {mode === "weekly"
-              ? "4 poszt szövege is elkészül, piszkozatként. Közzététel előtt ellenőrizheted őket."
-              : "A kampány és a 30 napos terv készül el. A posztokat a tervből külön kérheted le."}
-          </p>
-        </fieldset>
+        ))}
+      </div>
+    </fieldset>
+  );
+  return (
+    <div className="campaign-workspace space-y-4">
+      {creating ? (
+        <div className="campaign-list-action flex justify-end">{listAction}</div>
+      ) : (
+        <PageHeader title="Kampányaid" action={listAction} />
       )}
       {mode === "weekly" && (
-        <WeeklyMarketingForm brandName={brand.name} onPendingChange={setWeeklyPending} />
+        <WeeklyMarketingForm
+          brandName={brand.name}
+          onPendingChange={setWeeklyPending}
+          durationSelector={durationSelector}
+        />
       )}
       {showForm && mode !== "weekly" && (
         <Card className="v2-feature-card campaign-form-card rounded-3xl border-0 p-6 md:p-8">
@@ -218,13 +220,14 @@ function Campaigns() {
               <Sparkles className="h-5 w-5" />
             </div>
             <div>
-              <h2 className="text-xl font-semibold">30 napos kampányterv</h2>
+              <h1 className="text-xl font-semibold">Új kampány</h1>
               <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
                 Az ajánlatodból elkészül a kampány és a 30 napos terv. A posztokat a tervből külön
                 kérheted le.
               </p>
             </div>
           </div>
+          {durationSelector}
           <form onSubmit={submit} className="space-y-5">
             <div className="grid gap-4 md:grid-cols-2">
               <div>

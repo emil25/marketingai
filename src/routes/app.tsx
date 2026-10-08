@@ -1,6 +1,6 @@
 import { createFileRoute, Link, Outlet, useRouterState } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { requireCurrentUser, logoutUser } from "@/lib/auth.functions";
 import { getThemePreference } from "@/lib/theme.functions";
@@ -101,8 +101,8 @@ const NAV_GROUPS: Array<{ label: string; items: NavItem[] }> = [
 function SectionNavigation({ path }: { path: string }) {
   const links = /^\/app\/(campaigns|planner|calendar)(\/|$)/.test(path)
     ? [
-        { to: "/app/campaigns", label: "Kampánytervezés" },
-        { to: "/app/planner", label: "30 napos terv" },
+        { to: "/app/campaigns", label: "Kampányok" },
+        { to: "/app/planner", label: "Terv" },
         { to: "/app/calendar", label: "Naptár" },
       ]
     : /^\/app\/(media|images)(\/|$)/.test(path)
@@ -509,21 +509,50 @@ function MobileNav({
 }: {
   isActive: (to: string, exact?: boolean, activePrefixes?: string[]) => boolean;
 }) {
-  const items = NAV_GROUPS[0].items.slice(0, 5);
+  const items = NAV_GROUPS[0].items;
+  const [editing, setEditing] = useState(false);
+  useEffect(() => {
+    // Hide the fixed bar while typing so it cannot cover a focused field.
+    const editable = (target: EventTarget | null) =>
+      target instanceof HTMLElement &&
+      (target.isContentEditable ||
+        target instanceof HTMLTextAreaElement ||
+        (target instanceof HTMLInputElement &&
+          !["checkbox", "radio", "button", "submit", "file", "range", "color", "hidden"].includes(
+            target.type,
+          )));
+    const focus = (event: FocusEvent) => setEditing(editable(event.target));
+    const blur = (event: FocusEvent) => setEditing(editable(event.relatedTarget));
+    setEditing(editable(document.activeElement));
+    document.addEventListener("focusin", focus);
+    document.addEventListener("focusout", blur);
+    return () => {
+      document.removeEventListener("focusin", focus);
+      document.removeEventListener("focusout", blur);
+    };
+  }, []);
   return (
     <nav
       aria-label="Mobil navigáció"
-      className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-5 border-t border-border bg-card/95 p-2 shadow-[0_-8px_30px_rgba(44,35,90,.08)] backdrop-blur md:hidden"
+      data-editing={editing}
+      className="workspace-mobile-nav fixed inset-x-0 bottom-0 z-40 grid grid-cols-6 border-t border-border bg-card/95 p-2 shadow-[0_-8px_30px_rgba(44,35,90,.08)] backdrop-blur md:hidden"
     >
       {items.map((item) => (
         <Link
           key={item.to}
           to={item.to}
           params={item.params}
+          aria-label={item.label}
           className={`flex flex-col items-center gap-1 rounded-xl px-1 py-2 text-[10px] font-semibold ${isActive(item.to, item.exact, item.activePrefixes) ? "bg-brand-soft text-primary" : "text-muted-foreground"}`}
         >
           <item.icon className="h-4 w-4" />
-          <span>{item.label}</span>
+          <span>
+            {item.to === "/app/channels"
+              ? "Csatornák"
+              : item.to === "/app/campaigns"
+                ? "Kampány"
+                : item.label}
+          </span>
         </Link>
       ))}
     </nav>

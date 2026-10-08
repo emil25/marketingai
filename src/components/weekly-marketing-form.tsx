@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useRouter } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { Loader2, Sparkles } from "lucide-react";
@@ -19,9 +19,11 @@ const channels: Array<[PostPlatform, string]> = [
 export function WeeklyMarketingForm({
   brandName,
   onPendingChange,
+  durationSelector,
 }: {
   brandName: string;
   onPendingChange?: (pending: boolean) => void;
+  durationSelector?: ReactNode;
 }) {
   const router = useRouter();
   const create = useServerFn(createWeeklyMarketingPlan);
@@ -66,11 +68,12 @@ export function WeeklyMarketingForm({
   }
   return (
     <Card className="v2-feature-card rounded-3xl border-0 p-6 md:p-8">
-      <h2 className="text-xl font-semibold">Készítsd el a heti marketingemet</h2>
+      <h1 className="text-xl font-semibold">Heti posztcsomag</h1>
       <p className="mt-2 text-sm text-muted-foreground">
         {brandName} márkahangjával 4 különböző poszt készül a következő 7 napra. Egy kérés, kész
         szövegek, közös ellenőrzés.
       </p>
+      {durationSelector}
       <form onSubmit={submit} className="mt-5 space-y-4">
         <label className="block font-medium" htmlFor="weekly-brief">
           Mit szeretnél népszerűsíteni ezen a héten?
