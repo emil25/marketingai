@@ -6,55 +6,58 @@ import {
   CalendarDays,
   Check,
   ChevronDown,
-  Copy,
-  Facebook,
-  Globe,
-  Image as ImageIcon,
-  Instagram,
-  Linkedin,
   Menu,
-  MessageSquare,
-  Music2,
   Palette,
+  ShieldCheck,
   Sparkles,
   WandSparkles,
   X,
 } from "lucide-react";
 import { PublicInfoLinks } from "@/components/public-info-page";
+import { LANDING_EXAMPLE } from "@/lib/landing-example";
 import "@/landing.css";
 
 const PREVIEWS = [
   {
-    label: "Posztkészítő",
+    label: "Kész poszt",
     icon: WandSparkles,
-    image: "marketingpilot-studio.jpg",
-    title: "Az ötletedből szerkeszthető poszt.",
+    image: "marketingpilot-simple-result.jpg",
+    title: "Olvasd át. Javíts bele. Másold ki.",
     description:
-      "Külön szöveg a kiválasztott felületekre, a márkád hangján. Finomítsd a szöveget, nézd meg az előnézetet, majd mentsd vagy másold.",
-    alt: "A MarketingPilot működő posztkészítője teszt pékséggel, szerkeszthető Facebook-szöveggel és élő posztelőnézettel.",
+      "A saját hangodon írt szöveg szerkeszthető. Facebookra és Instagramra külön változatot kérhetsz.",
+    alt: "Egyszerű mód: a Példa Pékség kész posztja és a négy menüpont.",
+    mode: "Egyszerű módban",
   },
   {
-    label: "Munkatér",
+    label: "Kezdőlap",
     icon: Palette,
-    image: "marketingpilot-workspace.jpg",
-    title: "Lásd, hol tart a marketinged.",
+    image: "marketingpilot-simple-home.jpg",
+    title: "Egy helyen maradnak a posztjaid és az ötleteid.",
     description:
-      "A következő teendő, a mentett posztok és a heti tartalomterv egy helyen. A gyorsindítók a vállalkozásodhoz igazodnak.",
-    alt: "A MarketingPilot valódi Dashboardja, tesztmárka mentett posztjaival és heti tartalomtervével.",
+      "A vállalkozásod adatai segítenek, hogy a következő posztnál se kelljen mindent újra elmondanod.",
+    alt: "Egyszerű mód: egy ötletmező a Példa Pékség kezdőlapján, négy menüponttal.",
+    mode: "Egyszerű módban",
   },
   {
-    label: "Tartalomnaptár",
+    label: "Naptár",
     icon: CalendarDays,
-    image: "marketingpilot-calendar.jpg",
-    title: "A terveidnek is legyen helye.",
+    image: "marketingpilot-detailed-calendar.jpg",
+    title: "Több lehetőség, amikor szükséged van rá.",
     description:
-      "Hónap, hét vagy nap: a naptár és a Planner ugyanazt a mentett tervet mutatja. A tervezett időpont nem jelent automatikus publikálást.",
-    alt: "A MarketingPilot működő tartalomnaptára, a tesztmárka valódi mentett tervtételeivel.",
+      "Részletes módban naptárban is rendezheted a tartalmaidat. A tervezett időpont jelenleg nem indít automatikus közzétételt.",
+    alt: "Részletes mód: a Példa Pékség tartalomnaptára.",
+    mode: "Részletes módban",
   },
 ];
 
 export function LandingPage() {
   const [menuOpen, setMenuOpen] = useState(false);
+  const navigation = [
+    ["#preview", "Így működik"],
+    ["#features", "Mit kapsz?"],
+    ["#pricing", "Ingyenes béta"],
+    ["#faq", "Kérdések"],
+  ];
   return (
     <div className="theme-marketingpilot-v2 public-site mp-landing">
       <a className="mp-skip" href="#main">
@@ -65,14 +68,15 @@ export function LandingPage() {
           <Link to="/" className="mp-brand" aria-label="MarketingPilot főoldal">
             <span className="mp-logo">M</span>
             <span>
-              MarketingPilot<small>A márkád. Egy helyen.</small>
+              MarketingPilot<small>Posztok egyszerűen, a te hangodon.</small>
             </span>
           </Link>
           <nav aria-label="Fő navigáció" className="mp-desktop-nav">
-            <a href="#preview">Így működik</a>
-            <a href="#features">Mit kapsz?</a>
-            <a href="#pricing">Béta hozzáférés</a>
-            <a href="#faq">Kérdések</a>
+            {navigation.map(([href, label]) => (
+              <a key={href} href={href}>
+                {label}
+              </a>
+            ))}
           </nav>
           <div className="mp-nav-actions">
             <Link to="/login" className="mp-login">
@@ -94,12 +98,7 @@ export function LandingPage() {
         </div>
         {menuOpen && (
           <nav id="mobile-navigation" aria-label="Mobil navigáció" className="mp-mobile-nav">
-            {[
-              ["#preview", "Így működik"],
-              ["#features", "Mit kapsz?"],
-              ["#pricing", "Béta hozzáférés"],
-              ["#faq", "Gyakori kérdések"],
-            ].map(([href, label]) => (
+            {navigation.map(([href, label]) => (
               <a key={href} href={href} onClick={() => setMenuOpen(false)}>
                 {label}
                 <ArrowRight size={16} />
@@ -110,82 +109,26 @@ export function LandingPage() {
       </header>
       <main id="main">
         <Hero />
-        <div className="mp-platform-strip mp-container">
-          <p>
-            Egy ötletből több felületre.<small>Külön szerkeszthető szövegváltozatok.</small>
-          </p>
-          <div>
-            {[
-              { icon: Facebook, label: "Facebook" },
-              { icon: Instagram, label: "Instagram" },
-              { icon: Linkedin, label: "LinkedIn" },
-              { icon: Music2, label: "TikTok" },
-              { icon: Globe, label: "Google Cégprofil" },
-            ].map(({ icon: Icon, label }) => (
-              <span key={label}>
-                <Icon size={19} aria-hidden="true" />
-                {label}
-              </span>
-            ))}
-          </div>
-        </div>
         <ProductPreview />
         <Features />
-        <Channels />
-        <Pricing />
+        <Beta />
         <FAQ />
-        <section className="mp-container mp-about">
-          <div>
-            <p className="mp-eyebrow">Miért MarketingPilot?</p>
-            <h2>
-              A vállalkozásodhoz érts.
-              <br />A tartalomban segítünk.
-            </h2>
-          </div>
-          <div>
-            <p>
-              Azoknak készül, akik maguk viszik a vállalkozásukat, és a marketingre is nekik kell
-              időt találniuk. A saját márkahangod, posztjaid és terveid egy munkatérben maradnak.
-            </p>
-            <Link to="/contact" className="mp-text-link">
-              Üzemeltető és kapcsolat <ArrowRight size={17} />
-            </Link>
-          </div>
-        </section>
-        <section className="mp-container mp-final">
-          <div>
-            <p className="mp-eyebrow">A következő posztod itt kezdődik</p>
-            <h2>
-              Egy jó ötleted már van?
-              <br />
-              Adjunk neki formát.
-            </h2>
-            <p>
-              Nem kell mindent előre beállítanod. Kezdd egy poszttal,
-              <br className="mp-desktop-break" /> a márkád részleteit később is megadhatod.
-            </p>
-          </div>
-          <div>
-            <Link to="/signup" className="mp-button">
-              Díjmentes béta kipróbálása <ArrowRight size={18} />
-            </Link>
-            <span>Bankkártya és automatikus előfizetés nélkül.</span>
-          </div>
-        </section>
       </main>
       <footer className="mp-container mp-footer">
         <div>
           <Link to="/" className="mp-brand">
             <span className="mp-logo">M</span>
             <span>
-              MarketingPilot<small>AI marketing-munkatér</small>
+              MarketingPilot<small>Posztok egyszerűen, a te hangodon.</small>
             </span>
           </Link>
-          <p>© 2026 MarketingPilot · Nyilvános béta</p>
+          <p>© 2026 MarketingPilot · Díjmentes béta</p>
         </div>
         <div>
           <PublicInfoLinks />
-          <p>Az üzemeltetői és végleges jogi adatok előkészítés alatt állnak.</p>
+          <Link to="/contact" className="mp-text-link">
+            Ki áll mögötte? Üzemeltető és kapcsolat <ArrowRight size={16} />
+          </Link>
         </div>
       </footer>
     </div>
@@ -197,37 +140,42 @@ function Hero() {
     <section className="mp-container mp-hero">
       <div className="mp-hero-copy">
         <p className="mp-pill">
-          <span /> A marketinged új munkatere · Béta
+          <span /> Kisvállalkozóknak, akiknek nincs marketingesük
         </p>
         <h1>
-          Te viszed
-          <br />a vállalkozást.
+          Egy mondatból
           <br />
-          <em>
-            Mi segítünk
-            <br />a tartalomban.
-          </em>
+          kész poszt.
+          <br />
+          <em>Percek alatt.</em>
         </h1>
         <p className="mp-hero-description">
-          Egy rövid ötletből posztok a saját hangodon. Kampányok, képposztok és tartalomterv — egy
-          helyen, marketinges nélkül is.
+          Leírod, mit szeretnél megosztani. A MarketingPilot megírja a te hangodon. Te jóváhagyod,
+          és kiteszed.
         </p>
+        <div className="mp-visual-request mp-hero-brief">
+          <WandSparkles size={20} />
+          <div>
+            <small>TE EZT ÍROD</small>
+            <p>„{LANDING_EXAMPLE.idea}”</p>
+          </div>
+        </div>
         <div className="mp-hero-actions">
           <Link to="/signup" className="mp-button">
-            Kipróbálom díjmentesen <ArrowRight size={18} />
+            Kipróbálom ingyen <ArrowRight size={18} />
           </Link>
           <a href="#preview" className="mp-text-link">
-            Mutasd a felületet <ArrowDown size={17} />
+            Megnézem, hogyan működik <ArrowDown size={17} />
           </a>
         </div>
         <p className="mp-micro">
-          <Check size={15} /> Nem kell bankkártya <span>·</span> A kész szövegről te döntesz
+          <Check size={15} /> Bankkártya nélkül <span>·</span> Facebook-kapcsolat sem kell
         </p>
       </div>
       <div className="mp-hero-visual">
         <div className="mp-visual-heading">
           <span>
-            <Sparkles size={17} /> Az ötlettől a kész posztig
+            <Sparkles size={17} /> Ilyen posztot készíthetsz
           </span>
           <span className="mp-window-dots" aria-hidden="true">
             <i />
@@ -235,35 +183,23 @@ function Hero() {
             <i />
           </span>
         </div>
-        <div className="mp-visual-request">
-          <MessageSquare size={20} />
-          <div>
-            <small>EGYSZERŰEN MONDD EL</small>
-            <p>„Mutassuk be a pékségünk friss reggelijét.”</p>
-          </div>
-        </div>
-        <a href="#preview" className="mp-hero-screen" aria-label="Valódi posztkészítő megtekintése">
-          <img
-            src="/images/marketingpilot-studio.jpg"
-            width={1280}
-            height={800}
-            fetchPriority="high"
-            alt="Valódi MarketingPilot posztkészítő: szerkeszthető szöveg és mellette a Facebook-előnézet egy teszt pékségnek."
-          />
-        </a>
+        <article className="mp-example-post" aria-label="Szerkesztett bemutatóposzt">
+          <header>
+            <span className="mp-example-avatar" aria-hidden="true">
+              P
+            </span>
+            <div>
+              <strong>{LANDING_EXAMPLE.brand}</strong>
+              <small>Facebook · Kitalált példamárka</small>
+            </div>
+          </header>
+          <p>{LANDING_EXAMPLE.text}</p>
+        </article>
         <div className="mp-visual-foot">
           <span>
-            <Check size={16} /> Szöveg + előnézet + mentés
+            <Check size={16} /> Szerkeszthető szöveg és előnézet
           </span>
-          <small>Valódi felület · tesztmárka</small>
-        </div>
-        <div className="mp-visual-caption">
-          <WandSparkles size={19} />
-          <span>
-            A márkád hangja.
-            <br />
-            <strong>A te kezedben.</strong>
-          </span>
+          <small>Szerkesztett bemutatópélda</small>
         </div>
       </div>
     </section>
@@ -275,19 +211,42 @@ function ProductPreview() {
   const preview = PREVIEWS[active];
   return (
     <section id="preview" className="mp-section mp-container">
+      <div className="mp-steps mp-simple-steps">
+        {[
+          {
+            title: "Leírod az ötleted",
+            text: "Egy ajánlat, újdonság vagy köszönet. Nem kell hozzá marketingtudás.",
+          },
+          {
+            title: "Átnézed a kész posztot",
+            text: "Megírjuk a vállalkozásod hangján. Bármit átírhatsz benne.",
+          },
+          {
+            title: "Kimásolod és kiteszed",
+            text: "A szöveget átmásolod a közösségi oldaladra. Mindig te döntesz.",
+          },
+        ].map(({ title, text }, index) => (
+          <div key={title}>
+            <span>0{index + 1}</span>
+            <div>
+              <h3>{title}</h3>
+              <p>{text}</p>
+            </div>
+          </div>
+        ))}
+      </div>
       <div className="mp-section-heading">
         <div>
-          <p className="mp-eyebrow">Nézz bele a munkatérbe</p>
+          <p className="mp-eyebrow">Nézd meg, mit kapsz</p>
           <h2>
-            Kevesebb „mit posztoljak?”.
+            A kész posztot látod.
             <br />
-            Több kész tartalom.
+            Nem egy újabb űrlapot.
           </h2>
         </div>
         <p>
-          Nem kell hosszú promptot írnod.
-          <br />
-          Egy ötlet, néhány finomítás, és mentheted is.
+          Az új, egyszerűbb felület előnézete.
+          <br />A belső felület frissítését még előkészítjük.
         </p>
       </div>
       <div className="mp-preview-tabs" role="tablist" aria-label="Termékelőnézet">
@@ -327,13 +286,14 @@ function ProductPreview() {
       >
         <div className="mp-preview-caption">
           <div>
+            <p className="mp-preview-mode">{preview.mode} · Előkészített felület · példamárka</p>
             <h3>{preview.title}</h3>
             <p>{preview.description}</p>
           </div>
           <span>
-            Valódi alkalmazás
+            Következő belső kiadás
             <br />
-            <strong>Tesztmárkával bemutatva</strong>
+            <strong>Helyi tesztben ellenőrizve</strong>
           </span>
         </div>
         <a
@@ -345,35 +305,11 @@ function ProductPreview() {
           <img
             src={`/images/${preview.image}`}
             width={1280}
-            height={800}
+            height={900}
             loading="lazy"
             alt={preview.alt}
           />
         </a>
-      </div>
-      <div className="mp-steps">
-        {[
-          {
-            title: "Mondd el az ötleted",
-            text: "Egy ajánlat, újdonság vagy hétköznapi történet. Nem kell hat lépésen végigmenned.",
-          },
-          {
-            title: "Formáld a sajátodra",
-            text: "Válassz szövegváltozatot, javíts bele, adj hozzá saját képet. Az előnézet segít ellenőrizni.",
-          },
-          {
-            title: "Mentsd és használd",
-            text: "Másold ki a szöveget, vagy térj vissza a mentett posztodhoz. A naptárban tervezhetsz is.",
-          },
-        ].map(({ title, text }, index) => (
-          <div key={title}>
-            <span>0{index + 1}</span>
-            <div>
-              <h3>{title}</h3>
-              <p>{text}</p>
-            </div>
-          </div>
-        ))}
       </div>
     </section>
   );
@@ -385,161 +321,76 @@ function Features() {
       <div className="mp-container">
         <div className="mp-section-heading">
           <div>
-            <p className="mp-eyebrow">A vállalkozásodra szabva</p>
+            <p className="mp-eyebrow">Négy dolog, ami megkönnyíti a heted</p>
             <h2>
-              Nem újabb teendő.
+              Kevesebb gondolkodás.
               <br />
-              Segítség a meglévőkhöz.
+              Több kész poszt.
             </h2>
           </div>
-          <p>
-            Magyar kezelőfelület. A márkád nyelve,
-            <br />
-            régiója és szolgáltatásai adják az AI kontextusát.
-          </p>
         </div>
-        <div className="mp-feature-grid">
-          <article className="mp-feature mp-feature-dark">
-            <Palette size={27} />
-            <p className="mp-eyebrow">Márka AI</p>
-            <h3>
-              Olyan szöveg,
-              <br />
-              amiben magadra ismersz.
-            </h3>
-            <p>
-              Add meg, mit kínálsz, kikhez szólsz és hogyan kommunikálsz. Korábbi saját posztjaidból
-              az AI márkahangot is tanulhat.
-            </p>
-            <div className="mp-context-tags">
-              <span>Vállalkozástípus</span>
-              <span>Célközönség</span>
-              <span>Saját hangnem</span>
-              <span>Régió és nyelv</span>
-            </div>
-          </article>
-          <article className="mp-feature mp-feature-plan">
-            <CalendarDays size={27} />
-            <p className="mp-eyebrow">Kampányok és tervezés</p>
-            <h3>
-              Ne minden nap
-              <br />a nulláról indulj.
-            </h3>
-            <p>
-              Kampánybriefből AI-stratégia és 30 napos terv. A mentett tervtételekből posztot
-              készíthetsz, és a naptárban rendezheted őket.
-            </p>
-            <Link to="/signup" className="mp-text-link">
-              Saját tartalomtervet szeretnék <ArrowRight size={17} />
-            </Link>
-          </article>
+        <div className="mp-benefits">
           {[
             {
               icon: WandSparkles,
-              title: "Egy brief, több változat",
-              text: "Külön platformszövegek, erősebb hookok, A/B megközelítések és Meta hirdetésszövegek.",
+              title: "Egy mondatból kész poszt",
+              text: "A vállalkozásod mentett adatai segítenek a poszt elkészítésében.",
             },
             {
-              icon: ImageIcon,
-              title: "Képposzt és carousel",
-              text: "Saját fotód, szerkeszthető feliratok, letölthető grafika. AI-képhez külön képkredit szükséges.",
+              icon: Palette,
+              title: "A te hangodon, nem robotként",
+              text: "A termékeid, a közönséged és a megadott hangnem adja a kiindulást. A szöveget te ellenőrzöd.",
             },
             {
-              icon: Copy,
-              title: "A kész tartalom megmarad",
-              text: "Mentett posztok, változatok és verziók. Szerkeszthetsz, másolhatsz vagy duplikálhatsz is.",
+              icon: ShieldCheck,
+              title: "A hiányzó adatot jelzi",
+              text: "Ha hiányzik például a cím vagy az ár, kitöltendő mezőt kérünk. Közzététel előtt pótold a hiányzó adatokat, és mindig nézd át az AI szövegét.",
+            },
+            {
+              icon: CalendarDays,
+              title: "Posztötletek a következő hétre",
+              text: "A vállalkozásodhoz illő 3–4 poszt javaslata. Külön megnyithatod, szerkesztheted és másolhatod őket.",
             },
           ].map(({ icon: Icon, title, text }) => (
-            <article key={title} className="mp-feature mp-feature-mini">
-              <Icon size={25} />
+            <article key={title} className="mp-feature">
+              <Icon size={26} />
               <h3>{title}</h3>
               <p>{text}</p>
             </article>
           ))}
         </div>
+        <div className="mp-continuity">
+          <h3>A posztolás könnyen elmarad, ha mindent egyedül csinálsz.</h3>
+          <p>
+            A heti tervben előre látod a következő 3–4 posztötletedet. Amikor van pár perced,
+            megnyitod az egyiket, átnézed, és kiteszed.
+          </p>
+        </div>
       </div>
     </section>
   );
 }
 
-function Channels() {
-  return (
-    <section id="channels" className="mp-container mp-section mp-status-section">
-      <div>
-        <p className="mp-eyebrow">Őszintén a lehetőségekről</p>
-        <h2>
-          Tudd, mi kész.
-          <br />
-          És mi következik.
-        </h2>
-        <p>
-          A béta a tartalomkészítésben és a tervezésben segít. A közzétételről mindig egyértelmű
-          visszajelzést kapsz.
-        </p>
-      </div>
-      <div className="mp-status-list">
-        {[
-          {
-            title: "AI szöveg, mentés és másolás",
-            badge: "Használható",
-            ready: true,
-            text: "Szerkeszthető posztok, platformváltozatok és saját fotóból képposztok.",
-          },
-          {
-            title: "Naptár és tartalomterv",
-            badge: "Használható",
-            ready: true,
-            text: "A dátumok és időpontok mentődnek. Ez tervezés, nem automatikus közzététel.",
-          },
-          {
-            title: "Facebook / Instagram publikálás",
-            badge: "Előkészítés alatt",
-            ready: false,
-            text: "Külső Meta-beállítás miatt jelenleg nem használható. Automatikus háttérpublikálás sincs bekötve.",
-          },
-          {
-            title: "AI-képgenerálás",
-            badge: "Képkredit szükséges",
-            ready: false,
-            text: "Külső szolgáltatói képkredithez kötött. Kredit nélkül nem készül kép; saját fotót használhatsz.",
-          },
-        ].map(({ title, badge, ready, text }) => (
-          <article key={title}>
-            <span className={`mp-status-dot ${ready ? "is-ready" : ""}`} />
-            <div>
-              <h3>{title}</h3>
-              <p>{text}</p>
-            </div>
-            <span className={`mp-status-badge ${ready ? "is-ready" : ""}`}>{badge}</span>
-          </article>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function Pricing() {
+function Beta() {
   return (
     <section id="pricing" className="mp-container mp-pricing">
       <div>
-        <p className="mp-eyebrow">Kezdd el egyszerűen</p>
-        <h2>
-          Próbáld ki.
-          <br />
-          Kötelezettség nélkül.
-        </h2>
-        <p>
-          Most díjmentes bétát használhatsz. Nincs bankkártya, automatikus terhelés vagy
-          megvásárolható fizetős csomag.
-        </p>
+        <p className="mp-eyebrow">Ingyenes belépés, bankkártya nélkül</p>
+        <h2>Kezdd egy poszttal.</h2>
+        <p>A béta díjmentes. Nincs fizetés, nincs automatikus terhelés.</p>
         <p className="mp-pricing-note">
-          Az AI használatát szolgáltatói keretek befolyásolják. A béta nem jelent korlátlan
-          generálást vagy örök ingyenességet.
+          A generálás használati limitekhez és szolgáltatói keretekhez kötött. A béta nem korlátlan,
+          és nem ígéret örök ingyenességre.
         </p>
+        <h3 className="mp-beta-exclusions">Amit most még nem kapsz</h3>
+        <ul className="mp-beta-exclusions">
+          <li>Automatikus Facebook- és Instagram-közzététel: a kapcsolat előkészítés alatt áll.</li>
+          <li>AI-képgenerálás: még nincs. Saját fotóból viszont készíthetsz képposztot.</li>
+        </ul>
       </div>
       <div className="mp-price-card">
         <div className="mp-price-top">
-          <span>Nyilvános béta</span>
+          <span>Díjmentes béta</span>
           <Sparkles size={22} />
         </div>
         <p className="mp-price">
@@ -547,11 +398,10 @@ function Pricing() {
         </p>
         <ul>
           {[
-            "Saját munkatér és márkahang",
-            "AI posztok és platformváltozatok",
-            "Kampány és 30 napos terv kipróbálása",
-            "Mentett posztok, Planner és naptár",
-            "Képposztok a saját fotóidból",
+            "Posztok a vállalkozásod hangján",
+            "Külön Facebook- és Instagram-szöveg",
+            "Heti terv és mentett posztok",
+            "Saját kép és szerkeszthető feliratok",
           ].map((text) => (
             <li key={text}>
               <Check size={17} />
@@ -560,9 +410,9 @@ function Pricing() {
           ))}
         </ul>
         <Link to="/signup" className="mp-button">
-          Létrehozom a fiókom <ArrowRight size={18} />
+          Elkészítem az első posztomat <ArrowRight size={18} />
         </Link>
-        <small>AI-kép és Meta-publikálás: lásd a fenti státuszokat.</small>
+        <small>A közzétételt te végzed a saját közösségi oldaladon.</small>
       </div>
     </section>
   );
@@ -570,51 +420,49 @@ function Pricing() {
 
 const QUESTIONS = [
   [
-    "Kell hozzá marketingtudás vagy hosszú prompt?",
-    "Nem. Írd le az ajánlatodat hétköznapi nyelven, válassz csatornát, és készítsd el a posztot. A részletes szerkesztő opcionális. A vállalkozástípust is kihagyhatod.",
+    "Fel kell kötnöm a Facebookot?",
+    "Nem. A kész szöveget kimásolod, majd beilleszted a Facebookra vagy az Instagramra. Kapcsolat nélkül is használható. A közvetlen közzététel még előkészítés alatt áll.",
   ],
   [
-    "Mennyire megbízható az AI szövege?",
-    "A márkád adatait és hangját használja, de hibázhat. Közzététel előtt ellenőrizd a tényeket, árakat és dátumokat. Minden kész szöveg szerkeszthető; több hookot vagy eltérő változatot is kérhetsz.",
+    "Mennyibe kerül?",
+    "A béta ingyenes, bankkártyát sem kérünk. A generálásnak van használati kerete. Későbbi fizetős csomagra nem váltunk át automatikusan.",
   ],
   [
-    "Magyarul és románul is használható?",
-    "A kezelőfelület jelenleg magyar. A márkánál megadhatod a tartalom nyelvét és régióját. Más nyelven generált szövegnél is szükséges a nyelvi ellenőrzés; a teljes román kezelőfelület még nem készült el.",
+    "Jóváhagyás nélkül posztol?",
+    "Nem. Jelenleg te teszed ki a kész szöveget. A naptárban mentett időpont tervezésre szolgál, nem indít automatikus közzétételt.",
   ],
   [
-    "Ugyanaz a szöveg kerül minden platformra?",
-    "Nem: a kiválasztott platformokra külön változatot kérünk az AI-tól. Ezeket egyenként szerkesztheted és előnézetben ellenőrizheted.",
+    "Kitalál tényeket?",
+    "A megadott tényekre építünk, a hiányzó konkrét adatot szögletes zárójelben jelezzük, például [cím]. A hiányzó adatot szerkesztéskor pótolhatod; hiányos szöveget ne tegyél közzé. Az AI így is hibázhat: az árakat, dátumokat és állításokat mindig ellenőrizd.",
   ],
   [
-    "A naptárból automatikusan kimegy a poszt?",
-    "Jelenleg nem. A naptár és a Planner a mentett tartalomtervet kezeli. Az automatikus háttérpublikáláshoz külön futtató infrastruktúra és működő csatornakapcsolat szükséges.",
+    "Magyarul készülnek a posztok?",
+    "Igen, a vállalkozásodnál megadott nyelven. A kezelőfelület magyar. Román nyelvű szöveget is kérhetsz, de azt is ellenőrizd közzététel előtt.",
   ],
   [
-    "Készíthetek reklámképet is?",
-    "Saját fotóból és szerkeszthető feliratokból képposztot vagy carousel képeket készíthetsz. A külön AI-képgenerálás szolgáltatói képkredithez kötött; kredit hiányában hibaüzenetet kapsz, nem kész képet.",
+    "Hová kerülnek az adataim?",
+    "A fiók és a vállalkozás adatait Neon adatbázisban, a feltöltött fájlokat privát Vercel tárhelyen tároljuk. A generáláshoz szükséges márkaadatokat és ötletet az OpenRouter és a kiválasztott modell szolgáltatója kapja meg. A részleteket az Adatvédelem oldalon találod.",
   ],
   [
-    "Kell bankkártya? Hogyan mondom le?",
-    "A díjmentes bétában nincs bankkártyás fizetés vagy megújuló előfizetés, így nincs levonás, amit le kellene mondanod. A használatot abbahagyhatod. A fióktörlési kapcsolat és a végleges jogi feltételek még előkészítés alatt állnak.",
+    "Megszüntethetem a fiókomat?",
+    "A fiók megszüntetését az üzemeltetőtől kérheted. Az önkiszolgáló adatexport és fióktörlés a következő belső kiadás része; jelenleg még nem elérhető.",
   ],
   [
-    "Már kész, éles szolgáltatás ez?",
-    "Ez nyilvános béta. A tartalomkészítési és tervezési funkciók használhatók, a Meta-kapcsolat, a képkredit, az automatikus publikálás és a jogi tájékoztatók még véglegesítést igényelnek.",
+    "Meg kell jelölnöm, ha AI segített?",
+    "A platformok és a jogszabályok előírásai változhatnak. A valósághű, AI-val készült vagy módosított képre, videóra és hangra külön szabályok vonatkozhatnak. Közzététel előtt nézd meg az adott platform aktuális tájékoztatóját, jogi kérdésben pedig kérj szakértői segítséget. Ez nem jogi tanács.",
   ],
 ];
-
 function FAQ() {
   return (
     <section id="faq" className="mp-container mp-section mp-faq">
       <div>
         <p className="mp-eyebrow">Mielőtt belevágsz</p>
-        <h2>
-          Jó kérdések.
-          <br />
-          Egyszerű válaszok.
-        </h2>
+        <h2>Egyszerű válaszok.</h2>
         <Link to="/contact" className="mp-text-link">
-          Kapcsolat és tájékoztatók <ArrowRight size={17} />
+          Üzemeltető és kapcsolat <ArrowRight size={17} />
+        </Link>
+        <Link to="/signup" className="mp-button mp-faq-start">
+          Kipróbálom ingyen <ArrowRight size={18} />
         </Link>
       </div>
       <div>
@@ -624,7 +472,30 @@ function FAQ() {
               {question}
               <ChevronDown size={19} />
             </summary>
-            <p>{answer}</p>
+            <p>
+              {answer}
+              {question === "Hová kerülnek az adataim?" && (
+                <>
+                  <br />
+                  <Link to="/privacy" className="mp-text-link">
+                    Adatvédelmi tájékoztató <ArrowRight size={16} />
+                  </Link>
+                </>
+              )}
+              {question === "Meg kell jelölnöm, ha AI segített?" && (
+                <>
+                  <br />
+                  <a
+                    className="mp-text-link"
+                    href="https://about.fb.com/news/2024/04/metas-approach-to-labeling-ai-generated-content-and-manipulated-media/"
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    Meta tájékoztató az AI-jelölésről <ArrowRight size={16} />
+                  </a>
+                </>
+              )}
+            </p>
           </details>
         ))}
       </div>

@@ -1,3 +1,52 @@
+.mp-simple-steps {
+  margin-top: 0;
+  margin-bottom: 48px;
+}
+.mp-benefits {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 22px;
+}
+.mp-benefits h3 {
+  margin-top: 18px;
+  font-size: 22px;
+}
+.mp-benefits p {
+  margin-top: 12px;
+}
+.mp-continuity {
+  margin-top: 32px;
+  padding: 24px;
+  border-left: 3px solid var(--mp-coral);
+}
+.mp-continuity h3 {
+  font-size: 20px;
+}
+.mp-continuity p {
+  margin-top: 12px;
+  max-width: 760px;
+}
+.mp-beta-exclusions {
+  margin-top: 22px;
+  font-size: 15px;
+  line-height: 1.7;
+}
+ul.mp-beta-exclusions {
+  padding-left: 20px;
+  list-style: disc;
+  margin-top: 10px;
+}
+.mp-faq-start {
+  margin-top: 24px;
+}
+@media (max-width: 600px) {
+  .mp-benefits {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .mp-continuity {
+    padding: 16px;
+  }
+}
 .mp-landing {
   --mp-ink: #142f27;
   --mp-green: #133b30;
@@ -39,7 +88,7 @@
   font-size: clamp(30px, 3.2vw, 42px);
   line-height: 1.2;
   font-weight: 800;
-  letter-spacing: -1.4px;
+  letter-spacing: -0.5px;
 }
 .mp-landing h3 {
   font-weight: 700;
@@ -213,7 +262,7 @@
   font-size: clamp(45px, 4.6vw, 62px);
   font-weight: 800;
   line-height: 1.08;
-  letter-spacing: -2.8px;
+  letter-spacing: -1px;
   margin: 24px 0;
 }
 .mp-hero h1 em {
@@ -305,6 +354,52 @@
   font-size: 14px;
   font-weight: 600;
   margin-top: 4px;
+}
+.mp-hero-brief {
+  border: 1px solid var(--mp-line);
+  max-width: 480px;
+}
+.mp-hero-brief small {
+  font-size: 12px;
+}
+.mp-example-post {
+  margin-top: 22px;
+  padding: 26px;
+  background: #fffdf5;
+  border-radius: 16px;
+}
+.mp-example-post header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.mp-example-avatar {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  background: var(--mp-green);
+  color: white;
+  border-radius: 50%;
+  font-weight: 700;
+}
+.mp-example-post small {
+  display: block;
+  color: var(--mp-muted);
+  font-size: 13px;
+}
+.mp-example-post > p {
+  margin-top: 24px;
+  font-size: 18px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.mp-preview-caption .mp-preview-mode {
+  font-size: 14px;
+  color: #365446;
+  font-weight: 600;
+  margin-bottom: 8px;
 }
 .mp-hero-screen {
   display: block;
@@ -681,7 +776,7 @@
 .mp-price-top svg {
   color: #be4933;
 }
-.mp-price-card .mp-price {
+.mp-pricing .mp-price-card .mp-price {
   font-size: 66px;
   line-height: 1.2;
   font-weight: 700;
@@ -972,7 +1067,14 @@
     gap: 8px;
   }
   .mp-brand small {
-    font-size: 10px;
+    font-size: 11px;
+  }
+  .mp-nav .mp-brand small {
+    max-width: 145px;
+    line-height: 1.4;
+  }
+  .mp-nav .mp-brand > span:last-child {
+    min-width: 0;
   }
   .mp-logo {
     width: 36px;
@@ -992,19 +1094,26 @@
   }
   .mp-login {
     font-size: 12px;
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+  }
+  .mp-menu-button {
+    min-width: 44px;
+    min-height: 44px;
   }
   .mp-hero {
     padding-top: 36px;
     padding-bottom: 48px;
   }
   .mp-pill {
-    font-size: 10px;
+    font-size: 12px;
     padding: 6px 9px;
   }
   .mp-hero h1 {
     font-size: 42px;
     line-height: 1.12;
-    letter-spacing: -1.8px;
+    letter-spacing: -0.5px;
   }
   .mp-hero h1 br:nth-of-type(1),
   .mp-hero h1 em br {
@@ -1024,7 +1133,7 @@
     justify-content: center;
   }
   .mp-micro {
-    font-size: 10px;
+    font-size: 13px;
   }
   .mp-hero-visual {
     padding: 14px;
@@ -1038,13 +1147,13 @@
     margin-top: 16px;
   }
   .mp-visual-request p {
-    font-size: 12px;
+    font-size: 14px;
   }
   .mp-hero-screen {
     aspect-ratio: 1.35;
   }
   .mp-visual-foot {
-    font-size: 10px;
+    font-size: 12px;
     gap: 5px;
   }
   .mp-visual-caption {
@@ -1066,7 +1175,7 @@
   }
   .mp-landing h2 {
     font-size: 29px;
-    letter-spacing: -1px;
+    letter-spacing: -0.4px;
   }
   .mp-section-heading {
     margin-bottom: 24px;
@@ -1082,7 +1191,8 @@
     flex: 1;
     gap: 5px;
     padding: 11px 4px;
-    font-size: 10px;
+    font-size: 12px;
+    min-height: 44px;
   }
   .mp-preview-tabs button svg {
     width: 15px;
@@ -1094,7 +1204,7 @@
     font-size: 18px;
   }
   .mp-preview-caption p {
-    font-size: 13px;
+    font-size: 14px;
   }
   .mp-preview-frame {
     border-radius: 15px;

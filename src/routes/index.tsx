@@ -5,17 +5,17 @@ const SITE_URL = "https://marketingai-self.vercel.app";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "MarketingPilot — AI marketing-munkatér kisvállalkozásoknak" },
+      { title: "MarketingPilot — Egy mondatból kész poszt. Percek alatt." },
       {
         name: "description",
         content:
-          "Egy rövid ötletből szerkeszthető posztok, saját márkahang és 30 napos tartalomterv. Ismerd meg a MarketingPilot díjmentes bétáját.",
+          "Leírod az ötleted, a MarketingPilot megírja a te hangodon, te átnézed és kiteszed. Posztok és heti terv kisvállalkozóknak, díjmentes bétában.",
       },
-      { property: "og:title", content: "MarketingPilot — A márkád. Egy helyen." },
+      { property: "og:title", content: "MarketingPilot — Egy mondatból kész poszt." },
       {
         property: "og:description",
         content:
-          "Valódi termékelőnézet: AI posztkészítő, platformváltozatok, kampányok és tartalomnaptár kisvállalkozásoknak.",
+          "Posztok a te hangodon, heti terv egy kattintással. Bankkártya és Facebook-kapcsolat nélkül is elkezdheted.",
       },
       { property: "og:type", content: "website" },
       { property: "og:url", content: SITE_URL },
@@ -24,7 +24,7 @@ export const Route = createFileRoute("/")({
       { property: "og:image:height", content: "630" },
       {
         property: "og:image:alt",
-        content: "MarketingPilot: AI posztkészítő, márkahang és tartalomterv",
+        content: "MarketingPilot: Egy mondatból kész poszt. Posztok egyszerűen, a te hangodon.",
       },
       { name: "twitter:card", content: "summary_large_image" },
       { name: "twitter:image", content: `${SITE_URL}/images/marketingpilot-share.png` },

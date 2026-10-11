@@ -27,9 +27,9 @@ try {
       throw new Error("Private media storage is required.");
     // Neon supplies a direct URL without exposing it to the client or build log.
     environment.DIRECT_URL ||= process.env.DATABASE_URL_UNPOOLED;
-    await run(path.resolve("scripts/migrate-postgres.mjs"));
+    // Database changes require a separate, explicit release step.
     if (environment.MARKETINGPILOT_IMPORT_BLOB_PATH) {
-      await run("--import", ["tsx", path.resolve("scripts/import-private-snapshot.ts")]);
+      throw new Error("Data import is not allowed during deployment builds.");
     }
   }
   await run(path.resolve("node_modules/vite/bin/vite.js"), ["build", "--configLoader", "native"]);
