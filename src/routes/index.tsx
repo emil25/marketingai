@@ -1,8 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { LandingPage } from "@/components/landing-page";
+import { getPublicOperator } from "@/lib/public-site.functions";
 
 const SITE_URL = "https://marketingai-self.vercel.app";
 export const Route = createFileRoute("/")({
+  loader: async () => ({ contactAvailable: Boolean((await getPublicOperator()).email) }),
   head: () => ({
     meta: [
       { title: "MarketingPilot — Egy mondatból kész poszt. Percek alatt." },
@@ -31,5 +33,9 @@ export const Route = createFileRoute("/")({
     ],
     links: [{ rel: "canonical", href: SITE_URL }],
   }),
-  component: LandingPage,
+  component: PublicLanding,
 });
+
+function PublicLanding() {
+  return <LandingPage contactAvailable={Route.useLoaderData().contactAvailable} />;
+}

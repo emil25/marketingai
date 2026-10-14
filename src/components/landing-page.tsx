@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { type KeyboardEvent as ReactKeyboardEvent, useEffect, useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import {
   ArrowDown,
@@ -14,82 +14,94 @@ import {
   X,
 } from "lucide-react";
 import { PublicInfoLinks } from "@/components/public-info-page";
-import { LANDING_EXAMPLE } from "@/lib/landing-example";
+import { LANDING_DEMOS } from "@/lib/landing-example";
+import { brandForLanguage, translate } from "@/i18n";
 import "@/landing.css";
 
 const PREVIEWS = [
   {
-    label: "Kész poszt",
+    label: "landing.preview.post.label",
     icon: WandSparkles,
     image: "marketingpilot-simple-result.jpg",
-    title: "Olvasd át. Javíts bele. Másold ki.",
-    description:
-      "A saját hangodon írt szöveg szerkeszthető. Facebookra és Instagramra külön változatot kérhetsz.",
-    alt: "Egyszerű mód: a Példa Pékség kész posztja és a négy menüpont.",
-    mode: "Egyszerű módban",
+    title: "landing.preview.post.title",
+    description: "landing.preview.post.description",
+    alt: "landing.preview.post.alt",
+    mode: "landing.mode.simple",
   },
   {
-    label: "Kezdőlap",
+    label: "landing.preview.home.label",
     icon: Palette,
     image: "marketingpilot-simple-home.jpg",
-    title: "Egy helyen maradnak a posztjaid és az ötleteid.",
-    description:
-      "A vállalkozásod adatai segítenek, hogy a következő posztnál se kelljen mindent újra elmondanod.",
-    alt: "Egyszerű mód: egy ötletmező a Példa Pékség kezdőlapján, négy menüponttal.",
-    mode: "Egyszerű módban",
+    title: "landing.preview.home.title",
+    description: "landing.preview.home.description",
+    alt: "landing.preview.home.alt",
+    mode: "landing.mode.simple",
   },
   {
-    label: "Naptár",
+    label: "landing.preview.calendar.label",
     icon: CalendarDays,
     image: "marketingpilot-detailed-calendar.jpg",
-    title: "Több lehetőség, amikor szükséged van rá.",
-    description:
-      "Részletes módban naptárban is rendezheted a tartalmaidat. A tervezett időpont jelenleg nem indít automatikus közzétételt.",
-    alt: "Részletes mód: a Példa Pékség tartalomnaptára.",
-    mode: "Részletes módban",
+    title: "landing.preview.calendar.title",
+    description: "landing.preview.calendar.description",
+    alt: "landing.preview.calendar.alt",
+    mode: "landing.mode.detailed",
   },
-];
+] as const;
 
-export function LandingPage() {
+export function LandingPage({
+  privateBeta = false,
+  contactAvailable = false,
+}: {
+  privateBeta?: boolean;
+  contactAvailable?: boolean;
+}) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [interactiveReady, setInteractiveReady] = useState(false);
+  useEffect(() => setInteractiveReady(true), []);
+  const brand = brandForLanguage("magyar");
   const navigation = [
-    ["#preview", "Így működik"],
-    ["#features", "Mit kapsz?"],
-    ["#pricing", "Ingyenes béta"],
-    ["#faq", "Kérdések"],
-  ];
+    ["#preview", "landing.nav.preview"],
+    ["#features", "landing.nav.features"],
+    ["#pricing", "landing.nav.pricing"],
+    ["#faq", "landing.nav.faq"],
+  ] as const;
   return (
-    <div className="theme-marketingpilot-v2 public-site mp-landing">
+    <div
+      className="theme-marketingpilot-v2 public-site mp-landing"
+      data-landing-ready={interactiveReady}
+    >
       <a className="mp-skip" href="#main">
-        Ugrás a tartalomhoz
+        {translate("landing.skip")}
       </a>
       <header className="mp-nav">
         <div className="mp-container mp-nav-inner">
-          <Link to="/" className="mp-brand" aria-label="MarketingPilot főoldal">
+          <Link to="/" className="mp-brand" aria-label={`${brand.productName} főoldal`}>
             <span className="mp-logo">M</span>
             <span>
-              MarketingPilot<small>Posztok egyszerűen, a te hangodon.</small>
+              {brand.productName}
+              <small>{brand.shortSlogan}</small>
             </span>
           </Link>
-          <nav aria-label="Fő navigáció" className="mp-desktop-nav">
+          <nav aria-label={translate("landing.navigation.aria")} className="mp-desktop-nav">
             {navigation.map(([href, label]) => (
               <a key={href} href={href}>
-                {label}
+                {translate(label)}
               </a>
             ))}
           </nav>
           <div className="mp-nav-actions">
             <Link to="/login" className="mp-login">
-              Belépés
+              {translate("landing.login")}
             </Link>
             <Link to="/signup" className="mp-button mp-button-small">
-              Kipróbálom <ArrowRight size={16} />
+              {translate("landing.try")} <ArrowRight size={16} />
             </Link>
             <button
               className="mp-menu-button"
+              disabled={!interactiveReady}
               aria-expanded={menuOpen}
               aria-controls="mobile-navigation"
-              aria-label={menuOpen ? "Menü bezárása" : "Menü megnyitása"}
+              aria-label={translate(menuOpen ? "landing.menu.close" : "landing.menu.open")}
               onClick={() => setMenuOpen(!menuOpen)}
             >
               {menuOpen ? <X size={22} /> : <Menu size={22} />}
@@ -97,10 +109,14 @@ export function LandingPage() {
           </div>
         </div>
         {menuOpen && (
-          <nav id="mobile-navigation" aria-label="Mobil navigáció" className="mp-mobile-nav">
+          <nav
+            id="mobile-navigation"
+            aria-label={translate("landing.navigation.mobileAria")}
+            className="mp-mobile-nav"
+          >
             {navigation.map(([href, label]) => (
               <a key={href} href={href} onClick={() => setMenuOpen(false)}>
-                {label}
+                {translate(label)}
                 <ArrowRight size={16} />
               </a>
             ))}
@@ -108,10 +124,22 @@ export function LandingPage() {
         )}
       </header>
       <main id="main">
-        <Hero />
-        <ProductPreview />
+        {privateBeta && (
+          <p className="mp-container pt-5 text-sm font-medium">
+            {translate("landing.beta.invite")}
+          </p>
+        )}
+        <Hero interactiveReady={interactiveReady} />
+        <ProductPreview interactiveReady={interactiveReady} />
+        <p
+          className="mp-container pb-5 text-center text-sm text-muted-foreground"
+          aria-label={translate("landing.examples")}
+        >
+          {translate("landing.examples")}
+        </p>
         <Features />
         <Beta />
+        <About contactAvailable={contactAvailable} />
         <FAQ />
       </main>
       <footer className="mp-container mp-footer">
@@ -119,15 +147,18 @@ export function LandingPage() {
           <Link to="/" className="mp-brand">
             <span className="mp-logo">M</span>
             <span>
-              MarketingPilot<small>Posztok egyszerűen, a te hangodon.</small>
+              {brand.productName}
+              <small>{brand.shortSlogan}</small>
             </span>
           </Link>
-          <p>© 2026 MarketingPilot · Díjmentes béta</p>
+          <p>
+            © 2026 {brand.productName} · {translate("landing.footer.beta")}
+          </p>
         </div>
         <div>
           <PublicInfoLinks />
           <Link to="/contact" className="mp-text-link">
-            Ki áll mögötte? Üzemeltető és kapcsolat <ArrowRight size={16} />
+            {translate("landing.footer.operator")} <ArrowRight size={16} />
           </Link>
         </div>
       </footer>
@@ -135,47 +166,57 @@ export function LandingPage() {
   );
 }
 
-function Hero() {
+function Hero({ interactiveReady }: { interactiveReady: boolean }) {
+  const [activeDemoIndex, setActiveDemoIndex] = useState(0);
+  const [demoLanguage, setDemoLanguage] = useState<"hu" | "ro">("hu");
+  const demo = LANDING_DEMOS[activeDemoIndex];
+
+  function onProfessionKeyDown(index: number, event: ReactKeyboardEvent<HTMLButtonElement>) {
+    const key = event.key;
+    let next: number | undefined;
+    if (key === "ArrowRight") next = (index + 1) % LANDING_DEMOS.length;
+    if (key === "ArrowLeft") next = (index + LANDING_DEMOS.length - 1) % LANDING_DEMOS.length;
+    if (key === "Home") next = 0;
+    if (key === "End") next = LANDING_DEMOS.length - 1;
+    if (next !== undefined) {
+      event.preventDefault();
+      setActiveDemoIndex(next);
+      document.getElementById(`landing-demo-tab-${next}`)?.focus();
+    }
+  }
+
   return (
     <section className="mp-container mp-hero">
       <div className="mp-hero-copy">
         <p className="mp-pill">
-          <span /> Kisvállalkozóknak, akiknek nincs marketingesük
+          <span /> {translate("landing.badge")}
         </p>
-        <h1>
-          Egy mondatból
-          <br />
-          kész poszt.
-          <br />
-          <em>Percek alatt.</em>
-        </h1>
-        <p className="mp-hero-description">
-          Leírod, mit szeretnél megosztani. A MarketingPilot megírja a te hangodon. Te jóváhagyod,
-          és kiteszed.
-        </p>
+        <h1>{translate("landing.title")}</h1>
+        <p className="mp-hero-description">{translate("landing.description")}</p>
         <div className="mp-visual-request mp-hero-brief">
           <WandSparkles size={20} />
           <div>
-            <small>TE EZT ÍROD</small>
-            <p>„{LANDING_EXAMPLE.idea}”</p>
+            <small>{translate("landing.hero.ideaLabel")}</small>
+            <p>„{demo.idea}”</p>
           </div>
         </div>
         <div className="mp-hero-actions">
           <Link to="/signup" className="mp-button">
-            Kipróbálom ingyen <ArrowRight size={18} />
+            {translate("landing.hero.tryFree")} <ArrowRight size={18} />
           </Link>
           <a href="#preview" className="mp-text-link">
-            Megnézem, hogyan működik <ArrowDown size={17} />
+            {translate("landing.hero.how")} <ArrowDown size={17} />
           </a>
         </div>
         <p className="mp-micro">
-          <Check size={15} /> Bankkártya nélkül <span>·</span> Facebook-kapcsolat sem kell
+          <Check size={15} /> {translate("landing.hero.noCard")} <span>·</span>{" "}
+          {translate("landing.hero.noConnection")}
         </p>
       </div>
       <div className="mp-hero-visual">
         <div className="mp-visual-heading">
           <span>
-            <Sparkles size={17} /> Ilyen posztot készíthetsz
+            <Sparkles size={17} /> {translate("landing.hero.previewTitle")}
           </span>
           <span className="mp-window-dots" aria-hidden="true">
             <i />
@@ -183,47 +224,114 @@ function Hero() {
             <i />
           </span>
         </div>
-        <article className="mp-example-post" aria-label="Szerkesztett bemutatóposzt">
+        <div className="mp-demo-switches">
+          <div
+            className="mp-demo-tabs"
+            role="tablist"
+            aria-label={translate("landing.hero.professionsAria")}
+          >
+            {LANDING_DEMOS.map((item, index) => (
+              <button
+                key={item.id}
+                id={`landing-demo-tab-${index}`}
+                type="button"
+                role="tab"
+                disabled={!interactiveReady}
+                aria-selected={activeDemoIndex === index}
+                aria-controls="landing-demo-panel"
+                tabIndex={activeDemoIndex === index ? 0 : -1}
+                onClick={() => setActiveDemoIndex(index)}
+                onKeyDown={(event) => onProfessionKeyDown(index, event)}
+              >
+                <span aria-hidden="true">{item.emoji}</span>
+                {translate(item.label)}
+              </button>
+            ))}
+          </div>
+          <div
+            className="mp-demo-language"
+            role="group"
+            aria-label={translate("landing.hero.languageAria")}
+          >
+            {(["hu", "ro"] as const).map((language) => (
+              <button
+                key={language}
+                type="button"
+                aria-pressed={demoLanguage === language}
+                disabled={!interactiveReady}
+                onClick={() => setDemoLanguage(language)}
+              >
+                {language === "hu" ? "HU" : "RO"}
+              </button>
+            ))}
+          </div>
+        </div>
+        <article className="mp-example-post" aria-label={translate("landing.hero.previewAria")}>
           <header>
             <span className="mp-example-avatar" aria-hidden="true">
-              P
+              {demo.brand.slice(0, 1)}
             </span>
             <div>
-              <strong>{LANDING_EXAMPLE.brand}</strong>
-              <small>Facebook · Kitalált példamárka</small>
+              <strong>{demo.brand}</strong>
+              <small>{translate("landing.hero.exampleNetwork")}</small>
             </div>
           </header>
-          <p>{LANDING_EXAMPLE.text}</p>
+          <div
+            className="mp-demo-copy"
+            id="landing-demo-panel"
+            role="tabpanel"
+            aria-labelledby={`landing-demo-tab-${activeDemoIndex}`}
+            tabIndex={0}
+          >
+            <div className="mp-demo-prompt">
+              <small>{translate("landing.hero.ideaLabel")}</small>
+              <p>„{demo.idea}”</p>
+            </div>
+            <div className="mp-demo-result">
+              <small>{translate("landing.hero.resultLabel")}</small>
+              <p key={`${demo.id}-${demoLanguage}`} lang={demoLanguage} aria-live="polite">
+                {demo.text[demoLanguage]}
+              </p>
+            </div>
+          </div>
         </article>
         <div className="mp-visual-foot">
           <span>
-            <Check size={16} /> Szerkeszthető szöveg és előnézet
+            <Check size={16} /> {translate("landing.hero.previewEditable")}
           </span>
-          <small>Szerkesztett bemutatópélda</small>
+          <small>{translate("landing.hero.previewNote")}</small>
         </div>
       </div>
     </section>
   );
 }
 
-function ProductPreview() {
+function ProductPreview({ interactiveReady }: { interactiveReady: boolean }) {
   const [active, setActive] = useState(0);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const lightboxRef = useRef<HTMLDialogElement>(null);
   const preview = PREVIEWS[active];
+
+  useEffect(() => {
+    if (lightboxOpen && lightboxRef.current && !lightboxRef.current.open)
+      lightboxRef.current.showModal();
+  }, [lightboxOpen]);
+
   return (
     <section id="preview" className="mp-section mp-container">
-      <div className="mp-steps mp-simple-steps">
+      <div className="mp-steps mp-simple-steps" aria-label={translate("landing.steps.aria")}>
         {[
           {
-            title: "Leírod az ötleted",
-            text: "Egy ajánlat, újdonság vagy köszönet. Nem kell hozzá marketingtudás.",
+            title: translate("landing.steps.idea.title"),
+            text: translate("landing.steps.idea.text"),
           },
           {
-            title: "Átnézed a kész posztot",
-            text: "Megírjuk a vállalkozásod hangján. Bármit átírhatsz benne.",
+            title: translate("landing.steps.review.title"),
+            text: translate("landing.steps.review.text"),
           },
           {
-            title: "Kimásolod és kiteszed",
-            text: "A szöveget átmásolod a közösségi oldaladra. Mindig te döntesz.",
+            title: translate("landing.steps.share.title"),
+            text: translate("landing.steps.share.text"),
           },
         ].map(({ title, text }, index) => (
           <div key={title}>
@@ -237,25 +345,27 @@ function ProductPreview() {
       </div>
       <div className="mp-section-heading">
         <div>
-          <p className="mp-eyebrow">Nézd meg, mit kapsz</p>
+          <p className="mp-eyebrow">{translate("landing.preview.sectionEyebrow")}</p>
           <h2>
-            A kész posztot látod.
+            {translate("landing.preview.sectionTitle1")}
             <br />
-            Nem egy újabb űrlapot.
+            {translate("landing.preview.sectionTitle2")}
           </h2>
         </div>
-        <p>
-          Az új, egyszerűbb felület előnézete.
-          <br />A belső felület frissítését még előkészítjük.
-        </p>
+        <p>{translate("landing.preview.simpleStart1")}</p>
       </div>
-      <div className="mp-preview-tabs" role="tablist" aria-label="Termékelőnézet">
+      <div
+        className="mp-preview-tabs"
+        role="tablist"
+        aria-label={translate("landing.preview.tabsAria")}
+      >
         {PREVIEWS.map(({ label, icon: Icon }, index) => (
           <button
             key={label}
             id={`preview-tab-${index}`}
             role="tab"
             aria-selected={active === index}
+            disabled={!interactiveReady}
             aria-controls="product-preview-panel"
             tabIndex={active === index ? 0 : -1}
             onClick={() => setActive(index)}
@@ -273,7 +383,7 @@ function ProductPreview() {
             }}
           >
             <Icon size={18} />
-            {label}
+            {translate(label)}
           </button>
         ))}
       </div>
@@ -286,30 +396,83 @@ function ProductPreview() {
       >
         <div className="mp-preview-caption">
           <div>
-            <p className="mp-preview-mode">{preview.mode} · Előkészített felület · példamárka</p>
-            <h3>{preview.title}</h3>
-            <p>{preview.description}</p>
+            <p className="mp-preview-mode">
+              {translate("landing.preview.badge")} · {translate(preview.mode)}
+            </p>
+            <h3>{translate(preview.title)}</h3>
+            <p>{translate(preview.description)}</p>
           </div>
           <span>
-            Következő belső kiadás
+            {translate("landing.preview.app")}
             <br />
-            <strong>Helyi tesztben ellenőrizve</strong>
+            <strong>{translate("landing.preview.sampleCaption")}</strong>
           </span>
         </div>
-        <a
-          href={`/images/${preview.image}`}
-          target="_blank"
-          rel="noreferrer"
-          aria-label={`${preview.label} képernyőkép megnyitása nagyban`}
+        <button
+          type="button"
+          className="mp-preview-image-trigger"
+          disabled={!interactiveReady}
+          onClick={() => setLightboxOpen(true)}
+          aria-label={`${translate(preview.label)} ${translate("landing.preview.openImage")}`}
         >
           <img
             src={`/images/${preview.image}`}
             width={1280}
             height={900}
             loading="lazy"
-            alt={preview.alt}
+            alt={translate(preview.alt)}
           />
-        </a>
+        </button>
+      </div>
+      {lightboxOpen && (
+        <dialog
+          ref={lightboxRef}
+          className="mp-lightbox"
+          aria-labelledby="mp-lightbox-title"
+          onClose={() => setLightboxOpen(false)}
+          onClick={(event) => {
+            if (event.target === event.currentTarget) lightboxRef.current?.close();
+          }}
+        >
+          <div className="mp-lightbox-content">
+            <div className="mp-lightbox-heading">
+              <h2 id="mp-lightbox-title">{translate("landing.preview.lightbox.title")}</h2>
+              <button
+                type="button"
+                className="mp-lightbox-close"
+                aria-label={translate("landing.preview.lightbox.close")}
+                onClick={() => lightboxRef.current?.close()}
+              >
+                <X size={22} />
+                <span>{translate("landing.preview.lightbox.close")}</span>
+              </button>
+            </div>
+            <img
+              src={`/images/${preview.image}`}
+              alt={translate(preview.alt)}
+              width={1280}
+              height={900}
+            />
+          </div>
+        </dialog>
+      )}
+    </section>
+  );
+}
+
+function About({ contactAvailable }: { contactAvailable: boolean }) {
+  return (
+    <section className="mp-container mp-section mp-about" aria-labelledby="landing-about-title">
+      <div>
+        <p className="mp-eyebrow">{translate("landing.about.eyebrow")}</p>
+        <h2 id="landing-about-title">{translate("landing.about.title")}</h2>
+      </div>
+      <div>
+        <p>{translate(contactAvailable ? "landing.about.text" : "landing.about.textNoContact")}</p>
+        <Link to="/contact" className="mp-text-link">
+          {translate(contactAvailable ? "landing.about.contact" : "landing.about.contactInfo")}{" "}
+          <ArrowRight size={16} />
+        </Link>
       </div>
     </section>
   );
@@ -321,11 +484,11 @@ function Features() {
       <div className="mp-container">
         <div className="mp-section-heading">
           <div>
-            <p className="mp-eyebrow">Négy dolog, ami megkönnyíti a heted</p>
+            <p className="mp-eyebrow">{translate("landing.features.eyebrow")}</p>
             <h2>
-              Kevesebb gondolkodás.
+              {translate("landing.features.title1")}
               <br />
-              Több kész poszt.
+              {translate("landing.features.title2")}
             </h2>
           </div>
         </div>
@@ -333,23 +496,23 @@ function Features() {
           {[
             {
               icon: WandSparkles,
-              title: "Egy mondatból kész poszt",
-              text: "A vállalkozásod mentett adatai segítenek a poszt elkészítésében.",
+              title: translate("landing.feature.one.title"),
+              text: translate("landing.feature.one.text"),
             },
             {
               icon: Palette,
-              title: "A te hangodon, nem robotként",
-              text: "A termékeid, a közönséged és a megadott hangnem adja a kiindulást. A szöveget te ellenőrzöd.",
+              title: translate("landing.feature.two.title"),
+              text: translate("landing.feature.two.text"),
             },
             {
               icon: ShieldCheck,
-              title: "A hiányzó adatot jelzi",
-              text: "Ha hiányzik például a cím vagy az ár, kitöltendő mezőt kérünk. Közzététel előtt pótold a hiányzó adatokat, és mindig nézd át az AI szövegét.",
+              title: translate("landing.feature.three.title"),
+              text: translate("landing.feature.three.text"),
             },
             {
               icon: CalendarDays,
-              title: "Posztötletek a következő hétre",
-              text: "A vállalkozásodhoz illő 3–4 poszt javaslata. Külön megnyithatod, szerkesztheted és másolhatod őket.",
+              title: translate("landing.feature.four.title"),
+              text: translate("landing.feature.four.text"),
             },
           ].map(({ icon: Icon, title, text }) => (
             <article key={title} className="mp-feature">
@@ -360,11 +523,8 @@ function Features() {
           ))}
         </div>
         <div className="mp-continuity">
-          <h3>A posztolás könnyen elmarad, ha mindent egyedül csinálsz.</h3>
-          <p>
-            A heti tervben előre látod a következő 3–4 posztötletedet. Amikor van pár perced,
-            megnyitod az egyiket, átnézed, és kiteszed.
-          </p>
+          <h3>{translate("landing.continuity.title")}</h3>
+          <p>{translate("landing.continuity.text")}</p>
         </div>
       </div>
     </section>
@@ -375,114 +535,89 @@ function Beta() {
   return (
     <section id="pricing" className="mp-container mp-pricing">
       <div>
-        <p className="mp-eyebrow">Ingyenes belépés, bankkártya nélkül</p>
-        <h2>Kezdd egy poszttal.</h2>
-        <p>A béta díjmentes. Nincs fizetés, nincs automatikus terhelés.</p>
-        <p className="mp-pricing-note">
-          A generálás használati limitekhez és szolgáltatói keretekhez kötött. A béta nem korlátlan,
-          és nem ígéret örök ingyenességre.
-        </p>
-        <h3 className="mp-beta-exclusions">Amit most még nem kapsz</h3>
+        <p className="mp-eyebrow">{translate("landing.pricing.eyebrow")}</p>
+        <h2>{translate("landing.pricing.title")}</h2>
+        <p>{translate("landing.pricing.free")}</p>
+        <p className="mp-pricing-note">{translate("landing.pricing.limit")}</p>
+        <h3 className="mp-beta-exclusions">{translate("landing.pricing.exclusions")}</h3>
         <ul className="mp-beta-exclusions">
-          <li>Automatikus Facebook- és Instagram-közzététel: a kapcsolat előkészítés alatt áll.</li>
-          <li>AI-képgenerálás: még nincs. Saját fotóból viszont készíthetsz képposztot.</li>
+          <li>{translate("landing.pricing.noPublishing")}</li>
+          <li>{translate("landing.pricing.noImageAI")}</li>
         </ul>
       </div>
       <div className="mp-price-card">
         <div className="mp-price-top">
-          <span>Díjmentes béta</span>
+          <span>{translate("landing.pricing.beta")}</span>
           <Sparkles size={22} />
         </div>
         <p className="mp-price">
-          0 <span>RON / a béta alatt</span>
+          0 <span>{translate("landing.pricing.period")}</span>
         </p>
         <ul>
-          {[
-            "Posztok a vállalkozásod hangján",
-            "Külön Facebook- és Instagram-szöveg",
-            "Heti terv és mentett posztok",
-            "Saját kép és szerkeszthető feliratok",
-          ].map((text) => (
+          {(
+            [
+              "landing.pricing.item.one",
+              "landing.pricing.item.two",
+              "landing.pricing.item.three",
+              "landing.pricing.item.four",
+            ] as const
+          ).map((text) => (
             <li key={text}>
               <Check size={17} />
-              {text}
+              {translate(text)}
             </li>
           ))}
         </ul>
         <Link to="/signup" className="mp-button">
-          Elkészítem az első posztomat <ArrowRight size={18} />
+          {translate("landing.pricing.firstPost")} <ArrowRight size={18} />
         </Link>
-        <small>A közzétételt te végzed a saját közösségi oldaladon.</small>
+        <small>{translate("landing.pricing.manual")}</small>
       </div>
     </section>
   );
 }
 
 const QUESTIONS = [
-  [
-    "Fel kell kötnöm a Facebookot?",
-    "Nem. A kész szöveget kimásolod, majd beilleszted a Facebookra vagy az Instagramra. Kapcsolat nélkül is használható. A közvetlen közzététel még előkészítés alatt áll.",
-  ],
-  [
-    "Mennyibe kerül?",
-    "A béta ingyenes, bankkártyát sem kérünk. A generálásnak van használati kerete. Későbbi fizetős csomagra nem váltunk át automatikusan.",
-  ],
-  [
-    "Jóváhagyás nélkül posztol?",
-    "Nem. Jelenleg te teszed ki a kész szöveget. A naptárban mentett időpont tervezésre szolgál, nem indít automatikus közzétételt.",
-  ],
-  [
-    "Kitalál tényeket?",
-    "A megadott tényekre építünk, a hiányzó konkrét adatot szögletes zárójelben jelezzük, például [cím]. A hiányzó adatot szerkesztéskor pótolhatod; hiányos szöveget ne tegyél közzé. Az AI így is hibázhat: az árakat, dátumokat és állításokat mindig ellenőrizd.",
-  ],
-  [
-    "Magyarul készülnek a posztok?",
-    "Igen, a vállalkozásodnál megadott nyelven. A kezelőfelület magyar. Román nyelvű szöveget is kérhetsz, de azt is ellenőrizd közzététel előtt.",
-  ],
-  [
-    "Hová kerülnek az adataim?",
-    "A fiók és a vállalkozás adatait Neon adatbázisban, a feltöltött fájlokat privát Vercel tárhelyen tároljuk. A generáláshoz szükséges márkaadatokat és ötletet az OpenRouter és a kiválasztott modell szolgáltatója kapja meg. A részleteket az Adatvédelem oldalon találod.",
-  ],
-  [
-    "Megszüntethetem a fiókomat?",
-    "A fiók megszüntetését az üzemeltetőtől kérheted. Az önkiszolgáló adatexport és fióktörlés a következő belső kiadás része; jelenleg még nem elérhető.",
-  ],
-  [
-    "Meg kell jelölnöm, ha AI segített?",
-    "A platformok és a jogszabályok előírásai változhatnak. A valósághű, AI-val készült vagy módosított képre, videóra és hangra külön szabályok vonatkozhatnak. Közzététel előtt nézd meg az adott platform aktuális tájékoztatóját, jogi kérdésben pedig kérj szakértői segítséget. Ez nem jogi tanács.",
-  ],
-];
+  ["landing.faq.q1", "landing.faq.a1"],
+  ["landing.faq.q2", "landing.faq.a2"],
+  ["landing.faq.q3", "landing.faq.a3"],
+  ["landing.faq.q4", "landing.faq.a4"],
+  ["landing.faq.q5", "landing.faq.a5"],
+  ["landing.faq.q6", "landing.faq.a6"],
+  ["landing.faq.q7", "landing.faq.a7"],
+  ["landing.faq.q8", "landing.faq.a8"],
+] as const;
 function FAQ() {
   return (
     <section id="faq" className="mp-container mp-section mp-faq">
       <div>
-        <p className="mp-eyebrow">Mielőtt belevágsz</p>
-        <h2>Egyszerű válaszok.</h2>
+        <p className="mp-eyebrow">{translate("landing.faq.eyebrow")}</p>
+        <h2>{translate("landing.faq.title")}</h2>
         <Link to="/contact" className="mp-text-link">
-          Üzemeltető és kapcsolat <ArrowRight size={17} />
+          {translate("landing.faq.contact")} <ArrowRight size={17} />
         </Link>
         <Link to="/signup" className="mp-button mp-faq-start">
-          Kipróbálom ingyen <ArrowRight size={18} />
+          {translate("landing.hero.tryFree")} <ArrowRight size={18} />
         </Link>
       </div>
       <div>
-        {QUESTIONS.map(([question, answer]) => (
-          <details key={question}>
+        {QUESTIONS.map(([questionKey, answerKey]) => (
+          <details key={questionKey}>
             <summary>
-              {question}
+              {translate(questionKey)}
               <ChevronDown size={19} />
             </summary>
             <p>
-              {answer}
-              {question === "Hová kerülnek az adataim?" && (
+              {translate(answerKey)}
+              {questionKey === "landing.faq.q6" && (
                 <>
                   <br />
                   <Link to="/privacy" className="mp-text-link">
-                    Adatvédelmi tájékoztató <ArrowRight size={16} />
+                    {translate("landing.faq.privacy")} <ArrowRight size={16} />
                   </Link>
                 </>
               )}
-              {question === "Meg kell jelölnöm, ha AI segített?" && (
+              {questionKey === "landing.faq.q8" && (
                 <>
                   <br />
                   <a
@@ -491,7 +626,7 @@ function FAQ() {
                     target="_blank"
                     rel="noreferrer"
                   >
-                    Meta tájékoztató az AI-jelölésről <ArrowRight size={16} />
+                    {translate("landing.faq.meta")} <ArrowRight size={16} />
                   </a>
                 </>
               )}
