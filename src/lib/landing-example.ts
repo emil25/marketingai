@@ -35,6 +35,49 @@ export const LANDING_DEMOS = [
   },
 ] as const;
 
+export const LANDING_SOCIAL_POSTS = [
+  {
+    id: "bakery-instagram",
+    network: "instagram",
+    brand: "Példa Pékség",
+    art: "bakery",
+    artTitle: "Kenyér vagy kakaós csiga?",
+    artSubtitle: "Te melyiket választanád?",
+    caption: "Mi kerül nálad a reggelizőasztalra?",
+    hashtags: "#pékség #Csíkszereda",
+  },
+  {
+    id: "auto-service-facebook",
+    network: "facebook",
+    brand: "Példa Autószerviz",
+    art: "auto",
+    artTitle: "Készülj a hűvös reggelekre",
+    artSubtitle: "Téli gumicsere · Székelyudvarhely",
+    caption: "Jövő héttől indul a téli gumicsere. Időpontért írj nekünk!",
+    hashtags: "#autószerviz #gumicsere",
+  },
+  {
+    id: "beauty-instagram",
+    network: "instagram",
+    brand: "Példa Szépségszalon",
+    art: "beauty",
+    artTitle: "Friss frizura a hétvégére",
+    artSubtitle: "Hajvágás és szárítás",
+    caption: "Péntek délutánra felszabadult egy időpont Sepsiszentgyörgyön.",
+    hashtags: "#fodrászat #Sepsiszentgyörgy",
+  },
+  {
+    id: "guesthouse-facebook",
+    network: "facebook",
+    brand: "Példa Panzió",
+    art: "guesthouse",
+    artTitle: "Egy kis nyugalom a Hargitán",
+    artSubtitle: "Te hogyan töltenél egy hétvégét?",
+    caption: "Képzelj el egy lassabb hétvégét, a saját tempódban.",
+    hashtags: "#pihenés #Hargita",
+  },
+] as const;
+
 export const LANDING_EXAMPLE = {
   brand: LANDING_DEMOS[0].brand,
   idea: LANDING_DEMOS[0].idea,

@@ -66,6 +66,18 @@ export const huRO = {
   "landing.hero.language.hu": "Magyar",
   "landing.hero.language.ro": "Română",
   "landing.hero.resultLabel": "Ilyen poszt készülhet belőle",
+  "landing.social.kicker": "Példák többféle vállalkozásra",
+  "landing.social.title": "Így nézhetnek ki a posztjaid",
+  "landing.social.description":
+    "Pékség, autószerviz, szépségszalon és panzió – egy helyi vállalkozásra szabott minták.",
+  "landing.social.region": "Bemutató közösségimédia-posztok",
+  "landing.social.sample": "Kitalált bemutatópélda",
+  "landing.social.pause": "A mozgó posztok megállítása",
+  "landing.social.play": "A mozgó posztok indítása",
+  "landing.social.note":
+    "Ezek szerkesztett minták, nem valódi ügyfélposztok, és nem kerülnek közzétételre.",
+  "landing.social.network.instagram": "Instagram",
+  "landing.social.network.facebook": "Facebook",
   "landing.preview.post.label": "Kész poszt",
   "landing.preview.post.title": "Olvasd át. Javíts bele. Másold ki.",
   "landing.preview.post.description":

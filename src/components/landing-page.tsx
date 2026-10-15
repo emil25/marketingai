@@ -7,14 +7,16 @@ import {
   Check,
   ChevronDown,
   Menu,
+  Pause,
   Palette,
+  Play,
   ShieldCheck,
   Sparkles,
   WandSparkles,
   X,
 } from "lucide-react";
 import { PublicInfoLinks } from "@/components/public-info-page";
-import { LANDING_DEMOS } from "@/lib/landing-example";
+import { LANDING_DEMOS, LANDING_SOCIAL_POSTS } from "@/lib/landing-example";
 import { brandForLanguage, translate } from "@/i18n";
 import "@/landing.css";
 
@@ -130,6 +132,7 @@ export function LandingPage({
           </p>
         )}
         <Hero interactiveReady={interactiveReady} />
+        <SocialPostCarousel />
         <ProductPreview interactiveReady={interactiveReady} />
         <p
           className="mp-container pb-5 text-center text-sm text-muted-foreground"
@@ -163,6 +166,94 @@ export function LandingPage({
         </div>
       </footer>
     </div>
+  );
+}
+
+function SocialPostCarousel() {
+  const [paused, setPaused] = useState(false);
+
+  return (
+    <section className="mp-social-showcase" aria-labelledby="mp-social-showcase-title">
+      <div className="mp-container">
+        <div className="mp-social-showcase-heading">
+          <div>
+            <p className="mp-social-kicker">{translate("landing.social.kicker")}</p>
+            <h2 id="mp-social-showcase-title">{translate("landing.social.title")}</h2>
+            <p>{translate("landing.social.description")}</p>
+          </div>
+          <button
+            className="mp-social-motion"
+            type="button"
+            aria-pressed={paused}
+            aria-label={translate(paused ? "landing.social.play" : "landing.social.pause")}
+            onClick={() => setPaused((value) => !value)}
+          >
+            {paused ? <Play size={16} aria-hidden="true" /> : <Pause size={16} aria-hidden="true" />}
+            <span>
+              {translate(paused ? "landing.social.play" : "landing.social.pause")}
+            </span>
+          </button>
+        </div>
+        <div
+          className="mp-social-viewport"
+          role="region"
+          aria-label={translate("landing.social.region")}
+          tabIndex={0}
+        >
+          <div
+            className="mp-social-track"
+            style={{ animationPlayState: paused ? "paused" : undefined }}
+          >
+            {[0, 1].map((copy) => (
+              <div
+                key={copy}
+                className="mp-social-group"
+                aria-hidden={copy === 1 ? true : undefined}
+              >
+                {LANDING_SOCIAL_POSTS.map((post) => (
+                  <article className="mp-social-card" key={`${copy}-${post.id}`}>
+                    <div className="mp-social-card-header">
+                      <span className={`mp-social-avatar mp-social-avatar--${post.art}`} aria-hidden="true">
+                        {post.brand.slice(0, 1)}
+                      </span>
+                      <span className="mp-social-brand">
+                        <strong>{post.brand}</strong>
+                        <small>{translate("landing.social.sample")}</small>
+                      </span>
+                      <span className={`mp-social-network mp-social-network--${post.network}`}>
+                        {translate(
+                          post.network === "instagram"
+                            ? "landing.social.network.instagram"
+                            : "landing.social.network.facebook",
+                        )}
+                      </span>
+                    </div>
+                    <div className={`mp-social-art mp-social-art--${post.art}`}>
+                      <span className="mp-social-art-emoji" aria-hidden="true">
+                        {post.art === "bakery" && "🥐"}
+                        {post.art === "auto" && "🚗"}
+                        {post.art === "beauty" && "✂️"}
+                        {post.art === "guesthouse" && "⛰️"}
+                      </span>
+                      <div>
+                        <strong>{post.artTitle}</strong>
+                        <span>{post.artSubtitle}</span>
+                      </div>
+                      <span className="mp-social-art-tag">{translate("landing.social.sample")}</span>
+                    </div>
+                    <div className="mp-social-caption">
+                      <p>{post.caption}</p>
+                      <span>{post.hashtags}</span>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            ))}
+          </div>
+        </div>
+        <p className="mp-social-note">{translate("landing.social.note")}</p>
+      </div>
+    </section>
   );
 }
 
