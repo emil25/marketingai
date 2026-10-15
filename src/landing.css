@@ -1772,14 +1772,7 @@ ul.mp-beta-exclusions {
     font-size: 14px;
   }
   .mp-social-motion {
-    width: 44px;
-    height: 44px;
-    padding: 0;
-    font-size: 0;
-  }
-  .mp-social-motion svg {
-    width: 18px;
-    height: 18px;
+    display: none;
   }
   .mp-social-viewport {
     overflow-x: auto;
