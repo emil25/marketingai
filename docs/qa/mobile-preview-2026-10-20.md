@@ -10,3 +10,11 @@
 - Vercel's existing Neon integration was verified to belong to `marketingai`. Automatic database branching was enabled for Preview only and the persisted setting was checked. Production branching remains disabled.
 - No production schema migration or local JSON import was performed. Local user data, secrets, outputs and unreviewed QA screenshots are excluded from this candidate.
 - Live Preview migrations, browser verification and real-provider verification remain separate deployment steps; a successful local build is not evidence that these have run.
+
+## Rövid első belépés — 2026-10-20
+
+- Az első lépésen csak a vállalkozás neve és a kínálat kötelező; a település megadható, minden további márkaadat később szerkeszthető. A vállalkozástípust induláskor nem kell kiválasztani; az új profil biztonságos általános típussal indul.
+- A következő lépés a fiók létrehozása, utána közvetlenül az első poszt készítése. A régi onboarding-piszkozat szöveges adatai megmaradnak: a céges adatok oldalára térnek vissza, ha még hiányoznak; a már fiókhoz jutott piszkozat a fióklépésre kerül.
+- Chromium e2e: regisztráció → első poszt → másolás → szerkesztés → újratöltés után a mentett szöveg visszaolvasása → heti terv; a reszponzív és akadálymentességi ellenőrzések is lefutottak. A teszt mockolt AI-t és e-mailt használ.
+- Ellenőrzés: 181/181 egységteszt, TypeScript és build PASS; Playwright chromium teszt PASS. Akadálymentességi ellenőrzés: nincs WCAG 2.1 A/AA találat (`chromium-ui-modes-accessibility.json`).
+- Nem történt éles adatbázis-módosítás, valódi e-mail-küldés vagy valódi AI-hívás. A production oldalt nem módosítottuk.

@@ -36,15 +36,13 @@ test("two modes: signup, three-click post, autosave, weekly plan, persistence, i
     password = "Modes-Test-Password-2026!";
   await mkdir(qaScreensDir, { recursive: true });
   await go(page, "/onboarding");
-  await page.getByRole("button", { name: /Pékség/ }).click();
-  await page.getByRole("button", { name: "Tovább", exact: true }).click();
   await page
     .getByLabel("Cég neve *", { exact: true })
     .fill(`TESZT Módok Pékség ${info.project.name}`);
-  await page.getByLabel(/Fő termékek/).fill("Kenyér, kakaós csiga");
+  await page.getByLabel(/Mit kínálsz/).fill("Kenyér, kakaós csiga");
   await page.getByLabel(/Település \(magyar névvel\)/).fill("Csíkszereda");
   await page.getByRole("button", { name: "Tovább", exact: true }).click();
-  await page.getByRole("button", { name: "Tovább", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Hozd létre a fiókod" })).toBeVisible();
   await page.getByLabel("Neved", { exact: true }).fill("Mód Teszt");
   await page.getByLabel("Email", { exact: true }).fill(email);
   await page.getByLabel("Jelszó (legalább 8 karakter)", { exact: true }).fill(password);
