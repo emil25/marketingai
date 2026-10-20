@@ -2,6 +2,5 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": null,
   "installCommand": "npm ci",
-  "buildCommand": "npm run build:vercel",
-  "crons": [{ "path": "/api/cron/ai-monitor", "schedule": "0 6 * * *" }]
+  "buildCommand": "npm run build:vercel"
 }

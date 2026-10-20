@@ -137,11 +137,14 @@ test("injected migration connections never inherit another direct database from 
   assert.equal((local as Record<string, string>).DATABASE_URL, previewUrl);
 });
 test("prebuilt Vercel output contains the daily protected route schedule without losing routing metadata", () => {
-  const project = JSON.parse(readFileSync("vercel.json", "utf8"));
+  const project = JSON.parse(readFileSync("config/vercel-crons.json", "utf8"));
+  const root = JSON.parse(readFileSync("vercel.json", "utf8"));
+  assert.ok(!("crons" in root), "Root config must not duplicate the build-output schedules");
   const output = { version: 3, routes: [{ handle: "filesystem" }] };
   const configured = withProjectCrons(output, project);
   assert.deepEqual(configured.routes, output.routes);
   assert.deepEqual(configured.crons, [{ path: "/api/cron/ai-monitor", schedule: "0 6 * * *" }]);
+  assert.deepEqual(withProjectCrons(configured, project).crons, configured.crons);
   assert.ok(!("crons" in output));
   assert.throws(() => withProjectCrons(output, {}));
   assert.throws(() => withProjectCrons(output, { crons: [{ path: "/api/cron?secret=value", schedule: "0 6 * * *" }] }));

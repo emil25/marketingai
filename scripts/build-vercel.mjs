@@ -45,7 +45,7 @@ try {
   await writeFile(functionConfigPath, JSON.stringify(functionConfig, null, 2));
   const buildConfigPath = path.resolve(".vercel/output/config.json");
   const buildConfig = JSON.parse(await readFile(buildConfigPath, "utf8"));
-  const projectConfig = JSON.parse(await readFile(path.resolve("vercel.json"), "utf8"));
+  const projectConfig = JSON.parse(await readFile(path.resolve("config/vercel-crons.json"), "utf8"));
   await writeFile(buildConfigPath, JSON.stringify(withProjectCrons(buildConfig, projectConfig), null, 2));
 } catch (error) {
   console.error(error instanceof Error ? error.message : "Vercel build failed.");

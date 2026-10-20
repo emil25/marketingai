@@ -1,5 +1,5 @@
-// The Nitro preset does not copy root vercel.json crons to prebuilt output.
-// Preserve a single schedule source for Git builds and prebuilt deployments.
+// Git builds combine root vercel.json with the Build Output API configuration.
+// Keep schedules in config/vercel-crons.json and emit them only into build output.
 export function withProjectCrons(output, project) {
   if (!Array.isArray(project.crons) || !project.crons.length)
     throw new Error("A Vercel napi ellenőrzés ütemezése hiányzik.");
