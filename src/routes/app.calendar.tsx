@@ -48,8 +48,8 @@ const STATUS_LABELS: Record<PlanItemStatus, string> = {
   planned: "Tervezett",
   draft: "Piszkozat",
   ready: "Jóváhagyás",
-  scheduled: "Időzített",
-  published: "Publikált",
+  scheduled: "Ütemezett",
+  published: "Közzétett",
   skipped: "Kihagyva",
 };
 const PLATFORM_LABELS: Record<string, string> = Object.fromEntries(
@@ -60,8 +60,8 @@ const VIEW_LABELS = { month: "Hónap", week: "Hét", day: "Nap" } as const;
 type CalendarViewMode = keyof typeof VIEW_LABELS;
 
 function statusLabel(status: PlanItemStatus, postStatus: PostStatus | null) {
-  if (postStatus === "failed") return "Hiba";
-  if (postStatus === "published") return "Publikált";
+  if (postStatus === "failed") return "Sikertelen";
+  if (postStatus === "published") return "Közzétett";
   return STATUS_LABELS[status];
 }
 
@@ -129,6 +129,8 @@ function CalendarItem({
         {item.campaignName && (
           <div className="mt-1 text-xs text-muted-foreground">{item.campaignName}</div>
         )}
+        {item.postImage && <img src={`/api/media/${item.postImage.id}`} alt={item.postImage.altText} loading="lazy" className="mt-2 aspect-video w-full rounded-md object-cover" />}
+        {item.postContent && <p className="mt-2 line-clamp-3 whitespace-pre-line break-words text-xs leading-relaxed text-muted-foreground">{item.postContent}</p>}
         {item.postId && (
           <Link
             to="/app/posts/$id"
@@ -226,7 +228,7 @@ function CalendarView() {
 
   async function persist(
     item: PlannerItemSnapshot,
-    fields: { date: string; time: string | null; platform?: PostPlatform; topic?: string },
+    fields: { date: string; time?: string | null; platform?: PostPlatform; topic?: string },
     message: string,
   ) {
     if (saving.current) return;
@@ -311,7 +313,8 @@ function CalendarView() {
     if (item.date === date && (time === undefined || item.time === (time ?? null))) return;
     await persist(
       item,
-      { date, time: time === undefined ? item.time : time },
+      // Moving between days preserves the latest server time, including a just-saved edit.
+      { date, ...(time === undefined ? {} : { time }) },
       "A tartalom új időpontja mentve.",
     );
   }
@@ -504,7 +507,7 @@ function CalendarView() {
           </>
         )}
         {mode === "week" && (
-          <div className="calendar-week-grid">
+          <div className="calendar-week-grid" tabIndex={0} role="region" aria-label="Heti naptár, hétfőtől vasárnapig. Mobilon oldalra görgethető.">
             {weekDays.map((day) => {
               const parsed = parseDateKey(day)!;
               const dayItems = itemsByDate.get(day) ?? [];
@@ -893,6 +896,8 @@ function DayItem({
         <div className="mt-1 text-xs text-muted-foreground">
           {item.timezone} · {item.brandName}
         </div>
+        {item.postImage && <img src={`/api/media/${item.postImage.id}`} alt={item.postImage.altText} loading="lazy" className="mt-3 max-h-60 w-full rounded-lg object-contain" />}
+        {item.postContent && <p className="mt-3 whitespace-pre-line break-words text-sm leading-relaxed">{item.postContent}</p>}
       </div>
       <div className="flex flex-wrap items-center gap-2">
         {!isPublished(item) && (

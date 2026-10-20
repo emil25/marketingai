@@ -5,7 +5,30 @@ import {
   serializeBusinessHours,
   validateLogoBytes,
   validateLogoFile,
+  validateMainProducts,
+  validateBusinessTypeDetails,
 } from "../src/lib/onboarding-details";
+
+test("new onboarding accepts up to five concrete products without silently truncating them", () => {
+  assert.equal(
+    validateMainProducts(" kenyér, kifli, csiga; pogácsa\nkalács "),
+    "kenyér, kifli, csiga; pogácsa\nkalács",
+  );
+  assert.equal(validateMainProducts(""), "");
+  assert.throws(() => validateMainProducts("a,b,c,d,e,f"), /Legfeljebb 5/);
+});
+
+test("Other business onboarding requires activity and accepts at most five optional products", () => {
+  assert.throws(() => validateBusinessTypeDetails("other", "", ""), /mivel foglalkozol/i);
+  assert.deepEqual(
+    validateBusinessTypeDetails("other", "Kerékpárszerviz és túravezetés", "túra, javítás"),
+    { industry: "Kerékpárszerviz és túravezetés", products: "túra, javítás" },
+  );
+  assert.throws(
+    () => validateBusinessTypeDetails("other", "Kerékpárszerviz", "a,b,c,d,e,f"),
+    /Legfeljebb 5/,
+  );
+});
 
 test("business websites accept a missing scheme but reject unsafe protocols and credentials", () => {
   assert.equal(normalizeBusinessWebsite("muhely.ro"), "https://muhely.ro/");

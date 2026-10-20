@@ -1,4 +1,6 @@
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { assertJsonFixtureAllowed } from "./storage-mode.server";
+import { replaceAtomicFile } from "./atomic-file.server";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import type {
@@ -13,6 +15,8 @@ import type {
 } from "@/lib/data-model";
 import { normalizeBusinessType } from "@/lib/business-types";
 import { createMediaStorage } from "./media-storage.server";
+import { assertNewRecordParents, captureRecordIds } from "./store-integrity.server";
+import { betaAccountAccess } from "./beta-access.server";
 
 const dataDirectory = process.env["MARKETINGPILOT_DATA_DIR"] || path.join(process.cwd(), "data");
 const dataFile = path.join(dataDirectory, "marketingpilot.json");
@@ -55,9 +59,7 @@ export async function readData(): Promise<AppData> {
     const { readPostgresData } = await import("./postgres-store.server");
     return readPostgresData();
   }
-  if (process.env["VERCEL"]) {
-    throw new Error("Az online adatbázis nincs beállítva. Ideiglenes JSON-tárolót nem használunk.");
-  }
+  assertJsonFixtureAllowed();
   await ensureStore();
   const raw = await readFile(dataFile, "utf8");
   const parsed = JSON.parse(raw) as Partial<AppData>;
@@ -83,6 +85,7 @@ export async function readData(): Promise<AppData> {
 }
 
 export async function writeData(data: AppData): Promise<void> {
+  assertJsonFixtureAllowed();
   if (isPostgresEnabled()) {
     throw new Error(
       "PostgreSQL esetén a writeData közvetlen hívása nem támogatott; használd a transact függvényt.",
@@ -91,7 +94,7 @@ export async function writeData(data: AppData): Promise<void> {
   await ensureStore();
   const temporaryFile = `${dataFile}.${randomUUID()}.tmp`;
   await writeFile(temporaryFile, `${JSON.stringify(data, null, 2)}\n`, "utf8");
-  await rename(temporaryFile, dataFile);
+  await replaceAtomicFile(temporaryFile, dataFile);
 }
 
 // The local JSON store is shared by concurrent server functions. Serialize
@@ -102,11 +105,18 @@ let transactionQueue: Promise<unknown> = Promise.resolve();
 export async function transact<T>(mutator: (data: AppData) => Promise<T> | T): Promise<T> {
   if (isPostgresEnabled()) {
     const { postgresTransact } = await import("./postgres-store.server");
-    return postgresTransact(mutator);
+    return postgresTransact(async (data) => {
+      const before = captureRecordIds(data);
+      const result = await mutator(data);
+      assertNewRecordParents(data, before);
+      return result;
+    });
   }
   const run = transactionQueue.then(async () => {
     const data = await readData();
+    const before = captureRecordIds(data);
     const result = await mutator(data);
+    assertNewRecordParents(data, before);
     await writeData(data);
     return result;
   });
@@ -127,8 +137,10 @@ export function newId(prefix: string) {
 }
 
 export function publicUser(user: UserRecord) {
-  const { passwordHash: _passwordHash, ...safe } = user;
-  return safe;
+  const { passwordHash: _passwordHash, auth: _auth, ...safe } = user;
+  // Existing accounts predate verification. New registrations always have auth metadata.
+  const emailVerified = user.auth === undefined || !!user.auth.emailVerifiedAt;
+  return { ...safe, emailVerified, canUseAi: emailVerified || betaAccountAccess(user.auth?.betaInvitedAt) };
 }
 
 export function getWorkspaceSnapshot(
@@ -149,7 +161,9 @@ export function getWorkspaceSnapshot(
     .map((brand) => ({
       ...brand,
       profile: (() => {
-        const profile = data.brandProfiles.find((candidate) => candidate.brandId === brand.id) ?? defaultBrandProfile(brand.id);
+        const profile =
+          data.brandProfiles.find((candidate) => candidate.brandId === brand.id) ??
+          defaultBrandProfile(brand.id);
         return { ...profile, businessType: normalizeBusinessType(profile.businessType) };
       })(),
     }));

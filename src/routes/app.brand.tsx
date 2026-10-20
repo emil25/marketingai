@@ -21,11 +21,32 @@ import { FileText, Loader2, Palette, Save, Sparkles, Trash2, Plus } from "lucide
 import { BUSINESS_TYPES } from "@/lib/business-types";
 import { BusinessTypePicker } from "@/components/business-type-picker";
 import { BrandLogoUpload } from "@/components/brand-logo-upload";
+import { EasyBusiness } from "@/components/easy-business";
+import { useUiMode } from "@/components/ui-mode";
+import { brandForLanguage } from "@/i18n";
 
 export const Route = createFileRoute("/app/brand")({
   loader: () => getWorkspace(),
-  component: BrandPage,
+  component: ModeBrandPage,
 });
+
+function ModeBrandPage() {
+  const workspace = Route.useLoaderData();
+  const { mode } = useUiMode();
+  return (
+    <div className="space-y-5">
+      <EasyBusiness key={workspace.activeBrand?.id ?? "new"} workspace={workspace} />
+      {mode === "detailed" && (
+        <details className="rounded-xl border bg-card p-4">
+          <summary className="min-h-11 cursor-pointer font-semibold">
+            További márkabeállítások és tanulás saját posztokból
+          </summary>
+          <BrandPage />
+        </details>
+      )}
+    </div>
+  );
+}
 
 type FormState = {
   id?: string;
@@ -95,6 +116,7 @@ function BrandPage() {
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
   const brand = data.activeBrand;
+  const productName = brandForLanguage(brand?.languageMarket).productName;
   const voiceProgress = brand
     ? [
         brand.profile.tone,
@@ -190,7 +212,7 @@ function BrandPage() {
           fontFamily: form.fontFamily,
         },
       });
-      setMessage("A márka és a Brand Voice mentve.");
+      setMessage("A vállalkozás és a márkahang mentve.");
       await router.invalidate();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Nem sikerült menteni.");
@@ -273,12 +295,18 @@ function BrandPage() {
           </Link>
         }
       />
+      <Link
+        to="/app/channels"
+        className="inline-flex min-h-11 items-center rounded-xl border bg-card px-4 font-semibold"
+      >
+        Csatornák és eredmények →
+      </Link>
       <Card className="tt-onboarding rounded-2xl p-6 md:p-7">
         <div className="flex flex-wrap items-start justify-between gap-5">
           <div>
             <Badge className="tt-pill">MÁRKAALAPOK · AI KONTEXTUS</Badge>
             <h2 className="mt-3 font-display text-2xl font-extrabold tracking-tight">
-              Adj a MarketingPilotnak valódi hangot.
+              Adj a {productName} felületén valódi hangot a márkádnak.
             </h2>
             <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
               A rövid márkaalapokból következetes szöveg, vizuális irány és kampánybrief készül.
@@ -287,7 +315,7 @@ function BrandPage() {
           </div>
           <div className="min-w-44 rounded-xl border border-primary/10 bg-white/70 p-3">
             <div className="flex items-center justify-between text-xs font-bold">
-              <span>Brand Voice</span>
+              <span>Márkahang</span>
               <span className="text-primary">{voiceProgress}/8</span>
             </div>
             <div className="mt-2 h-2 overflow-hidden rounded-full bg-brand-soft">
@@ -301,14 +329,14 @@ function BrandPage() {
         </div>
         <div className="mt-6 grid gap-2 sm:grid-cols-3">
           <OnboardingHint number="01" title="Alapok" detail="Vállalkozás és ajánlat" />
-          <OnboardingHint number="02" title="Hang" detail="Tone, CTA és kifejezések" />
-          <OnboardingHint number="03" title="Szabályok" detail="Példák és guardrail" />
+          <OnboardingHint number="02" title="Hang" detail="Hangnem, felhívás és kifejezések" />
+          <OnboardingHint number="03" title="Szabályok" detail="Példák és szabályok" />
         </div>
       </Card>
       {data.brands.length > 0 && (
         <Card className="tt-card p-5">
           <div className="flex flex-wrap items-center gap-2">
-            <div className="mr-2 text-sm font-semibold">Munkatér márkái</div>
+            <div className="mr-2 text-sm font-semibold">Vállalkozások</div>
             {data.brands.map((item) => (
               <Button
                 key={item.id}
@@ -391,7 +419,7 @@ function BrandPage() {
         <Card className="tt-card rounded-2xl p-6">
           <div className="mb-5 flex items-center justify-between gap-3">
             <div>
-              <h2 className="font-display text-lg font-extrabold">Brand Voice / Márka AI</h2>
+              <h2 className="font-display text-lg font-extrabold">Márkahang</h2>
               <p className="mt-1 text-xs text-muted-foreground">
                 Írd le, hogyan fogalmazzon és mit tartson be az AI.
               </p>
@@ -400,7 +428,7 @@ function BrandPage() {
           </div>
           <div className="grid gap-5 md:grid-cols-2">
             <Field label="Hangnem" value={form.tone} onChange={set("tone")} />
-            <Field label="CTA stílusa" value={form.ctaStyle} onChange={set("ctaStyle")} />
+            <Field label="Felhívás stílusa" value={form.ctaStyle} onChange={set("ctaStyle")} />
             <TextField label="Márkaértékek" value={form.values} onChange={set("values")} />
             <TextField
               label="Használandó kifejezések"
@@ -469,13 +497,14 @@ function BrandPage() {
               placeholder="1. saját poszt…\n\n2. saját poszt…"
             />
             <div className="mt-3 flex flex-wrap items-center gap-2">
-              <label className="inline-flex cursor-pointer items-center gap-2 rounded-full border px-3 py-2 text-sm">
+              <label className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-full border px-3 py-2 text-sm focus-within:ring-2 focus-within:ring-ring">
                 <FileText className="h-4 w-4" />
                 Fájl hozzáadása
                 <input
                   type="file"
                   accept=".txt,.md,.csv,text/plain,text/markdown,text/csv"
                   className="sr-only"
+                  aria-label="Korábbi saját posztok feltöltése"
                   onChange={(event) => void readExamplesFile(event)}
                 />
               </label>

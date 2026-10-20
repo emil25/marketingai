@@ -2,6 +2,10 @@ import "./lib/error-capture";
 
 import { consumeLastCapturedError } from "./lib/error-capture";
 import { renderErrorPage } from "./lib/error-page";
+import { assertProductionConfiguration } from "./lib/server/production-config.server";
+
+// Also guard a direct TanStack server entry without the Nitro runtime.
+assertProductionConfiguration();
 
 type ServerEntry = {
   fetch: (request: Request, env: unknown, ctx: unknown) => Promise<Response> | Response;

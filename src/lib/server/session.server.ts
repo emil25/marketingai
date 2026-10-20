@@ -1,9 +1,11 @@
 import { useSession } from "@tanstack/react-start/server";
+import { isProductionEnvironment } from "./production-config.server";
 
 export type AppSessionData = {
   userId?: string;
   workspaceId?: string;
   activeBrandId?: string;
+  sessionVersion?: number;
   themePreference?: ThemePreference;
 };
 
@@ -11,7 +13,7 @@ export type ThemePreference = "marketingpilot-v2" | "postmaster" | "marketingpil
 
 export function useAppSession() {
   const configuredSecret = process.env["SESSION_SECRET"];
-  const isProduction = process.env["NODE_ENV"] === "production";
+  const isProduction = isProductionEnvironment();
   if (isProduction && (!configuredSecret || configuredSecret.length < 32)) {
     throw new Error("SESSION_SECRET must be configured with at least 32 characters in production.");
   }

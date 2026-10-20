@@ -1,4 +1,5 @@
-import { redirectSignedInUser } from "@/lib/guest-route";
+import { getCurrentUser, completeOnboarding } from "@/lib/auth.functions";
+import { useServerFn } from "@tanstack/react-start";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { SignupForm } from "@/components/signup-form";
 import { useEffect, useId, useState, type HTMLAttributes } from "react";
@@ -11,8 +12,12 @@ import { BUSINESS_TYPES, businessTypeLabel } from "@/lib/business-types";
 import { ArrowRight, ArrowLeft, Check } from "lucide-react";
 import { BusinessHoursFields } from "@/components/business-hours-fields";
 import { LogoFilePicker } from "@/components/logo-file-picker";
+import { ApprovedClaimsPicker } from "@/components/approved-claims-picker";
+import { translate } from "@/i18n";
+import { brandForLocale, DEFAULT_MARKET_LOCALE } from "@/config/brand";
 import {
   normalizeBusinessWebsite,
+  validateBusinessTypeDetails,
   serializeBusinessHours,
   emptyBusinessHours,
 } from "@/lib/onboarding-details";
@@ -27,10 +32,10 @@ import {
 } from "@/lib/onboarding-brand";
 
 export const Route = createFileRoute("/onboarding")({
-  beforeLoad: redirectSignedInUser,
+  loader: () => getCurrentUser(),
   head: () => ({
     meta: [
-      { title: "Első belépés — MarketingPilot AI" },
+      { title: `Első belépés — ${brandForLocale(DEFAULT_MARKET_LOCALE).productName}` },
       {
         name: "description",
         content: "Add meg a vállalkozásod kínálatát és hangnemét, és kezdd el a tartalomkészítést.",
@@ -46,6 +51,12 @@ const INITIAL_DETAILS = {
   logoUrl: "",
   openingHours: "",
   address: "",
+  houseNumber: "",
+  county: "",
+  phone: "",
+  cityNameMode: "hu",
+  localPhrases: "",
+  localEvents: "",
   cityRegion: "",
   offers: "",
   services: "",
@@ -57,19 +68,57 @@ const INITIAL_DETAILS = {
 };
 
 function Onboarding() {
+  const productName = brandForLocale(DEFAULT_MARKET_LOCALE).productName;
+  const account = Route.useLoaderData();
+  const ownedBrand = account?.activeBrand;
+  const profile = ownedBrand?.profile;
+  const complete = useServerFn(completeOnboarding);
+  const [saving, setSaving] = useState(false);
+  const draftKey = account ? `${ONBOARDING_DRAFT_KEY}-${account.user.id}` : ONBOARDING_DRAFT_KEY;
+  const steps = account ? ["Vállalkozástípus", "Cég és kínálat", "Márka", "Kezdés"] : STEPS;
   const [step, setStep] = useState(0);
-  const [businessType, setBusinessType] = useState("");
-  const [tone, setTone] = useState("Barátságos");
+  const [businessType, setBusinessType] = useState(profile?.businessType || "");
+  const [approvedClaims, setApprovedClaims] = useState<string[]>(profile?.approvedClaims ?? []);
+  const [tone, setTone] = useState(profile?.tone || "Barátságos");
   const [mood, setMood] = useState<"" | (typeof BRAND_MOODS)[number]>("");
-  const [color, setColor] = useState("#ed674d");
+  const [color, setColor] = useState(profile?.colors[0] || "#ed674d");
   const [addressingTouched, setAddressingTouched] = useState(false);
   const [hours, setHours] = useState(emptyBusinessHours);
+  const [hoursTouched, setHoursTouched] = useState(false);
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [logoPreview, setLogoPreview] = useState("");
   const [error, setError] = useState("");
   const [nameError, setNameError] = useState("");
   const [logoPending, setLogoPending] = useState(false);
-  const [details, setDetails] = useState(INITIAL_DETAILS);
+  const [details, setDetails] = useState(() => ({
+    ...INITIAL_DETAILS,
+    ...(ownedBrand
+      ? {
+          name: ownedBrand.name,
+          website: ownedBrand.website,
+          cityRegion: ownedBrand.cityRegion,
+          offers: ownedBrand.offers,
+          products: ownedBrand.products,
+          services: ownedBrand.services,
+          audience: ownedBrand.audience,
+          industry: ownedBrand.industry,
+          address: profile?.address || "",
+          houseNumber: profile?.houseNumber || "",
+          county: profile?.county || "",
+          phone: profile?.phone || "",
+          cityNameMode: profile?.cityNameMode || "hu",
+          localPhrases: profile?.localPhrases || "",
+          localEvents: profile?.localEvents || "",
+          openingHours: profile?.openingHours || "",
+          logoUrl: profile?.logoUrl || "",
+          addressing: profile?.aiGuardrails.includes("(Ön)")
+            ? ("Ön" as Addressing)
+            : profile?.aiGuardrails.includes("(ti)")
+              ? ("ti" as Addressing)
+              : ("te" as Addressing),
+        }
+      : {}),
+  }));
   const [draftReady, setDraftReady] = useState(false);
   const [draftNotice, setDraftNotice] = useState("");
   const [draftCompleted, setDraftCompleted] = useState(false);
@@ -78,11 +127,12 @@ function Onboarding() {
 
   useEffect(() => {
     try {
-      const saved = sessionStorage.getItem(ONBOARDING_DRAFT_KEY);
+      const saved = sessionStorage.getItem(draftKey);
       const draft = saved ? sanitizeOnboardingDraft(JSON.parse(saved)) : null;
       if (draft) {
         setStep(draft.step);
         setBusinessType(draft.businessType);
+        setApprovedClaims(draft.approvedClaims);
         setTone(draft.tone);
         setMood(draft.mood as typeof mood);
         setColor(draft.color);
@@ -98,14 +148,14 @@ function Onboarding() {
           setDraftNotice(
             `A félbehagyott szöveges adatokat visszatöltöttük.${draft.hadLogo ? " A logófájlt válaszd ki újra a Márka lépésben." : ""}`,
           );
-      } else if (saved) sessionStorage.removeItem(ONBOARDING_DRAFT_KEY);
+      } else if (saved) sessionStorage.removeItem(draftKey);
     } catch {
       setDraftNotice(
         "Ebben a böngészőben a piszkozat nem tölthető vissza. A kitöltést folytathatod.",
       );
     }
     setDraftReady(true);
-  }, []);
+  }, [draftKey]);
   useEffect(() => {
     if (!draftReady || draftCompleted) return;
     const timer = setTimeout(() => {
@@ -120,10 +170,11 @@ function Onboarding() {
           color,
           addressingTouched,
           details,
+          approvedClaims,
           hours,
           hadLogo: !!logoFile,
         });
-        if (draft) sessionStorage.setItem(ONBOARDING_DRAFT_KEY, JSON.stringify(draft));
+        if (draft) sessionStorage.setItem(draftKey, JSON.stringify(draft));
       } catch {
         setDraftNotice(
           "A böngésző nem engedi a piszkozat megőrzését; újratöltéskor elveszhetnek az adatok.",
@@ -141,8 +192,10 @@ function Onboarding() {
     color,
     addressingTouched,
     details,
+    approvedClaims,
     hours,
     logoFile,
+    draftKey,
   ]);
   useEffect(() => {
     if (!logoFile) {
@@ -171,17 +224,19 @@ function Onboarding() {
           throw new Error(
             "Válassz vállalkozástípust, vagy lépj tovább a Később választok gombbal.",
           );
-        if (businessType === "other" && !details.industry.trim())
-          throw new Error("Írd le röviden, mivel foglalkozol.");
+        validateBusinessTypeDetails(businessType, details.industry, details.products);
       }
       if (step === 1) {
+        validateBusinessTypeDetails(businessType, details.industry, details.products);
         if (details.name.trim().length < 2) {
           setNameError("Add meg a cég nevét (legalább 2 karakter).");
           document.getElementById("onboarding-name")?.focus();
           return;
         }
         const website = normalizeBusinessWebsite(details.website);
-        const openingHours = serializeBusinessHours(hours);
+        const openingHours = hoursTouched
+          ? serializeBusinessHours(hours)
+          : serializeBusinessHours(hours) || details.openingHours;
         setDetails((current) => ({ ...current, website, openingHours }));
       }
       if (step === 2 && !/^#[0-9a-f]{6}$/i.test(color))
@@ -189,6 +244,48 @@ function Onboarding() {
       setStep((current) => Math.min(STEPS.length - 1, current + 1));
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Ellenőrizd az adatokat.");
+    }
+  }
+  async function finish() {
+    if (saving) return;
+    setSaving(true);
+    setError("");
+    try {
+      await complete({
+        data: {
+          businessType: businessType || "other",
+          brandDetails: {
+            ...details,
+            approvedClaims,
+            industry: businessType === "other" ? details.industry : "",
+            tone,
+            mood,
+            color,
+          },
+        },
+      });
+      if (logoFile) {
+        const body = new FormData();
+        body.set("file", logoFile);
+        body.set("purpose", "brand-logo");
+        body.set("altText", "Vállalkozás logója");
+        const response = await fetch("/api/media", { method: "POST", body });
+        if (!response.ok)
+          throw new Error(
+            "A cégadatokat mentettük, de a logót nem sikerült feltölteni. Próbáld újra, vagy válaszd a logó nélküli folytatást.",
+          );
+      }
+      setDraftCompleted(true);
+      try {
+        sessionStorage.removeItem(draftKey);
+      } catch {
+        /* Optional browser draft. */
+      }
+      window.location.assign("/app/posts/new?first=1");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "A mentés nem sikerült. Próbáld újra.");
+    } finally {
+      setSaving(false);
     }
   }
   return (
@@ -201,15 +298,19 @@ function Onboarding() {
           <div className="grid h-8 w-8 place-items-center rounded-xl gradient-brand text-primary-foreground font-bold">
             M
           </div>
-          <span className="font-semibold tracking-tight">MarketingPilot AI</span>
+          <span className="font-semibold tracking-tight">{productName}</span>
         </Link>
         <div className="mb-4 flex items-center justify-between text-sm text-muted-foreground">
           <span>
             {step + 1}. lépés / {STEPS.length}
           </span>
-          <span>{STEPS[step]}</span>
+          <span>{steps[step]}</span>
         </div>
-        <Progress value={((step + 1) / STEPS.length) * 100} className="mb-6 h-1.5" />
+        <Progress
+          aria-label={`Beállítás: ${step + 1}. lépés a ${STEPS.length} közül`}
+          value={((step + 1) / STEPS.length) * 100}
+          className="mb-6 h-1.5"
+        />
         <div className="glass-strong rounded-3xl p-5 sm:p-8">
           {step === 0 && (
             <>
@@ -226,11 +327,14 @@ function Onboarding() {
                   <button
                     key={item.value}
                     type="button"
+                    disabled={!draftReady}
                     aria-pressed={businessType === item.value}
                     onClick={() => chooseType(item.value)}
                     className={`flex min-h-16 items-center justify-between gap-2 rounded-2xl border p-3 text-left text-sm transition hover:border-brand focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 ${businessType === item.value ? "border-brand bg-brand-soft" : "bg-card"}`}
                   >
-                    <span className="font-medium">{item.label}</span>
+                    <span className="min-w-0 font-medium [overflow-wrap:anywhere]">
+                      {item.label}
+                    </span>
                     {businessType === item.value && (
                       <Check className="h-4 w-4 shrink-0" aria-label="Kiválasztva" />
                     )}
@@ -240,11 +344,11 @@ function Onboarding() {
               {businessType === "other" && (
                 <div className="mt-4">
                   <Field
-                    label="Mivel foglalkozol? *"
-                    placeholder="pl. Kerékpárkölcsönzés és túravezetés"
+                    label="Mivel foglalkozol? Egy-két mondatban *"
+                    placeholder="pl. Kerékpárszervizt és túravezetést vállalok a környéken"
                     value={details.industry}
                     onChange={(value) => setDetail("industry", value)}
-                    maxLength={160}
+                    maxLength={500}
                     required
                   />
                 </div>
@@ -273,27 +377,46 @@ function Onboarding() {
                   placeholder="A vállalkozásod neve"
                 />
                 <Field
-                  label="Város / régió (opcionális)"
+                  label={translate("onboarding.city")}
                   value={details.cityRegion}
                   onChange={(value) => setDetail("cityRegion", value)}
                   maxLength={160}
                   autoComplete="address-level2"
                   placeholder="pl. Csíkszereda"
                 />
+                <label className="block text-sm">
+                  {translate("business.cityNameMode")}
+                  <select
+                    className="mt-2 min-h-11 w-full rounded-md border bg-background px-3"
+                    value={details.cityNameMode}
+                    onChange={(event) => setDetail("cityNameMode", event.target.value)}
+                  >
+                    <option value="hu">{translate("business.cityNameHungarian")}</option>
+                    <option value="ro">{translate("business.cityNameRomanian")}</option>
+                    <option value="both">{translate("business.cityNameBoth")}</option>
+                  </select>
+                  <span className="mt-1 block text-muted-foreground">{translate("onboarding.cityNameModeHelp")}</span>
+                </label>
               </div>
               <div className="mt-5 space-y-4">
                 <div>
-                  <Label htmlFor="onboarding-products">Fő termékek (3–5 konkrét tétel)</Label>
+                  <Label htmlFor="onboarding-products">
+                    {businessType === "other"
+                      ? "Fő termékeid vagy szolgáltatásaid (legfeljebb 5)"
+                      : "Fő termékek (legfeljebb 5, vesszővel elválasztva)"}
+                  </Label>
                   <Textarea
                     id="onboarding-products"
                     value={details.products}
                     maxLength={4000}
                     onChange={(event) => setDetail("products", event.target.value)}
                     className="mt-2 min-h-20"
-                    placeholder="pl. Kovászos kenyér, kakaós csiga, sajtos pogácsa — csak ami valóban kapható"
+                    placeholder={businessType === "other"
+                      ? "Sorold fel vesszővel elválasztva, amit valóban kínálsz"
+                      : "pl. Kovászos kenyér, kakaós csiga, sajtos pogácsa — csak ami valóban kapható"}
                   />
                 </div>
-                <div>
+                {businessType !== "other" && <div>
                   <Label htmlFor="onboarding-services">Szolgáltatások (ha van)</Label>
                   <Textarea
                     id="onboarding-services"
@@ -303,7 +426,7 @@ function Onboarding() {
                     className="mt-2 min-h-20"
                     placeholder="pl. Előrendelés, helyben fogyasztás, kiszállítás — csak ami elérhető"
                   />
-                </div>
+                </div>}
                 <div>
                   <Label htmlFor="onboarding-offers">Aktuális ajánlat (opcionális)</Label>
                   <Textarea
@@ -315,6 +438,11 @@ function Onboarding() {
                     placeholder="Valós ajánlat, árral és időszakkal, ha ismert"
                   />
                 </div>
+                <ApprovedClaimsPicker
+                  businessType={businessType}
+                  value={approvedClaims}
+                  onChange={setApprovedClaims}
+                />
                 <Field
                   label="Kinek szól? (opcionális)"
                   value={details.audience}
@@ -322,6 +450,18 @@ function Onboarding() {
                   maxLength={2000}
                   placeholder="pl. Környékbeli dolgozók és családok"
                 />
+                <div>
+                  <Label htmlFor="onboarding-local-phrases">{translate("onboarding.localPhrases")}</Label>
+                  <Textarea
+                    id="onboarding-local-phrases"
+                    value={details.localPhrases}
+                    maxLength={1000}
+                    onChange={(event) => setDetail("localPhrases", event.target.value)}
+                    className="mt-2 min-h-16"
+                    placeholder="pl. helyben használt megszólítás vagy kifejezés"
+                  />
+                  <p className="mt-1 text-sm text-muted-foreground">{translate("onboarding.localPhrasesHelp")}</p>
+                </div>
               </div>
               <details className="mt-5 rounded-xl border p-3">
                 <summary className="cursor-pointer text-sm font-medium">
@@ -339,22 +479,65 @@ function Onboarding() {
                     hint="A https:// előtagot ránk bízhatod."
                   />
                   <Field
-                    label="Telefon / e-mail / Facebook-oldal"
-                    placeholder="pl. +40…; hello@pelda.ro; facebook.com/…"
+                    label={translate("onboarding.phone")}
+                    placeholder="pl. +40 266 123 456"
+                    value={details.phone}
+                    onChange={(value) => setDetail("phone", value)}
+                    maxLength={80}
+                    inputMode="tel"
+                    autoComplete="tel"
+                  />
+                  <Field
+                    label={translate("onboarding.contact")}
+                    placeholder="pl. hello@pelda.ro vagy Facebook-oldal"
                     value={details.contactMethod}
                     onChange={(value) => setDetail("contactMethod", value)}
                     maxLength={1000}
                   />
                   <Field
-                    label="Pontos cím"
+                    label={translate("onboarding.street")}
                     placeholder="Utca, házszám"
                     value={details.address}
                     onChange={(value) => setDetail("address", value)}
                     maxLength={1000}
                     autoComplete="street-address"
                   />
+                  <Field
+                    label={translate("onboarding.houseNumber")}
+                    placeholder="pl. 12/A"
+                    value={details.houseNumber}
+                    onChange={(value) => setDetail("houseNumber", value)}
+                    maxLength={80}
+                    autoComplete="address-line2"
+                  />
+                  <Field
+                    label={translate("onboarding.county")}
+                    placeholder="pl. Hargita megye"
+                    value={details.county}
+                    onChange={(value) => setDetail("county", value)}
+                    maxLength={120}
+                    autoComplete="address-level1"
+                  />
+                  <div>
+                    <Label htmlFor="onboarding-local-events">{translate("onboarding.localEvents")}</Label>
+                    <Textarea
+                      id="onboarding-local-events"
+                      value={details.localEvents}
+                      maxLength={4000}
+                      onChange={(event) => setDetail("localEvents", event.target.value)}
+                      className="mt-2 min-h-20"
+                      placeholder="2026-06-21 – helyi esemény"
+                    />
+                    <p className="mt-1 text-sm text-muted-foreground">{translate("onboarding.localEventsHelp")}</p>
+                  </div>
                 </div>
-                <BusinessHoursFields value={hours} onChange={setHours} />
+                <BusinessHoursFields
+                  value={hours}
+                  onChange={(value) => {
+                    setHours(value);
+                    setHoursTouched(true);
+                  }}
+                />
               </details>
               <p className="mt-3 text-sm text-muted-foreground">
                 Címmel, nyitvatartással és elérhetőséggel kevesebb helykitöltőt kell pótolnod.
@@ -398,14 +581,14 @@ function Onboarding() {
                   >
                     <option value="te">Tegezve (te)</option>
                     <option value="Ön">Magázva (Ön)</option>
-                    <option value="ti">Többes szám (ti)</option>
+                    <option value="ti">Többes (ti)</option>
                   </select>
                   <p className="mt-1 text-sm text-muted-foreground">
                     Ügyvédnél és könyvelőnél magázást, más típusnál tegezést ajánlunk.
                   </p>
                 </div>
                 <div>
-                  <Label htmlFor="onboarding-mood">Hangulat (opcionális) · egy választható</Label>
+                  <Label htmlFor="onboarding-mood">Energia (opcionális) · egy választható</Label>
                   <select
                     id="onboarding-mood"
                     value={mood}
@@ -415,7 +598,11 @@ function Onboarding() {
                     <option value="">Nincs külön megkötés</option>
                     {BRAND_MOODS.map((item) => (
                       <option key={item} value={item}>
-                        {item}
+                        {item === "Letisztult"
+                          ? "Visszafogott · rövid, nyugodt"
+                          : item === "Prémium"
+                            ? "Mértéktartó · elegáns"
+                            : "Lendületes · élénk"}
                       </option>
                     ))}
                   </select>
@@ -450,7 +637,7 @@ function Onboarding() {
                     Élő stílusminta
                   </p>
                   <p aria-live="polite" className="whitespace-pre-line text-sm leading-relaxed">
-                    {brandStyleSample(details.name, tone, details.addressing, mood)}
+                    {brandStyleSample(details.name, tone, details.addressing, mood, businessType)}
                   </p>
                   <p className="mt-3 text-xs text-muted-foreground">
                     Szemléltető mondatok, nem AI-generált poszt.
@@ -491,7 +678,40 @@ function Onboarding() {
               </div>
             </>
           )}
-          {step === 3 && (
+          {step === 3 && account && (
+            <div className="space-y-5">
+              <H
+                title="Készülhet az első posztod"
+                sub="A vállalkozásod adatait automatikusan használjuk. Nem kell csatornát vagy hangnemet választanod."
+              />
+              <p className="rounded-xl border bg-card p-4">
+                <strong>{details.name}</strong>
+                <br />
+                {businessTypeLabel(businessType || "other")} · magyar · {tone}
+              </p>
+              <Button
+                className="min-h-11 w-full"
+                disabled={saving || logoPending}
+                onClick={() => void finish()}
+              >
+                {saving ? "Mentés…" : "Első poszt elkészítése"}
+              </Button>
+              {logoFile && error && (
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  disabled={saving}
+                  onClick={() => {
+                    setLogoFile(null);
+                    setError("");
+                  }}
+                >
+                  Folytatom logó nélkül
+                </Button>
+              )}
+            </div>
+          )}
+          {step === 3 && !account && (
             <>
               <H
                 title="Hozd létre a fiókod"
@@ -502,6 +722,7 @@ function Onboarding() {
                 businessType={businessType || "other"}
                 brandDetails={{
                   ...details,
+                  approvedClaims,
                   industry: businessType === "other" ? details.industry : "",
                   tone,
                   mood,
@@ -511,7 +732,7 @@ function Onboarding() {
                 onRegistered={() => {
                   setDraftCompleted(true);
                   try {
-                    sessionStorage.removeItem(ONBOARDING_DRAFT_KEY);
+                    sessionStorage.removeItem(draftKey);
                   } catch {
                     /* Storage can be unavailable. Registration is already successful. */
                   }
@@ -528,7 +749,7 @@ function Onboarding() {
             <Button
               variant="ghost"
               className="min-h-11"
-              disabled={step === 0 || logoPending || draftCompleted}
+              disabled={step === 0 || logoPending || draftCompleted || saving}
               onClick={() => {
                 setError("");
                 setStep((current) => Math.max(0, current - 1));
@@ -550,13 +771,17 @@ function Onboarding() {
               </Button>
             )}
             {step < STEPS.length - 1 && (
-              <Button className="min-h-11 rounded-full" disabled={logoPending} onClick={next}>
+              <Button
+                className="min-h-11 rounded-full"
+                disabled={!draftReady || logoPending}
+                onClick={next}
+              >
                 Tovább
                 <ArrowRight className="ml-1 h-4 w-4" />
               </Button>
             )}
           </div>
-          {step === 0 && (
+          {step === 0 && !account && (
             <Link
               to="/signup"
               className="mt-3 block text-center text-sm underline underline-offset-4"
@@ -565,7 +790,7 @@ function Onboarding() {
             </Link>
           )}
         </div>
-        {step === 0 && (
+        {step === 0 && !account && (
           <p className="mt-4 text-center text-sm">
             Van már fiókod?{" "}
             <Link to="/login" className="font-medium underline">
@@ -580,6 +805,34 @@ function Onboarding() {
         {draftNotice && (
           <p role="status" className="mt-2 text-sm">
             {draftNotice}
+            {draftNotice.startsWith("A félbehagyott") && (
+              <Button
+                type="button"
+                variant="ghost"
+                className="ml-2"
+                onClick={() => {
+                  setStep(0);
+                  setBusinessType("");
+                  setTone("Barátságos");
+                  setMood("");
+                  setColor("#ed674d");
+                  setAddressingTouched(false);
+                  setHours(emptyBusinessHours());
+                  setLogoFile(null);
+                  setDetails(INITIAL_DETAILS);
+                  setDraftNotice("");
+                  setError("");
+                  setNameError("");
+                  try {
+                    sessionStorage.removeItem(draftKey);
+                  } catch {
+                    /* Browser storage can be unavailable. */
+                  }
+                }}
+              >
+                Újrakezdem
+              </Button>
+            )}
           </p>
         )}
       </div>

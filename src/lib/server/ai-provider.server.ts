@@ -1,3 +1,7 @@
+import { requireBrandContext } from "./auth-context.server";
+import { reserveAiCall, finishAiCall, associateAiResponse } from "./ai-calls.server";
+import { aiProviderMessage } from "../ai-call-policy";
+import { previewAiAllowed, previewAiResponse } from "./preview-ai.server";
 /**
  * The single server-side AI integration for MarketingPilot.
  *
@@ -13,9 +17,6 @@ const IMAGE_REQUEST_TIMEOUT_MS = 180_000;
 
 export type TextAiProvider = "openrouter" | "gemini";
 
-// Both model names can be overridden in the server environment without
-// changing application code.  The defaults support structured JSON output
-// and image generation through OpenRouter.
 export const OPENROUTER_TEXT_MODEL =
   process.env["OPENROUTER_TEXT_MODEL"]?.trim() || "openai/gpt-4.1-mini";
 export const OPENROUTER_IMAGE_MODEL =
@@ -43,7 +44,7 @@ function requireOpenRouterKey() {
   return key;
 }
 
-function requireTextProviderKey(provider: TextAiProvider) {
+function requireProviderKey(provider: TextAiProvider) {
   if (provider === "openrouter") return requireOpenRouterKey();
   const key = process.env["GEMINI_API_KEY"]?.trim();
   if (!key) throw new Error("Hiányzik a GEMINI_API_KEY konfigurációja.");
@@ -58,33 +59,77 @@ async function request(
   url: string,
   body: Record<string, unknown>,
   timeoutMs: number,
+  endpoint: string,
+  brandId?: string,
   provider: TextAiProvider = "openrouter",
 ) {
-  const key = requireTextProviderKey(provider);
+  const sessionContext = await requireBrandContext();
+  const brand = brandId
+    ? sessionContext.brands.find(
+        (item) => item.id === brandId && item.workspaceId === sessionContext.workspace.id,
+      )
+    : sessionContext.activeBrand;
+  if (!brand) throw new Error("Nincs hozzáférés ehhez a márkához.");
+  const context = { ...sessionContext, activeBrand: brand };
+  const previewFixture = endpoint === "factual_post_variants" && previewAiAllowed(context.user, brand);
+  const key = previewFixture ? undefined : requireProviderKey(provider);
+  const callId = await reserveAiCall(context, endpoint, String(body.model));
+  const started = Date.now();
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    return await fetch(url, {
+    const response = previewFixture ? previewAiResponse(body) : await fetch(url, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${key}`,
-      },
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
       body: JSON.stringify(body),
       signal: controller.signal,
     });
+    // Retain no provider body in logs or client-facing errors.
+    const json = response.headers.get("content-type")?.includes("application/json")
+      ? await response
+          .clone()
+          .json()
+          .catch(() => null)
+      : null;
+    await finishAiCall(callId, {
+      status: response.ok ? "success" : "error",
+      provider,
+      httpStatus: response.status,
+      errorCode: response.ok ? undefined : `HTTP_${response.status}`,
+      latencyMs: Date.now() - started,
+      usage: json?.usage,
+      model: typeof json?.model === "string" ? json.model.slice(0, 200) : undefined,
+    });
+    const safeResponse = response.ok
+      ? response
+      : Response.json(
+          { error: { message: aiProviderMessage(response.status) } },
+          { status: response.status },
+        );
+    associateAiResponse(safeResponse, callId);
+    return safeResponse;
   } catch (cause) {
-    if (cause instanceof Error && cause.name === "AbortError") {
-      throw new Error("OpenRouter időtúllépés: az AI szolgáltatás nem válaszolt időben.");
-    }
-    const message = cause instanceof Error ? cause.message : "AI szolgáltatás nem érhető el.";
-    throw new Error(`OpenRouter hálózati hiba: ${message}`);
+    const code =
+      cause instanceof Error && cause.name === "AbortError" ? "TIMEOUT" : "NETWORK_OR_AUDIT_ERROR";
+    await finishAiCall(callId, {
+      status: "error",
+      provider,
+      latencyMs: Date.now() - started,
+      errorCode: code,
+    });
+    throw new Error(
+      code === "TIMEOUT"
+        ? "A generálás túl sokáig tartott. Próbáld újra; a mentett tartalmaid megmaradnak."
+        : aiProviderMessage(503),
+    );
   } finally {
     clearTimeout(timeout);
   }
 }
 
-export function openRouterChat(input: {
+type ChatInput = {
+  /** Owned brand chosen by the server business function, never a provider parameter. */
+  brandId?: string;
   messages: ChatMessage[];
   schemaName: string;
   schema: JsonSchema;
@@ -92,7 +137,26 @@ export function openRouterChat(input: {
   model?: string;
   /** A shared deadline for a sequence of weekly calls; never sent to the provider. */
   deadlineAt?: number;
-}) {
+};
+
+/** Server-owned request contract; route validators never accept these controls. */
+export function chatRequestBody(
+  input: ChatInput,
+  provider: TextAiProvider = configuredTextAiProvider(),
+) {
+  return {
+    model: input.model ?? (provider === "gemini" ? GEMINI_TEXT_MODEL : OPENROUTER_TEXT_MODEL),
+    messages: input.messages,
+    max_tokens: Math.max(1, Math.min(16_000, input.maxTokens ?? 16_000)),
+    ...(provider === "openrouter" ? { usage: { include: true } } : {}),
+    response_format: {
+      type: "json_schema",
+      json_schema: { name: input.schemaName, strict: true, schema: input.schema },
+    },
+  };
+}
+
+export function openRouterChat(input: ChatInput) {
   const remaining =
     input.deadlineAt === undefined ? TEXT_REQUEST_TIMEOUT_MS : input.deadlineAt - Date.now();
   if (remaining < 1000)
@@ -101,19 +165,10 @@ export function openRouterChat(input: {
   const baseUrl = provider === "gemini" ? GEMINI_OPENAI_BASE_URL : OPENROUTER_BASE_URL;
   return request(
     `${baseUrl}/chat/completions`,
-    {
-      model: input.model ?? (provider === "gemini" ? GEMINI_TEXT_MODEL : OPENROUTER_TEXT_MODEL),
-      messages: input.messages,
-      // Keep the provider's token budget below low-credit account limits while
-      // leaving enough room for structured post and campaign responses.
-      max_tokens: Math.max(1, Math.min(16_000, input.maxTokens ?? 16_000)),
-      ...(provider === "openrouter" ? { usage: { include: true } } : {}),
-      response_format: {
-        type: "json_schema",
-        json_schema: { name: input.schemaName, strict: true, schema: input.schema },
-      },
-    },
+    chatRequestBody(input, provider),
     Math.min(TEXT_REQUEST_TIMEOUT_MS, remaining),
+    input.schemaName,
+    input.brandId,
     provider,
   );
 }
@@ -127,5 +182,6 @@ export function openRouterImage(input: { prompt: string; stream: boolean }) {
       ...(input.stream ? { stream: true } : {}),
     },
     IMAGE_REQUEST_TIMEOUT_MS,
+    "image_generation",
   );
 }

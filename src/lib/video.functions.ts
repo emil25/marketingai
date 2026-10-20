@@ -1,6 +1,8 @@
 import { createServerFn } from "@tanstack/react-start";
+import { aiProviderMessage } from "@/lib/ai-call-policy";
 import { z } from "zod";
 import { buildBusinessContext, businessContextPrompt } from "@/lib/business-types";
+import { marketWritingRules } from "@/i18n/prompts/hu-RO";
 import { VideoFormatSchema, VideoScenesSchema } from "@/lib/video";
 import { requireAuthContext } from "@/lib/server/auth-context.server";
 import { openRouterChat } from "@/lib/server/ai-provider.server";
@@ -95,7 +97,7 @@ export const generateVideoStoryboard = createServerFn({ method: "POST" })
         messages: [
           {
             role: "system",
-            content: `Rövid marketingvideó feliratait írod, a márka nyelvén. A poszt és a márka adataiból dolgozz, ne találj ki ajánlatot, árat vagy képen látható részletet. Egy képhez egy tömör, legfeljebb 160 karakteres feliratot adj. Az első legyen hook, az utolsó CTA; egyetlen képnél mindkettő szerepeljen. Nincs narráció. Kontextus:\n${businessContextPrompt(businessContext)}\nAI szabályok: ${profile.aiGuardrails}\nPéldák: ${profile.approvedExamples}\nKampány: ${JSON.stringify(campaign ? { objective: campaign.objective, offer: campaign.offer, cta: campaign.cta } : null)}`,
+            content: `Rövid marketingvideó feliratait írod, a márka nyelvén. ${marketWritingRules(businessContext.language)} A poszt és a márka adataiból dolgozz, ne találj ki ajánlatot, árat vagy képen látható részletet. Egy képhez egy tömör, legfeljebb 160 karakteres feliratot adj. Az első legyen hook, az utolsó CTA; egyetlen képnél mindkettő szerepeljen. Nincs narráció. Kontextus:\n${businessContextPrompt(businessContext)}\nAI szabályok: ${profile.aiGuardrails}\nPéldák: ${profile.approvedExamples}\nKampány: ${JSON.stringify(campaign ? { objective: campaign.objective, offer: campaign.offer, cta: campaign.cta } : null)}`,
           },
           {
             role: "user",
@@ -132,7 +134,7 @@ export const generateVideoStoryboard = createServerFn({ method: "POST" })
       if (!response.ok)
         throw new Error(
           response.status === 402
-            ? "Nincs elegendő AI kredit a videófeliratokhoz. A képeidből kézzel megadott feliratokkal is készíthetsz videót."
+            ? aiProviderMessage(402)
             : `A videófeliratok AI szolgáltatása nem válaszolt megfelelően (${response.status}).`,
         );
       const result = (await response.json()) as { choices?: { message?: { content?: string } }[] };

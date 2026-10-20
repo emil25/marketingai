@@ -21,6 +21,14 @@ dist-ssr
 data/
 private-backups/
 outputs/
+# Browser artifacts may contain session cookies, credentials and test records.
+test-results/
+playwright-report/
+playwright/.auth/
+.auth/
+e2e-data/
+*-e2e-data/
+*.har
 .vercel/
 .lovable/
 *-QA.md
@@ -39,3 +47,18 @@ outputs/
 *.njsproj
 *.sln
 *.sw?
+
+# Only the curated, reviewed synthetic QA set belongs in Git.
+docs/qa/screens/**
+!docs/qa/screens/chromium-private-detailed-1280-app.png
+!docs/qa/screens/chromium-private-detailed-1280-posts.png
+!docs/qa/screens/chromium-private-detailed-1280-weekly.png
+!docs/qa/screens/chromium-private-detailed-390-app.png
+!docs/qa/screens/chromium-private-detailed-390-posts.png
+!docs/qa/screens/chromium-private-detailed-390-weekly.png
+!docs/qa/screens/chromium-private-simple-1280-app.png
+!docs/qa/screens/chromium-private-simple-1280-posts.png
+!docs/qa/screens/chromium-private-simple-1280-weekly.png
+!docs/qa/screens/chromium-private-simple-390-app.png
+!docs/qa/screens/chromium-private-simple-390-posts.png
+!docs/qa/screens/chromium-private-simple-390-weekly.png

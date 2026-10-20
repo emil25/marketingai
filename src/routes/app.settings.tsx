@@ -10,6 +10,10 @@ import { requireCurrentUser } from "@/lib/auth.functions";
 import { getPublicOperator } from "@/lib/public-site.functions";
 import { Check, LayoutDashboard, Palette, Sparkles } from "lucide-react";
 import { toast } from "sonner";
+import { AccountSettings } from "@/components/account-settings";
+import { brandForLocale, DEFAULT_MARKET_LOCALE } from "@/config/brand";
+
+const productName = brandForLocale(DEFAULT_MARKET_LOCALE).productName;
 
 export const Route = createFileRoute("/app/settings")({
   loader: async () => ({
@@ -32,8 +36,8 @@ const THEMES: Array<{
 }> = [
   {
     id: "marketingpilot-v2",
-    name: "MarketingPilot munkatér",
-    description: "A végleges MarketingPilot felület a valódi kampány-, poszt- és AI-adatokhoz.",
+    name: `${productName} munkatér`,
+    description: `A ${productName} felülete a valódi kampány-, poszt- és AI-adatokhoz.`,
     accent: "bg-[#e86448]",
     surface: "bg-[#f5f4ef]",
     sidebar: "bg-[#112b23]",
@@ -52,7 +56,7 @@ function SettingsPage() {
       await save({ data: { theme: nextTheme } });
       setTheme(nextTheme);
       await router.invalidate();
-      const label = THEMES.find((item) => item.id === nextTheme)?.name ?? "MarketingPilot";
+      const label = THEMES.find((item) => item.id === nextTheme)?.name ?? productName;
       toast.success(`${label} design aktiválva.`);
     } catch (cause) {
       toast.error(cause instanceof Error ? cause.message : "Nem sikerült menteni a megjelenést.");
@@ -72,34 +76,7 @@ function SettingsPage() {
           </Link>
         }
       />
-      <Card id="account" className="max-w-5xl rounded-3xl p-5">
-        <h2 className="text-xl font-semibold">Fiók</h2>
-        <p className="mt-2 text-sm">
-          {auth.user.displayName} · {auth.user.email}
-        </p>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Önkiszolgáló jelszóváltoztatás és automatikus fióktörlés jelenleg nincs. A kijelentkezést
-          a jobb felső fiókmenüben találod.
-        </p>
-        <div className="mt-4">
-          {operator.email ? (
-            <a
-              href={`mailto:${operator.email}?subject=${encodeURIComponent("MarketingPilot fióktörlési kérelem")}`}
-              className="inline-flex rounded-xl border px-4 py-2 font-semibold"
-            >
-              Fióktörlés kérése
-            </a>
-          ) : (
-            <p className="text-sm text-muted-foreground">
-              Fióktörlési kérelmet az üzemeltető elérhetőségének beállítása után lehet innen
-              küldeni.
-            </p>
-          )}
-          <p className="mt-2 text-sm text-muted-foreground">
-            A kérelem elküldése önmagában nem törli a fiókot vagy a munkatér adatait.
-          </p>
-        </div>
-      </Card>
+      <AccountSettings user={auth.user} />
       <section
         className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3"
         aria-label="Vállalkozás és munkatér beállításai"
@@ -216,7 +193,7 @@ function SettingsPage() {
         <div className="flex items-start gap-3">
           <LayoutDashboard className="mt-0.5 h-5 w-5 text-brand" />
           <div>
-            <h3 className="font-semibold">Egy MarketingPilot, közös valódi adatokkal</h3>
+            <h3 className="font-semibold">Egy {productName}, közös valódi adatokkal</h3>
             <p className="mt-1 text-sm text-muted-foreground">
               A megjelenés váltása csak a felületet érinti. A kampányok, posztok, tervtételek,
               AI-jobok és mentések közösek maradnak.

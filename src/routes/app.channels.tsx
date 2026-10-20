@@ -131,7 +131,7 @@ const STATUS: Record<
 
 const NOTICE: Record<string, string> = {
   config:
-    "A Meta-kapcsolódás szolgáltatói beállítása még hiányzik. Ezt a MarketingPilot üzemeltetőjének kell rendeznie; neked nem kell technikai beállítást végezned.",
+    "A Meta-kapcsolódás szolgáltatói beállítása még hiányzik. Ezt az üzemeltetőnek kell rendeznie; neked nem kell technikai beállítást végezned.",
   state: "Az OAuth munkamenet érvénytelen vagy lejárt. Indítsd újra a csatlakozást.",
   cancelled: "A Meta-kapcsolást megszakítottad.",
   no_page: "Nem található kezelhető Facebook-oldal ehhez a Meta-fiókhoz.",

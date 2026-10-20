@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { PageHeader } from "@/components/app-chrome";
 import { getWorkspace } from "@/lib/workspace.functions";
 import { generateContent, type GeneratedContent } from "@/lib/ai-content.functions";
-import { Sparkles, Copy, Facebook, Instagram, Music2, Globe, FileText, Mail, Loader2, Image as ImageIcon, RefreshCw, Download } from "lucide-react";
+import { type LucideIcon, Sparkles, Copy, Facebook, Instagram, Music2, Globe, FileText, Mail, Loader2, Image as ImageIcon, RefreshCw, Download } from "lucide-react";
 import { toast } from "sonner";
 import { streamImage, brandImagePrompt } from "@/lib/stream-image";
 
@@ -22,7 +22,7 @@ export const Route = createFileRoute("/app/content/$type")({
 
 type ContentType = "facebook" | "instagram" | "tiktok" | "google" | "blog" | "newsletter";
 
-const META: Record<string, { icon: any; title: string; sub: string }> = {
+const META: Record<string, { icon: LucideIcon; title: string; sub: string }> = {
   facebook: { icon: Facebook, title: "Facebook", sub: "Poszt, carousel, CTA, emoji verzió, hashtagek." },
   instagram: { icon: Instagram, title: "Instagram", sub: "Poszt, Story, carousel, Reels felirat." },
   tiktok: { icon: Music2, title: "TikTok", sub: "Videó ötletek, forgatókönyv, hook, jelenetek." },

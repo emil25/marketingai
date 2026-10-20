@@ -3,10 +3,14 @@ import type { BusinessContext } from "../business-types";
 import { businessContextPrompt } from "../business-types";
 import {
   FACTUAL_CONTENT_RULES,
+  contentRuleFindings,
+  contentSoftClaimWarnings,
   contentPlaceholders,
-  contentRuleViolations,
+  needsOfferDetails,
 } from "../content-quality";
 import { requestAiJson } from "./ai-json.server";
+import { annotateAiResponse } from "./ai-calls.server";
+import { marketWritingRules } from "@/i18n/prompts/hu-RO";
 
 const platforms = [
   "facebook",
@@ -64,6 +68,7 @@ export async function generateFactualPost(
     ctaStyle: string;
     campaignContext?: string;
     model?: string;
+    requireChannelTags?: boolean;
   },
   send?: Parameters<typeof requestAiJson>[2],
 ) {
@@ -78,17 +83,40 @@ export async function generateFactualPost(
           : "",
       ].filter(Boolean)
     : [];
-  const validate = resultSchema.superRefine((value, ctx) => {
-    const facts = JSON.stringify({
+  const claimContext = {
+    businessType: input.businessContext.businessType,
+    approvedClaims: input.businessContext.approvedClaims,
+  };
+  const followUpQuestion = needsOfferDetails(
+    {
+      businessType: input.businessContext.businessType,
+      industry: input.businessContext.industry,
       products: input.businessContext.products,
       services: input.businessContext.services,
-      offers: input.businessContext.offers,
-      address: input.businessContext.address,
-      openingHours: input.businessContext.openingHours,
-      brief: input.brief,
-      campaign: input.campaignContext,
-    });
+    },
+    input.brief,
+  )
+    ? "Mit kínálsz? Egy mondatban."
+    : "";
+  const facts = JSON.stringify({
+    industry: input.businessContext.industry,
+    brandDescription: input.businessContext.brandDescription,
+    products: input.businessContext.products,
+    services: input.businessContext.services,
+    offers: input.businessContext.offers,
+    address: input.businessContext.address,
+    phone: input.businessContext.phone,
+    region: input.businessContext.region,
+    openingHours: input.businessContext.openingHours,
+    localEvents: input.businessContext.localEvents,
+    brief: input.brief,
+    campaign: input.campaignContext,
+  });
+  const validate = resultSchema.superRefine((value, ctx) => {
     for (const variant of value.variants) {
+      if (input.requireChannelTags && variant.platform === "facebook" &&
+          (variant.hashtags.length < 1 || variant.hashtags.length > 2))
+        ctx.addIssue({ code: "custom", message: "Facebookra 1–2 releváns hashtag szükséges a külön tömbben." });
       if (variant.cta.trim() && !variant.content.trim().endsWith(variant.cta.trim()))
         ctx.addIssue({
           code: "custom",
@@ -100,14 +128,20 @@ export async function generateFactualPost(
             code: "custom",
             message: `${variant.platform}: A briefben kért, nem megadott adatot tedd a content mezőbe ezzel a helykitöltővel: ${placeholder}. Ne ígérd, hogy hamarosan elérhető lesz.`,
           });
-      for (const message of contentRuleViolations(
+      for (const finding of contentRuleFindings(
         variant.content,
         variant.platform,
         facts,
         variant.hashtags,
         input.businessContext.language,
+        claimContext,
       ))
-        ctx.addIssue({ code: "custom", message: `${variant.platform}: ${message}` });
+        if (finding.severity === "hard")
+          ctx.addIssue({
+            code: "custom",
+            message: `${variant.platform}: ${finding.message}`,
+            params: { category: finding.category },
+          });
     }
     if (
       value.variants.length !== selected.length ||
@@ -154,7 +188,7 @@ export async function generateFactualPost(
       messages: [
         {
           role: "system",
-          content: `${FACTUAL_CONTENT_RULES}\nHasználd a strukturált márkakontextust. A content mezőben legyen a végső CTA vagy Facebooknál a lezáró kérdés, a külön cta mező ugyanaz a mondat legyen. A hashtags csak a külön tömbben szerepeljen, Instagramnál kötelező 4–6 valódi #hashtag, nem hagyható el. Egy briefből minden kiválasztott platformra önálló, optimalizált, szerkeszthető posztot adj. A hiányzó cél/közönség irányát a briefből állapítsd meg, üzleti tényt ne következtess.\n${businessContextPrompt(input.businessContext)}`,
+          content: `${marketWritingRules(input.businessContext.language)}\n${FACTUAL_CONTENT_RULES}\nTartalmi ellenőrzés: árat, kedvezményt, dátumot, időpontot, címet, telefonszámot, nyitvatartást, díjat, garanciát, felsőfokú állítást, díjat/oklevelet, egészségügyi, kozmetikai vagy műszaki ígéretet, újdonságot, termék- vagy szolgáltatásnevet csak akkor állíts, ha szerepel a márkaprofilban, a felhasználó ötletében vagy a jóváhagyott állítások között. A vállalkozás nevét ne használd bizonyítékként arra, hogy mit kínál. Hiányzó kemény tényt jelöld helykitöltővel; hangulati jelzőt csak ellenőrizendő megjegyzéssel használj.\n${followUpQuestion ? `Kevés konkrét adat áll rendelkezésre. Ne töltsd ki a hiányt általános marketingmondatokkal, és ne következtess a márkanévből. Készíts rövid, 1–3 mondatos szöveget kizárólag a megadott tényekből. Ha konkrét kínálat kellene hozzá, használj [termék vagy szolgáltatás] helykitöltőt. A felhasználónak külön tedd fel ezt a kérdést: „${followUpQuestion}” A kérdés ne kerüljön a közzétehető posztba.` : ""}\nHasználd a strukturált márkakontextust. A content mezőben legyen a végső CTA vagy Facebooknál a lezáró kérdés, a külön cta mező ugyanaz a mondat legyen. A hashtags csak a külön tömbben szerepeljen, Instagramnál kötelező 4–6 valódi #hashtag, nem hagyható el. Egy briefből minden kiválasztott platformra önálló, optimalizált, szerkeszthető posztot adj. A hiányzó cél/közönség irányát a briefből állapítsd meg, üzleti tényt ne következtess.\n${businessContextPrompt(input.businessContext)}`,
         },
         {
           role: "user",
@@ -165,6 +199,7 @@ export async function generateFactualPost(
             ctaStyle: input.ctaStyle,
             campaignContext: input.campaignContext ?? "",
             requiredPlaceholders,
+            followUpQuestionForOwner: followUpQuestion,
             channelInstructions: selected.map((platform) => ({
               platform,
               writing:
@@ -178,19 +213,29 @@ export async function generateFactualPost(
         },
       ],
       schemaName: "factual_post_variants",
+      brandId: input.businessContext.brandId,
       schema,
       maxTokens: Math.min(7000, 1200 * selected.length + 500),
       model: input.model,
     },
     validate,
     send,
+    async (value, response) => {
+      const hasSoftFindings = value.variants.some(
+        (variant) => contentSoftClaimWarnings(variant.content, facts, claimContext).length > 0,
+      );
+      if (hasSoftFindings) await annotateAiResponse(response, "SOFT_CLAIM_ADJECTIVE");
+    },
   );
-  for (const variant of result.variants)
+  for (const variant of result.variants) {
+    const softWarnings = contentSoftClaimWarnings(variant.content, facts, claimContext);
     variant.ellenorizendo = [
       ...new Set([
         ...variant.ellenorizendo,
+        ...softWarnings,
         ...contentPlaceholders(variant.content, variant.cta, ...variant.hashtags),
       ]),
     ];
+  }
   return result;
 }

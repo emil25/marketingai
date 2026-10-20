@@ -88,8 +88,8 @@ function MediaLibrary() {
           </div>
         </div>
         <form onSubmit={upload} className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto_auto]">
-          <Input type="file" name="file" accept="image/*,video/*,audio/*" required />
-          <Input name="altText" placeholder="Alternatív szöveg (opcionális)" />
+          <Input id="media-upload" aria-label="Médiafájl kiválasztása" type="file" name="file" accept="image/*,video/*,audio/*" required />
+          <Input aria-label="Alternatív szöveg" name="altText" placeholder="Alternatív szöveg (opcionális)" />
           <Button className="rounded-full" disabled={pending}>
             <Upload className="mr-1 h-4 w-4" />
             {pending ? "Feltöltés…" : "Feltöltés"}
@@ -105,6 +105,7 @@ function MediaLibrary() {
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
+              aria-label="Média keresése"
               className="rounded-2xl pl-9"
               placeholder="Keresés fájlnév vagy alt szöveg alapján…"
               value={query}
@@ -112,6 +113,7 @@ function MediaLibrary() {
             />
           </div>
           <select
+            aria-label="Médiatípus"
             className="h-10 rounded-2xl border bg-card px-3 text-sm"
             value={type}
             onChange={(event) => setType(event.target.value)}
@@ -130,6 +132,7 @@ function MediaLibrary() {
           <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">
             Tölts fel képet, videót vagy hangot, majd rendeld hozzá a Posztkészítő Média lépésében.
           </p>
+          <Button className="mt-4" variant="outline" onClick={() => document.getElementById("media-upload")?.click()}>Saját kép feltöltése</Button>
         </Card>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

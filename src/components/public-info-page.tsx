@@ -1,5 +1,8 @@
 import type { ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
+import { brandForLocale, DEFAULT_MARKET_LOCALE } from "@/config/brand";
+
+const brand = brandForLocale(DEFAULT_MARKET_LOCALE);
 
 export function PublicInfoLinks() {
   return (
@@ -37,7 +40,7 @@ export function PublicInfoPage({
             <span className="grid h-8 w-8 place-items-center rounded-xl gradient-brand text-primary-foreground">
               M
             </span>
-            MarketingPilot
+            {brand.productName}
           </Link>
           <Link to="/login" className="text-sm font-medium text-primary hover:underline">
             Belépés
@@ -65,7 +68,8 @@ export function LegalDraftNotice() {
       <p>
         Ez a béta jelenlegi működését ismertető tájékoztató, nem végleges ÁSZF vagy teljes
         adatkezelési tájékoztató. Az üzemeltető adatai, az adatkezelés jogalapjai, megőrzési ideje
-        és a szolgáltatói feltételek véglegesítése még szükséges.
+        és a szolgáltatói feltételek véglegesítése még szükséges. Éles használat előtt jogásznak
+        kell jóváhagynia a végleges szöveget.
       </p>
     </div>
   );

@@ -274,7 +274,7 @@ export function PostCreativeComposer({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 id="creative-heading" className="flex items-center gap-2 text-xl font-semibold">
-            <Layers className="h-5 w-5 text-primary" /> Képposzt és carousel
+            <Layers className="h-5 w-5 text-primary" /> Képposzt és több képes poszt
           </h2>
           <p className="mt-1 text-sm text-muted-foreground">
             Saját fotó, márkaszínek, szerkeszthető feliratok. A képek készítéséhez nem kell
@@ -422,7 +422,7 @@ export function PostCreativeComposer({
                 <label className="block text-sm font-medium">
                   Felhívás / ajánlat
                   <Input
-                    aria-label="Képre kerülő CTA"
+                    aria-label="Képre kerülő felhívás"
                     value={current.cta}
                     maxLength={70}
                     onChange={(event) => editSlide("cta", event.target.value)}

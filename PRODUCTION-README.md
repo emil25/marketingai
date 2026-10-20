@@ -1,5 +1,8 @@
 # MarketingPilot – production előkészítés
 
+Aktuális kiadási sorrend, 008 főcsatorna-migráció, előnézeti böngészős teszt és
+visszaállítás: [docs/RELEASE.md](docs/RELEASE.md).
+
 Ez a dokumentum a jelenlegi Phase 1–3A alkalmazás üzemeltetési és élesítési alapjait foglalja össze. A UI, az üzleti logika és a szerverfüggvények ugyanazt az absztrakciót használják fejlesztésben és PostgreSQL módban.
 
 ## Architektúra
@@ -8,12 +11,12 @@ Ez a dokumentum a jelenlegi Phase 1–3A alkalmazás üzemeltetési és élesít
 
 A Dashboard „Készítsd el a heti marketingemet” gombja a `/app/campaigns?mode=weekly` folyamatra vezet. Egy briefből a meglévő kampány-, planItem-, post- és postVariant-rekordokba mentett 7 napos terv és 4 poszt készül. A Brand Voice és az aktív márka üzleti kontextusa közös a 30 napos kampányokkal.
 
-A kliens a posztokat külön szerverkérésekben készíti el, így nem egyetlen hosszú HTTP-kérésben fut a teljes csomag. Megszakítás után a kampány részletezőjében a hiányzó posztok folytathatók; ez a művelet nem írja felül a már elkészült vagy szerkesztett posztokat. A heti stratégia 3500, az egyes tervtételek szövege 2000 válasz-token kerettel készül. Nem készül automatikus kép vagy publikálás: saját média és ellenőrzés a meglévő posztszerkesztőben érhető el. A Planner és a Calendar ugyanazokat a tervtételeket látja, nincs új adatmodell vagy külön naptár.
+A kliens a posztokat külön szerverkérésekben készíti el, így nem egyetlen hosszú HTTP-kérésben fut a teljes csomag. Megszakítás után a kampány részletezőjében a hiányzó posztok folytathatók; ez a művelet nem írja felül a már elkészült vagy szerkesztett posztokat. A heti terv legfeljebb 4000 válasz-token kerettel készül. Nem készül automatikus kép vagy publikálás: saját média és ellenőrzés a meglévő posztszerkesztőben érhető el. A Planner és a Calendar ugyanazokat a tervtételeket látja, nincs külön naptár-adatmodell.
 
 - **Frontend/SSR:** React + TanStack Start + TanStack Router + TypeScript.
 - **Szerver:** TanStack Start server functions és API route-ok; a Node production build belépési pontja az `.output/server/index.mjs`.
 - **Üzleti adat-elérés:** `src/lib/server/store.server.ts`. Ez a stabil store API; a route-ok nem közvetlenül SQL-lel dolgoznak.
-- **Fejlesztői storage:** `data/marketingpilot.json` és a `data/media/` könyvtár. A JSON store tranzakciós írást használ, PostgreSQL nélkül működik.
+- **Fejlesztői storage:** alapértelmezésben elkülönített Neon ág. JSON csak explicit `MARKETINGPILOT_JSON_FIXTURE=true` tesztmódban használható; a régi fájlokat megőrizzük. Productionben JSON soha nem helyettesíti az adatbázist.
 - **Production storage:** `src/lib/server/postgres-store.server.ts`, szabványos `pg` klienssel. Ha a `DATABASE_URL` vagy `DIRECT_URL` nem üres, a store automatikusan PostgreSQL módra vált.
 - **Biztonsági rétegek:** httpOnly session cookie, szerveroldali workspace/brand ownership ellenőrzések, CSRF-védelem a session keretrendszerén keresztül, titkosított Meta tokenek.
 
@@ -21,23 +24,29 @@ A kliens a posztokat külön szerverkérésekben készíti el, így nem egyetlen
 
 A `.env.example` a teljes névlistát tartalmazza. A valódi `.env` fájl és minden titok maradjon a futtatási környezet titkos tárolójában; ne kerüljön Gitbe, böngészőbe vagy kliensbundle-be.
 
-| Változó | Production szerepe |
-| --- | --- |
-| `SESSION_SECRET` | Kötelező, legalább 32 karakter; session cookie titkosítása. |
-| `CHANNEL_TOKEN_ENCRYPTION_KEY` | Kötelező, legalább 32 karakter; Meta tokenek AES-256-GCM titkosítása. |
-| `DATABASE_URL` | PostgreSQL runtime kapcsolat. Beállítása aktiválja a PostgreSQL store-t. |
-| `DIRECT_URL` | Opcionális közvetlen PostgreSQL kapcsolat migrációhoz; a migráció ezt részesíti előnyben. |
-| `DATABASE_SSL` / `DATABASE_POOL_MAX` | PostgreSQL TLS és pool beállítás. |
-| `MARKETINGPILOT_DATA_DIR` | Csak JSON fallback adatkönyvtár. |
-| `OPENROUTER_API_KEY` | Szerveroldali szöveges és képes AI-hívások. |
-| `OPENROUTER_TEXT_MODEL` / `OPENROUTER_IMAGE_MODEL` | Opcionális modellfelülírás. |
-| `META_APP_ID` / `META_APP_SECRET` | Meta OAuth szerveroldali azonosítók. |
-| `META_REDIRECT_URI` / `META_GRAPH_VERSION` / `META_OAUTH_SCOPES` | Meta OAuth és Graph API konfiguráció. Productionben a callback HTTPS legyen. |
-| `PUBLIC_APP_URL` vagy `MEDIA_PUBLIC_BASE_URL` | Nyilvános HTTPS origin; Instagram képpublikálásnál kötelező. |
+| Változó                                                          | Production szerepe                                                                                                                |
+| ---------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `SESSION_SECRET`                                                 | Kötelező, legalább 32 karakter; session cookie titkosítása.                                                                       |
+| `CHANNEL_TOKEN_ENCRYPTION_KEY`                                   | Kötelező, legalább 32 karakter; Meta tokenek AES-256-GCM titkosítása.                                                             |
+| `DATABASE_URL`                                                   | PostgreSQL runtime kapcsolat. Beállítása aktiválja a PostgreSQL store-t.                                                          |
+| `DIRECT_URL`                                                     | Opcionális közvetlen PostgreSQL kapcsolat migrációhoz; a migráció ezt részesíti előnyben.                                         |
+| `DATABASE_SSL` / `DATABASE_POOL_MAX`                             | PostgreSQL TLS és pool beállítás.                                                                                                 |
+| `MARKETINGPILOT_DATA_DIR`                                        | Csak explicit fejlesztői JSON fixture adatkönyvtár.                                                                                                  |
+| `OPENROUTER_API_KEY`                                             | Szerveroldali szöveges és képes AI-hívások.                                                                                       |
+| `OPENROUTER_TEXT_MODEL` / `OPENROUTER_IMAGE_MODEL`               | Opcionális modellfelülírás.                                                                                                       |
+| `AI_DAILY_CALL_LIMIT`                                            | Felhasználónkénti AI-kérések maximuma UTC naponként, alapérték 100; 1–10000 közötti egész. Hibás és javító hívások is számítanak. |
+| `META_APP_ID` / `META_APP_SECRET`                                | Meta OAuth szerveroldali azonosítók.                                                                                              |
+| `META_REDIRECT_URI` / `META_GRAPH_VERSION` / `META_OAUTH_SCOPES` | Meta OAuth és Graph API konfiguráció. Productionben a callback HTTPS legyen.                                                      |
+| `PUBLIC_APP_URL` vagy `MEDIA_PUBLIC_BASE_URL`                    | Nyilvános HTTPS origin; Instagram képpublikálásnál kötelező.                                                                      |
 
 `NODE_ENV=production` esetén a session- és tokenkulcs hiánya vagy túl rövid értéke szándékosan hibát okoz. A Node szerver indításakor a host környezetének kell az env-változókat betöltenie; a build önmagában nem másolja be a `.env` tartalmát.
 
 ## PostgreSQL migration és JSON import
+
+A kétmódos felülethez a `007_ui_mode.sql` migráció is szükséges az új alkalmazás
+indítása előtt. Felhasználónként tárolt simple/detailed választás és a javaslat
+bezárási állapota; alapértelmezés simple. Az adatbázis nélküli fejlesztői
+fixture régi fiókjai átírás nélkül ugyanezzel az alapértékkel működnek.
 
 1. Hozz létre egy üres, elérhető PostgreSQL adatbázist, és a runtime secret store-ban állítsd be a `DATABASE_URL` értéket. Ha a szolgáltató külön migrációs végpontot ad, add meg `DIRECT_URL` néven.
 2. Futtasd a séma migrációkat:
@@ -69,7 +78,7 @@ Productionben a Node folyamatot process managerrel (például systemd, Docker va
 ## Adattárolási korlátok
 
 - A JSON store egyetlen gép lokális fájlja; több példány, automatikus backup és többfelhasználós skálázás mellett nem megfelelő.
-- A PostgreSQL store éles üzleti adatokhoz való, de a jelenlegi médiafájl-kezelő továbbra is lokális `data/media/` fájlokat ír. Több példányos productionhöz R2/S3-kompatibilis object storage és CDN-integráció szükséges.
+- A PostgreSQL store éles üzleti adatokhoz való; a Vercel deployment privát Vercel Blob tárolót használ. A helyi `data/media/` fallback csak fejlesztéshez való. A domain snapshot írása továbbra is globálisan sorosított; nagyobb forgalomnál célzott repository lekérdezésekre érdemes váltani.
 - A valódi háttérben futó ütemezett publikáláshoz tartós worker/queue/cron infrastruktúra szükséges; a jelenlegi szerver a publikálási kísérleteket naplózza.
 
 ## Külső függőségek
@@ -90,7 +99,7 @@ A szerver a meglévő `aiJobs` naplózását és `mediaAssets` tárát használj
 
 **Futtatás:** a helyi Node fejlesztői szerver automatikusan használja az `ffmpeg-static` npm csomagot és a Windows Arial betűkészletet. Linux productionben Node szerver, FFmpeg, Arial/DejaVu/Liberation TTF és tartós médiaszolgáltatás szükséges. Az `FFMPEG_PATH` és `VIDEO_FONT_PATH` opcionális szerveroldali felülírás; a telepített FFmpeg csomagot/binaryt a deploymentnek meg kell őriznie. Cloudflare Workers nem futtatja a natív FFmpeg folyamatot; ott ez a funkció nem elérhető. A renderer jelenleg a kérés ideje alatt fut, nincs tartós háttérworker vagy újraindítás utáni automatikus folytatás. Az éles szerver/proxy kérési időkorlátja legalább 150 másodperc legyen.
 
-**Ellenőrzés:** `node --import tsx --test tests/video.test.ts` külön, ideiglenes QA store-ban fut, élő adatot nem módosít. Vizsgálja az izolációt, érvénytelen bemenetet, tényleges MP4-kódolást/dekódolást, magyar feliratokat és a hibás render utáni újrapróbálást.
+**Ellenőrzés:** `node --import ./tests/fixture-env.mjs --import tsx --test tests/video.test.ts` külön, ideiglenes QA store-ban fut, élő adatot nem módosít. Vizsgálja az izolációt, érvénytelen bemenetet, tényleges MP4-kódolást/dekódolást, magyar feliratokat és a hibás render utáni újrapróbálást.
 
 ## Képposzt és carousel
 
@@ -116,13 +125,16 @@ A belépés a normál titkosított session cookie-t állítja be, nem változtat
 
 - [ ] PostgreSQL projekt és backup/restore folyamat kész.
 - [ ] `DATABASE_URL`, `SESSION_SECRET`, `CHANNEL_TOKEN_ENCRYPTION_KEY` titkosan beállítva.
-- [ ] `npm run db:migrate`, majd egyszer `npm run db:migrate:json` sikeresen lefutott.
+- [ ] Mentés után külön `npm run db:migrate` (001–009) sikeresen lefutott; buildben nincs production migráció.
+  JSON import csak kifejezetten jóváhagyott, üres célba; az új online induláshoz nem szükséges.
 - [ ] HTTPS origin, Meta callback és CORS/proxy beállítás ellenőrizve.
 - [ ] Object storage és worker/cron megoldás kiválasztva, ha több példány vagy időzített publikálás kell.
 - [ ] OpenRouter és Meta kvóta/jogosultság ellenőrizve.
 - [ ] Build és TypeScript ellenőrzés zöld.
+- [ ] Indulási védőkorlátok, napi üzemeltetési Cron és Resend-riasztás beállítva:
+  [RELEASE.md](docs/RELEASE.md), élesítés utáni próba: [POST-DEPLOY.md](docs/POST-DEPLOY.md).
 
-PostgreSQL kapcsolat nélkül a helyi fejlesztői JSON fallback továbbra is működik. Vercel környezetben hiányzó adatbázis vagy privát képtár esetén szándékosan nincs ideiglenes lemezre visszaesés.
+PostgreSQL kapcsolat nélkül JSON kizárólag explicit `MARKETINGPILOT_JSON_FIXTURE=true` elkülönített fejlesztői tesztként használható. Production/Vercel környezetben ezzel a kapcsolóval sincs lemezre visszaesés.
 
 ## Vercel + Neon + privát képtár
 
@@ -142,7 +154,9 @@ Hivatkozások: [Nitro Vercel deployment](https://nitro.build/deploy/providers/ve
 
 A posztok és a Plannerből indított posztgenerálás közös szerveroldali szabályokat használnak. A hiányzó üzleti adatok `[helykitöltő]` formában szerepelnek; az `ellenorizendo` lista a platformváltozat mellett jelenik meg. A szerver a szöveg, CTA és hashtagek helykitöltőit is ellenőrzi ütemezés/közzététel előtt. Ez nem teljes szemantikus tényellenőrzés: a felhasználó továbbra is ellenőrizze az AI állításait.
 
-A 30 napos kampány négy teljes hétre és egy rövid záró hétre bontott AI-hívásból készül, legfeljebb 4000 kimeneti token/hívás mellett. Az előző hetek témái és `temak_osszefoglalo` mezői bekerülnek a következő kérésbe. Hetenként mentjük a valódi planItem rekordokat. Későbbi hiba nem törli a már elkészült heteket, a kampány piszkozat marad; a teljes terv elkészülte előtt nincs sikerüzenet. Automatikus háttérfolytatás nincs.
+A 30 napos kampány négy teljes hétre és egy rövid záró hétre bontott AI-hívásból készül, legfeljebb 4000 kimeneti token/hívás mellett. Az előző hetek témái és `temak_osszefoglalo` mezői bekerülnek a következő kérésbe. Az ellenőrzött heti JSON külön-külön az AI jobban mentődik; planItem rekordok és aktív stratégia csak a teljes terv sikerénél, egyetlen tranzakcióban keletkeznek. Hiba esetén a próbálkozás és a megőrzött hetek az AI jobban maradnak; új kampányrekord csak a teljes terv sikerénél jön létre. A megszakadt generálás újrapróbálható. A felület a szerver által mentett haladást mutatja. Kapcsolt/ütemezett/közzétett posztot tartalmazó hét nem írható felül. Automatikus háttérfolytatás nincs.
+
+Az `005_ai_calls.sql` a különálló AI hívásmetaadat-naplót hozza létre. A normál üzleti mentés nem törli a naplót és nem állítja vissza a napi limitet. Token/költség csak szolgáltatói usage alapján kerül bele; prompt, válasz és titok nem. Productionben a migráció kötelező az új provider kód indulása előtt, a Vercel build meglévő migration runnerén keresztül is lefut.
 
 A JSON parser eltávolítja a külső Markdown-kódblokkot. Üres/hibás JSON vagy séma/szabályhiba után egyszer, konkrét javítási utasítással kér új választ. Szolgáltatói hibát, így kredit miatti 402 választ nem ismétel automatikusan. A heti hívások közös 240 másodperces időkeretet használnak; az újrapróbálás is ebből fogyaszt. A Vercel build a szerverfüggvény maximális futását 300 másodpercre állítja, így marad idő a hibaállapot és részeredmények mentésére. Ez továbbra is véges időkeret, nem háttér-worker.
 
@@ -154,6 +168,11 @@ A nyitóoldal a tényleges funkciókat kommunikálja: szövegkészítés, saját
 
 A `/privacy`, `/terms` és `/contact` nyilvánosan elérhető. A jogi oldalak **tervezetek**, nem teljes adatkezelési tájékoztató vagy végleges ÁSZF. Az üzemeltető személyét/cégét, címét, elérhetőségét, az adatkezelés jogalapjait, megőrzési szabályait és szolgáltatói feltételeit éles indulás előtt véglegesíteni kell. A kapcsolatfelvétel valós email-cím hiányában nem aktív; nincs ál-küldési siker vagy kitalált elérhetőség.
 
-Az üzemeltető által jóváhagyott, szándékosan nyilvános adatokat a `PUBLIC_OPERATOR_NAME`, `PUBLIC_OPERATOR_ADDRESS`, `PUBLIC_CONTACT_EMAIL`, `PUBLIC_OPERATOR_ABOUT` szerverváltozók adják. Csak e négy mező explicit whitelistje kerül a böngészőbe; a többi környezeti változó nem. A `PUBLIC_CONTACT_EMAIL` érvényes email esetén `mailto:` hivatkozást nyit, nem szerveroldali levélküldést.
+Az üzemeltető jóváhagyott, szándékosan nyilvános adataihoz az `OPERATOR_NAME`, `OPERATOR_ADDRESS`, `OPERATOR_EMAIL` mezők az elsődlegesek. Korábbi `PUBLIC_OPERATOR_NAME`, `PUBLIC_OPERATOR_ADDRESS`, `PUBLIC_CONTACT_EMAIL` értékek kompatibilis fallbackként maradnak; a `PUBLIC_OPERATOR_ABOUT` adja a bemutatkozást. Kizárólag a név, cím, e-mail és bemutatkozás explicit whitelistje kerül a böngészőbe, más környezeti változó nem. Az érvényes kapcsolati e-mail `mailto:` hivatkozás, nem kapcsolati űrlap.
 
-A nyitóoldali képernyőkép elkülönített tesztmárkával készül; nem tartalmaz valódi ügyféladatot, nem ügyfélvélemény és nem teljesítményígéret. A végleges jogi információk hiányát a nyitóoldal és a regisztráció is jelzi. Jelszó-visszaállítást vagy Google-belépést csak valódi backend megvalósítás után szabad ígérni.
+A nyitóoldali képernyőkép elkülönített tesztmárkával készül; nem tartalmaz valódi ügyféladatot, nem ügyfélvélemény és nem teljesítményígéret. A végleges jogi információk hiányát a nyitóoldal és a regisztráció is jelzi. A jelszó-visszaállítás backendje elkészült, de hitelesített Resend feladó és valódi kézbesítési próba szükséges. Google-belépés nincs bekötve.
+
+
+## Zárt béta frissítés (2026-10-08)
+
+E-mail-megerősítés, jelszó-visszaállítás/csere, tartós auth rate limit, Turnstile, adatexport és saját fiók törlése: [CLOSED-BETA.md](docs/CLOSED-BETA.md). A 006 migrációt a 005 után, először elkülönített Neon ágon kell ellenőrizni. A közzététel a zárt bétában kézi másolás és „Közzétettem” jelölés; a naptár nem automatikus publikálási szolgáltatás. Az új production regisztráció az OPERATOR_* adatok és e-mail/Turnstile/HTTPS beállítások hiányában letiltott.

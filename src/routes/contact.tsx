@@ -1,23 +1,30 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { PublicInfoPage } from "@/components/public-info-page";
 import { getPublicOperator } from "@/lib/public-site.functions";
+import { brandForLocale, DEFAULT_MARKET_LOCALE } from "@/config/brand";
+const brand = brandForLocale(DEFAULT_MARKET_LOCALE);
 export const Route = createFileRoute("/contact")({
   loader: () => getPublicOperator(),
-  head: () => ({ meta: [{ title: "Kapcsolat és üzemeltető — MarketingPilot" }] }),
+  head: () => ({ meta: [{ title: `Kapcsolat és üzemeltető — ${brand.productName}` }] }),
   component: Contact,
 });
 function Contact() {
   const operator = Route.useLoaderData();
+  if (!operator.name || !operator.address || !operator.email) return (
+    <PublicInfoPage title="Kapcsolat" subtitle="Zárt béta">
+      <p>A {brand.productName} most meghívott résztvevőkkel tesztelhető. Kérdéseddel vagy hibajelzéssel a meghívód küldőjéhez fordulhatsz. A nyilvános kapcsolatfelvétel később nyílik meg.</p>
+    </PublicInfoPage>
+  );
   return (
     <PublicInfoPage
       title="Kapcsolat és üzemeltető"
       subtitle="Kérdésed van, hibát jeleznél vagy adatkezelési kérést küldenél?"
     >
       <section>
-        <h2>Ki áll a MarketingPilot mögött?</h2>
+        <h2>Ki áll a {brand.productName} mögött?</h2>
         <p>
           {operator.about ||
-            "A MarketingPilot kisvállalkozásoknak készülő marketing-munkatér: az AI-t és a szerkeszthető tartalmakat egy helyen kapcsolja össze. Az üzemeltető bemutatkozása előkészítés alatt áll."}
+            brand.description}
         </p>
       </section>
       <section className="rounded-2xl border bg-card p-6">
@@ -47,7 +54,7 @@ function Contact() {
         <section>
           <h2>Írj nekünk</h2>
           <p>
-            <a href={`mailto:${operator.email}?subject=MarketingPilot%20megkeres%C3%A9s`}>
+            <a href={`mailto:${operator.email}?subject=${encodeURIComponent(`${brand.productName} megkeresés`)}`}>
               Email küldése
             </a>
           </p>

@@ -1,14 +1,12 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import path from "node:path";
 import test from "node:test";
 import { createMediaStorage } from "../src/lib/server/media-storage.server";
+import { createTestDataDir, isTestDataDir, removeTestDataDir } from "./test-data-dir";
 
 const id = "media_1234-abcd";
 
 test("local media survives reopening and cannot overwrite an existing asset", async () => {
-  const directory = await mkdtemp(path.join(tmpdir(), "marketingpilot-media-test-"));
+  const directory = await createTestDataDir("media-storage");
   try {
     const storage = createMediaStorage(directory, { MEDIA_STORAGE: "local" });
     await storage.write(id, Buffer.from("owned test bytes"));
@@ -19,9 +17,8 @@ test("local media survives reopening and cannot overwrite an existing asset", as
     await storage.remove(id);
     await assert.rejects(reopened.read(id));
   } finally {
-    assert.equal(path.dirname(path.resolve(directory)), path.resolve(tmpdir()));
-    assert.ok(path.basename(directory).startsWith("marketingpilot-media-test-"));
-    await rm(directory, { recursive: true, force: true });
+    assert.equal(isTestDataDir(directory), true);
+    await removeTestDataDir(directory);
   }
 });
 

@@ -178,7 +178,7 @@ export const huRO = {
     "Adataidat a fiókod működtetéséhez és az általad kért tartalmak elkészítéséhez használjuk. A posztgeneráláshoz szükséges ötlet és márkainformáció az AI-szolgáltatókhoz is eljut; az adataidat nem adjuk el. A tárolás és a bevont szolgáltatók pontos részleteit az Adatvédelmi tájékoztatóban találod.",
   "landing.faq.q7": "Megszüntethetem a fiókomat?",
   "landing.faq.a7":
-    "A profilból indítható adatexport és fióktörlés hamarosan érkezik. Az adatkezelési lehetőségekről és az elérhető kapcsolati adatokról az Adatvédelmi tájékoztatóban, illetve a Kapcsolat oldalon olvashatsz.",
+    "Természetesen. A Beállításokban bármikor kérhetsz adatexportot, és kezdeményezheted a fiókod, valamint az adataid törlését. A törlés előtt megerősítést kérünk.",
   "landing.about.title": "Helyi vállalkozóknak, helyi fejlesztőtől",
   "landing.about.eyebrow": "A termék mögött",
   "landing.about.text":

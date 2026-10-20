@@ -1,0 +1,13 @@
+{
+  "extends": "./tsconfig.json",
+  "include": [
+    "scripts/demo-fixture.ts",
+    "scripts/seed-demo.ts",
+    "scripts/qa-generate.ts",
+    "tests/private-beta.test.ts",
+    "tests/e2e/private-beta.spec.ts",
+    "playwright.private.config.ts",
+    "playwright.config.ts"
+  ],
+  "compilerOptions": { "types": ["node", "vite/client"] }
+}

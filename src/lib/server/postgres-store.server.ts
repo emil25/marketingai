@@ -20,6 +20,7 @@ import type {
   WorkspaceRecord,
 } from "@/lib/data-model";
 import { normalizeBusinessType } from "@/lib/business-types";
+import { mainChannel } from "../main-channel";
 
 /**
  * PostgreSQL adapter for the existing AppData abstraction.
@@ -45,7 +46,7 @@ function getConnectionString() {
   return value;
 }
 
-function getPool() {
+export function getPool() {
   if (pool) return pool;
   const connectionString = getConnectionString();
   const sslRequired =
@@ -150,6 +151,9 @@ async function readDataFromClient(client: PoolClient): Promise<AppData> {
     email: String(row.email),
     displayName: String(row.display_name),
     passwordHash: String(row.password_hash),
+    uiMode: row.ui_mode === "detailed" ? "detailed" : "simple",
+    uiModeSuggestionDismissed: row.ui_mode_suggestion_dismissed === true,
+    auth: row.auth_metadata == null ? undefined : row.auth_metadata as UserRecord["auth"],
     createdAt: iso(row.created_at),
   }));
   const workspaces: WorkspaceRecord[] = workspaceRows.map((row) => ({
@@ -184,8 +188,18 @@ async function readDataFromClient(client: PoolClient): Promise<AppData> {
     id: String(row.id),
     brandId: String(row.brand_id),
     businessType: normalizeBusinessType(optionalString(row.business_type)),
+    mainChannel: mainChannel({ mainChannel: optionalString(row.main_channel) ?? undefined }),
     address: String(row.address ?? ""),
     openingHours: String(row.opening_hours ?? ""),
+    phone: String(row.phone ?? ""),
+    houseNumber: String(row.house_number ?? ""),
+    county: String(row.county ?? ""),
+    cityNameMode: (["hu", "ro", "both"].includes(String(row.city_name_mode))
+      ? row.city_name_mode
+      : "hu") as BrandProfileRecord["cityNameMode"],
+    localPhrases: String(row.local_phrases ?? ""),
+    localEvents: String(row.local_events ?? ""),
+    approvedClaims: stringArray(row.approved_claims),
     tone: String(row.tone ?? ""),
     ctaStyle: String(row.cta_style ?? ""),
     values: String(row.values ?? ""),
@@ -200,6 +214,7 @@ async function readDataFromClient(client: PoolClient): Promise<AppData> {
     learningSamples: stringArray(row.learning_samples),
     learnedSummary: String(row.learned_summary ?? ""),
     learnedAt: optionalIso(row.learned_at),
+    ideaBank: row.idea_bank == null ? null : (typeof row.idea_bank === "string" ? JSON.parse(row.idea_bank) : row.idea_bank) as BrandProfileRecord["ideaBank"],
     createdAt: iso(row.created_at),
     updatedAt: iso(row.updated_at),
   }));
@@ -247,6 +262,7 @@ async function readDataFromClient(client: PoolClient): Promise<AppData> {
     updatedAt: iso(row.updated_at),
   }));
   const postVariants: PostVariantRecord[] = variantRows.map((row) => ({
+    manualPublishedAt: optionalIso(row.manual_published_at),
     id: String(row.id),
     postId: String(row.post_id),
     platform: row.platform as PostVariantRecord["platform"],
@@ -420,7 +436,16 @@ async function insertRows(
   if (!records.length) return;
   const quotedColumns = columns.map((column) => `"${column}"`).join(", ");
   const placeholders = columns.map((_, index) => `$${index + 1}`).join(", ");
-  const statement = `INSERT INTO ${table} (${quotedColumns}) VALUES (${placeholders})`;
+  // Keep audit parents in place: deleting/reinserting them would cascade-delete
+  // ai_calls and reset the per-user daily limit on every business save.
+  const stableParent = ["users", "workspaces", "memberships", "brands"].includes(table);
+  const conflict = stableParent
+    ? ` ON CONFLICT (id) DO UPDATE SET ${columns
+        .filter((column) => column !== "id")
+        .map((column) => `"${column}" = EXCLUDED."${column}"`)
+        .join(", ")}`
+    : "";
+  const statement = `INSERT INTO ${table} (${quotedColumns}) VALUES (${placeholders})${conflict}`;
   for (const record of records)
     await client.query(
       statement,
@@ -432,7 +457,7 @@ function rowsFor<T>(records: T[], mapper: (record: T) => InsertRow) {
   return records.map(mapper);
 }
 
-async function replaceDataInClient(client: PoolClient, data: AppData) {
+export async function replaceDataInClient(client: PoolClient, data: AppData) {
   // Preserve any future server-side sessions while replacing the domain
   // snapshot. Sessions belonging to deleted users/workspaces are discarded.
   const existingSessions = (
@@ -441,6 +466,7 @@ async function replaceDataInClient(client: PoolClient, data: AppData) {
     )
   ).rows;
   for (const table of [
+    "sessions",
     "publish_attempts",
     "channel_oauth_selections",
     "channel_oauth_states",
@@ -454,22 +480,21 @@ async function replaceDataInClient(client: PoolClient, data: AppData) {
     "media_assets",
     "ai_jobs",
     "brand_profiles",
-    "brands",
-    "memberships",
-    "workspaces",
-    "users",
   ])
     await client.query(`DELETE FROM ${table}`);
 
   await insertRows(
     client,
     "users",
-    ["id", "email", "display_name", "password_hash", "created_at"],
+    ["id", "email", "display_name", "password_hash", "created_at", "auth_metadata", "ui_mode", "ui_mode_suggestion_dismissed"],
     rowsFor(data.users, (item) => ({
       id: item.id,
       email: item.email,
       display_name: item.displayName,
       password_hash: item.passwordHash,
+      auth_metadata: item.auth ? JSON.stringify(item.auth) : null,
+      ui_mode: item.uiMode ?? "simple",
+      ui_mode_suggestion_dismissed: item.uiModeSuggestionDismissed ?? false,
       created_at: item.createdAt,
     })),
   );
@@ -558,8 +583,16 @@ async function replaceDataInClient(client: PoolClient, data: AppData) {
       "id",
       "brand_id",
       "business_type",
+      "main_channel",
       "address",
       "opening_hours",
+      "phone",
+      "house_number",
+      "county",
+      "city_name_mode",
+      "local_phrases",
+      "local_events",
+      "approved_claims",
       "tone",
       "cta_style",
       "values",
@@ -574,6 +607,7 @@ async function replaceDataInClient(client: PoolClient, data: AppData) {
       "learning_samples",
       "learned_summary",
       "learned_at",
+      "idea_bank",
       "created_at",
       "updated_at",
     ],
@@ -581,8 +615,16 @@ async function replaceDataInClient(client: PoolClient, data: AppData) {
       id: item.id,
       brand_id: item.brandId,
       business_type: normalizeBusinessType(item.businessType),
+      main_channel: mainChannel(item),
       address: item.address ?? "",
       opening_hours: item.openingHours ?? "",
+      phone: item.phone ?? "",
+      house_number: item.houseNumber ?? "",
+      county: item.county ?? "",
+      city_name_mode: item.cityNameMode ?? "hu",
+      local_phrases: item.localPhrases ?? "",
+      local_events: item.localEvents ?? "",
+      approved_claims: json(item.approvedClaims ?? []),
       tone: item.tone,
       cta_style: item.ctaStyle,
       values: item.values,
@@ -597,6 +639,7 @@ async function replaceDataInClient(client: PoolClient, data: AppData) {
       learning_samples: json(item.learningSamples ?? []),
       learned_summary: item.learnedSummary ?? "",
       learned_at: item.learnedAt ?? null,
+      idea_bank: json(item.ideaBank ?? null),
       created_at: item.createdAt,
       updated_at: item.updatedAt,
     })),
@@ -701,6 +744,7 @@ async function replaceDataInClient(client: PoolClient, data: AppData) {
     [
       "id",
       "post_id",
+      "manual_published_at",
       "platform",
       "content",
       "hashtags",
@@ -711,6 +755,7 @@ async function replaceDataInClient(client: PoolClient, data: AppData) {
       "updated_at",
     ],
     rowsFor(data.postVariants, (item) => ({
+      manual_published_at: item.manualPublishedAt ?? null,
       id: item.id,
       post_id: item.postId,
       platform: item.platform,
@@ -1006,6 +1051,18 @@ async function replaceDataInClient(client: PoolClient, data: AppData) {
       retry_of: item.retryOf ?? null,
     })),
   );
+  // Actual removals still cascade. Ordinary saves never remove surviving
+  // users/workspaces/brands/memberships or their operational AI audit records.
+  for (const [table, records] of [
+    ["brands", data.brands],
+    ["memberships", data.memberships],
+    ["workspaces", data.workspaces],
+    ["users", data.users],
+  ] as const) {
+    await client.query(`DELETE FROM ${table} WHERE NOT (id = ANY($1::text[]))`, [
+      records.map((item) => item.id),
+    ]);
+  }
 }
 
 export async function readPostgresData(): Promise<AppData> {

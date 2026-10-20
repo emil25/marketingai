@@ -214,6 +214,7 @@ function Planner() {
       <Card className="rounded-3xl p-4">
         <div className="flex flex-wrap items-center gap-3">
           <select
+            aria-label="Kampányszűrő"
             className="h-10 rounded-2xl border bg-card px-3 text-sm"
             value={campaignId}
             onChange={(event) => setCampaignId(event.target.value)}
@@ -349,21 +350,25 @@ function PlanCard({
   return (
     <Card className={"rounded-3xl p-4 " + (selected ? "ring-2 ring-primary/30" : "")}>
       <div className="flex items-start gap-3">
+        <label className="flex min-h-11 min-w-11 shrink-0 items-center justify-center" title={`Tervtétel kijelölése: ${item.topic}`}>
         <input
           type="checkbox"
+          aria-label={`Tervtétel kijelölése: ${item.topic}`}
           checked={selected}
           onChange={onSelect}
           disabled={Boolean(item.postId) || item.status === "skipped"}
-          className="mt-1 h-4 w-4"
+          className="h-4 w-4"
         />
+        </label>
         <div className="min-w-0 flex-1">
           {editing ? (
             <form onSubmit={onSave} className="space-y-3">
               <div className="grid gap-2 sm:grid-cols-2">
-                <Input type="date" name="date" defaultValue={item.date} required />
-                <Input type="time" name="time" defaultValue={item.time ?? ""} />
+                <Input aria-label="Dátum" type="date" name="date" defaultValue={item.date} required />
+                <Input aria-label="Idő" type="time" name="time" defaultValue={item.time ?? ""} />
               </div>
               <select
+                aria-label="Csatorna"
                 name="platform"
                 defaultValue={item.platform}
                 className="h-10 w-full rounded-2xl border bg-card px-3 text-sm"
@@ -374,7 +379,7 @@ function PlanCard({
                   </option>
                 ))}
               </select>
-              <Input name="topic" defaultValue={item.topic} required />
+              <Input aria-label="Téma" name="topic" defaultValue={item.topic} required />
               <div className="flex gap-2">
                 <Button type="submit" size="sm" className="rounded-full">
                   <Check className="mr-1 h-3.5 w-3.5" />

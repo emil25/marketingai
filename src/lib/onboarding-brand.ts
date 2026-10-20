@@ -17,7 +17,13 @@ export function brandVoiceGuardrails(addressing: Addressing, mood = "") {
 }
 
 /** Explicitly labelled UI style sample, never saved as generated business content. */
-export function brandStyleSample(name: string, tone: string, addressing: Addressing, mood = "") {
+export function brandStyleSample(
+  name: string,
+  tone: string,
+  addressing: Addressing,
+  mood = "",
+  businessType = "other",
+) {
   const brand = name.trim() || "A vállalkozásod";
   const greeting =
     tone === "Professzionális"
@@ -39,7 +45,19 @@ export function brandStyleSample(name: string, tone: string, addressing: Address
       : addressing === "ti"
         ? "Kérdésetekkel írjatok nekünk."
         : "Kérdéseddel írj nekünk.";
-  return `${brand}\n${mood === "Letisztult" ? "" : adjusted + "\n"}${cta}${mood === "Lendületes" ? " ✨" : ""}`;
+  const focus =
+    (
+      {
+        bakery_cafe: "A kínálatról",
+        retail: "A termékekről",
+        restaurant: "Az ételekről",
+        accommodation: "A szállásról",
+        hair_salon: "A frizuráról",
+        lawyer: "A jogi szolgáltatásokról",
+        accountant: "A könyvelésről",
+      } as Record<string, string>
+    )[normalizeBusinessType(businessType)] || "A szolgáltatásokról";
+  return `${brand}\n${mood === "Letisztult" ? "" : adjusted + "\n"}${focus} van kérdés${addressing === "Ön" ? "e" : addressing === "ti" ? "etek" : "ed"}? ${cta}${mood === "Lendületes" && tone !== "Professzionális" ? " ✨" : ""}`;
 }
 
 export const ONBOARDING_DRAFT_KEY = "marketingpilot-onboarding-draft-v1";
@@ -50,6 +68,12 @@ const fields = [
   "logoUrl",
   "openingHours",
   "address",
+  "houseNumber",
+  "county",
+  "phone",
+  "cityNameMode",
+  "localPhrases",
+  "localEvents",
   "cityRegion",
   "offers",
   "services",
@@ -79,8 +103,10 @@ export function sanitizeOnboardingDraft(value: unknown) {
     if (typeof raw[key] === "string")
       details[key] = raw[key].slice(
         0,
-        key === "products" || key === "services" || key === "offers" ? 4000 : 2000,
+        key === "products" || key === "services" || key === "offers" || key === "localEvents" ? 4000 : 2000,
       );
+  if (!(["hu", "ro", "both"] as const).includes(details.cityNameMode as "hu" | "ro" | "both"))
+    details.cityNameMode = "hu";
   if (!["te", "Ön", "ti"].includes(details.addressing)) details.addressing = "te";
   const type =
     typeof draft.businessType === "string" && draft.businessType
@@ -99,6 +125,9 @@ export function sanitizeOnboardingDraft(value: unknown) {
           };
         })
       : undefined;
+  const approvedClaims = Array.isArray(draft.approvedClaims)
+    ? [...new Set(draft.approvedClaims.filter((item): item is string => typeof item === "string").map((item) => item.trim().slice(0, 200)).filter(Boolean))].slice(0, 30)
+    : [];
   return {
     version: 1,
     savedAt: draft.savedAt,
@@ -116,6 +145,7 @@ export function sanitizeOnboardingDraft(value: unknown) {
         : "#ed674d",
     addressingTouched: draft.addressingTouched === true,
     details,
+    approvedClaims,
     hours,
     hadLogo: draft.hadLogo === true,
   };

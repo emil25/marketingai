@@ -32,6 +32,10 @@ import {
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import "@/workspace.css";
+import { ModeLayout } from "@/components/mode-layout";
+import { getUiPreferences } from "@/lib/ui-mode.functions";
+import { getPosts } from "@/lib/post.functions";
+import { brandForLanguage, translate } from "@/i18n";
 
 export const Route = createFileRoute("/app")({
   beforeLoad: () => requireCurrentUser(),
@@ -41,18 +45,18 @@ export const Route = createFileRoute("/app")({
       getThemePreference(),
       getChannelConnections(),
     ]);
-    return { ...auth, themePreference, channels };
+    return { ...auth, themePreference, channels, preferences: await getUiPreferences(), postCount: (await getPosts()).filter((post) => post.variants.some((v) => v.content.trim())).length };
   },
   head: () => ({
     meta: [
-      { title: "Dashboard — MarketingPilot AI" },
+      { title: `${brandForLanguage().productName} – a vállalkozásod posztjai` },
       {
         name: "description",
-        content: "AI Marketing Operációs Rendszer — mai teendők, kampányok és tartalomnaptár.",
+        content: translate("landing.metaDescription"),
       },
     ],
   }),
-  component: AppLayout,
+  component: ModeLayout,
 });
 
 type NavItem = {
@@ -153,6 +157,7 @@ function SectionNavigation({ path }: { path: string }) {
 
 function AppLayout() {
   const auth = Route.useLoaderData();
+  const productName = brandForLanguage(auth.activeBrand?.languageMarket).productName;
   const path = useRouterState({ select: (s) => s.location.pathname });
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const isActive = (to: string, exact?: boolean, activePrefixes?: string[]) => {
@@ -169,14 +174,14 @@ function AppLayout() {
       className={`theme-${auth.themePreference ?? "marketingpilot-v2"} marketing-workspace min-h-screen bg-secondary/30`}
     >
       <div className="reference-app-shell">
-        <aside className="reference-sidebar fixed inset-y-0 left-0 hidden shrink-0 flex-col border-r border-sidebar-border bg-sidebar px-4 py-5 text-sidebar-foreground md:flex">
+        <aside className="reference-sidebar fixed inset-y-0 left-0 hidden shrink-0 flex-col border-r border-sidebar-border bg-sidebar px-4 py-5 text-sidebar-foreground lg:flex">
           <Link to="/app" className="reference-brand mb-8 flex items-center gap-3 px-2">
             <div className="grid h-12 w-12 place-items-center rounded-[11px] bg-primary text-primary-foreground font-serif text-2xl font-bold shadow-lg shadow-primary/20">
               M
             </div>
             <div>
               <span className="block font-display text-[19px] font-extrabold tracking-tight">
-                MarketingPilot<span className="workspace-version">V2</span>
+                {productName}<span className="workspace-version">V2</span>
               </span>
               <span className="block text-[13px] text-sidebar-foreground/70">
                 A márkád. Egy helyen.
@@ -277,7 +282,7 @@ function AppLayout() {
                 <Button
                   size="icon"
                   variant="outline"
-                  className="reference-icon-button rounded-xl md:hidden"
+                  className="reference-icon-button rounded-xl lg:hidden"
                   aria-label="Menü megnyitása"
                   onClick={() => setMobileMenuOpen(true)}
                 >
@@ -322,6 +327,7 @@ function AppLayout() {
                         <Link to={to}>{label}</Link>
                       </DropdownMenuItem>
                     ))}
+                    {[{ hash: "password", label: "Jelszócsere" }, { hash: "export", label: "Adatexport" }, { hash: "delete-account", label: "Fiók törlése" }].map(({ hash, label }) => <DropdownMenuItem asChild key={hash}><Link to="/app/settings" hash={hash}>{label}</Link></DropdownMenuItem>)}
                     <DropdownMenuSeparator />
                     <LogoutButton header />
                   </DropdownMenuContent>
@@ -329,8 +335,9 @@ function AppLayout() {
               </div>
             </div>
           </header>
-          <div className="reference-main p-4 pb-20 md:px-9 md:pb-10">
+          <div className="reference-main p-4 pb-20 md:px-9 lg:pb-10">
             <SectionNavigation path={path} />
+            {auth.user.emailVerified === false && auth.user.canUseAi !== true && <div className="mb-5 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950" role="status">Az AI használatához erősítsd meg az e-mail-címed. <Link to="/verify-email" className="inline-flex min-h-11 items-center font-semibold underline">Megerősítés és e-mail újraküldése →</Link></div>}
             <Outlet />
           </div>
         </main>
@@ -338,6 +345,7 @@ function AppLayout() {
           <MobileDrawer
             isActive={isActive}
             canAdmin={auth.membership.role === "owner" || auth.membership.role === "admin"}
+            productName={productName}
             onClose={() => setMobileMenuOpen(false)}
           />
         )}
@@ -434,10 +442,12 @@ function NavSection({
 function MobileDrawer({
   isActive,
   canAdmin,
+  productName,
   onClose,
 }: {
   isActive: (to: string, exact?: boolean, activePrefixes?: string[]) => boolean;
   canAdmin: boolean;
+  productName: string;
   onClose: () => void;
 }) {
   return (
@@ -445,10 +455,10 @@ function MobileDrawer({
       <button
         type="button"
         aria-label="Menü bezárása"
-        className="reference-mobile-drawer-backdrop md:hidden"
+        className="reference-mobile-drawer-backdrop lg:hidden"
         onClick={onClose}
       />
-      <aside className="reference-mobile-drawer md:hidden" aria-label="Mobil navigáció">
+      <aside className="reference-mobile-drawer lg:hidden" aria-label="Mobil navigáció">
         <div className="flex items-center justify-between">
           <Link to="/app" className="reference-brand flex items-center gap-3" onClick={onClose}>
             <div className="grid h-11 w-11 place-items-center rounded-[11px] bg-primary text-primary-foreground font-serif text-2xl font-bold">
@@ -456,7 +466,7 @@ function MobileDrawer({
             </div>
             <div>
               <span className="block font-display text-[17px] font-extrabold uppercase tracking-tight">
-                MarketingPilot
+                {productName}
               </span>
               <span className="block text-[11px] uppercase tracking-[0.08em] text-sidebar-foreground/70">
                 AI marketing-munkatér
@@ -509,7 +519,7 @@ function MobileNav({
 }: {
   isActive: (to: string, exact?: boolean, activePrefixes?: string[]) => boolean;
 }) {
-  const items = NAV_GROUPS[0].items;
+  const items = NAV_GROUPS[0].items.filter((item) => item.to !== "/app/channels");
   const [editing, setEditing] = useState(false);
   useEffect(() => {
     // Hide the fixed bar while typing so it cannot cover a focused field.
@@ -535,7 +545,7 @@ function MobileNav({
     <nav
       aria-label="Mobil navigáció"
       data-editing={editing}
-      className="workspace-mobile-nav fixed inset-x-0 bottom-0 z-40 grid grid-cols-6 border-t border-border bg-card/95 p-2 shadow-[0_-8px_30px_rgba(44,35,90,.08)] backdrop-blur md:hidden"
+      className="workspace-mobile-nav fixed inset-x-0 bottom-0 z-40 grid grid-cols-5 border-t border-border bg-card/95 p-2 shadow-[0_-8px_30px_rgba(44,35,90,.08)] backdrop-blur lg:hidden"
     >
       {items.map((item) => (
         <Link
@@ -543,7 +553,7 @@ function MobileNav({
           to={item.to}
           params={item.params}
           aria-label={item.label}
-          className={`flex flex-col items-center gap-1 rounded-xl px-1 py-2 text-[10px] font-semibold ${isActive(item.to, item.exact, item.activePrefixes) ? "bg-brand-soft text-primary" : "text-muted-foreground"}`}
+          className={`flex min-w-0 flex-col items-center gap-1 rounded-xl px-1 py-2 text-[11px] font-semibold ${isActive(item.to, item.exact, item.activePrefixes) ? "bg-brand-soft text-primary" : "text-muted-foreground"}`}
         >
           <item.icon className="h-4 w-4" />
           <span>

@@ -3,30 +3,12 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import pg from "pg";
+import { loadMigrationEnvironment } from "./migration-env.mjs";
 
 const { Pool } = pg;
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
-function loadDotEnv() {
-  try {
-    const raw = readFileSync(path.join(projectRoot, ".env"), "utf8");
-    for (const line of raw.split(/\r?\n/)) {
-      const match = line.match(/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)\s*$/);
-      if (!match || process.env[match[1]]) continue;
-      let value = match[2].trim();
-      if (
-        (value.startsWith('"') && value.endsWith('"')) ||
-        (value.startsWith("'") && value.endsWith("'"))
-      )
-        value = value.slice(1, -1);
-      process.env[match[1]] = value;
-    }
-  } catch {
-    // Environment variables may be injected by the hosting platform.
-  }
-}
-
-loadDotEnv();
+loadMigrationEnvironment(process.env, () => readFileSync(path.join(projectRoot, ".env"), "utf8"));
 
 const connectionString = process.env.DIRECT_URL?.trim() || process.env.DATABASE_URL?.trim();
 if (!connectionString) {
@@ -76,8 +58,10 @@ try {
   }
   console.log("PostgreSQL schema is ready.");
 } catch (error) {
-  const message = error instanceof Error ? error.message : "ismeretlen adatbázishiba";
-  console.error(`PostgreSQL migration failed: ${message}`);
+  // Database/provider exceptions can contain SQL values or connection details.
+  const code = error && typeof error === "object" && "code" in error && /^[0-9A-Z]{5}$/.test(String(error.code))
+    ? String(error.code) : "MIGRATION_FAILED";
+  console.error(JSON.stringify({ event: "POSTGRES_MIGRATION_FAILED", code }));
   process.exitCode = 1;
 } finally {
   await pool.end();

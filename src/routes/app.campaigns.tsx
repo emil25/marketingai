@@ -1,7 +1,17 @@
+import { useCampaignProgress } from "@/lib/use-campaign-progress";
 import { useEffect, useRef, useState } from "react";
 import { createFileRoute, Link, Outlet, useLocation, useRouter } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { CalendarDays, List, Loader2, Megaphone, Plus, Sparkles, Trash2 } from "lucide-react";
+import {
+  CalendarDays,
+  List,
+  Loader2,
+  Megaphone,
+  MoreHorizontal,
+  Plus,
+  Sparkles,
+  Trash2,
+} from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,17 +24,36 @@ import {
   createCampaignAndPlan,
   deleteCampaign,
   getCampaigns,
+  getCampaignAttempts,
   type CampaignSnapshot,
 } from "@/lib/campaign.functions";
 import type { PostPlatform } from "@/lib/data-model";
 import { WeeklyMarketingForm } from "@/components/weekly-marketing-form";
+import { CampaignFeedback } from "@/components/campaign-feedback";
+import { CampaignAttempts } from "@/components/campaign-attempts";
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogCancel,
+} from "@/components/ui/alert-dialog";
+import { campaignDateLabel, campaignStatusLabel, campaignTitle } from "@/lib/campaign-presentation";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/app/campaigns")({
   validateSearch: (search: Record<string, unknown>): { mode?: "weekly" } => ({
     mode: search.mode === "weekly" ? "weekly" : undefined,
   }),
-  loader: async () => ({ workspace: await getWorkspace(), campaigns: await getCampaigns() }),
+  loader: async () => ({ workspace: await getWorkspace(), campaigns: await getCampaigns(), attempts: await getCampaignAttempts() }),
   component: Campaigns,
 });
 
@@ -36,31 +65,8 @@ const CHANNELS: Array<{ id: PostPlatform; label: string }> = [
   { id: "youtube", label: "YouTube" },
   { id: "google-business", label: "Google Business" },
 ];
-const STATUS_LABELS = {
-  draft: "Piszkozat",
-  planning: "Tervezés alatt",
-  active: "Aktív",
-  paused: "Szüneteltetve",
-  completed: "Lezárva",
-  archived: "Archiválva",
-} as const;
 function dateInput(date: Date) {
   return date.toISOString().slice(0, 10);
-}
-function campaignDateLabel(value: string) {
-  const date = new Date(`${value}T12:00:00Z`);
-  if (
-    !/^\d{4}-\d{2}-\d{2}$/.test(value) ||
-    !Number.isFinite(date.getTime()) ||
-    dateInput(date) !== value
-  )
-    return "Dátum megadása szükséges";
-  return date.toLocaleDateString("hu-HU", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-    timeZone: "UTC",
-  });
 }
 function initialForm() {
   const today = new Intl.DateTimeFormat("sv-SE", { timeZone: "Europe/Bucharest" }).format(
@@ -90,12 +96,16 @@ function Campaigns() {
   const { mode } = Route.useSearch();
   const router = useRouter();
   const create = useServerFn(createCampaignAndPlan);
+  const generation = useCampaignProgress();
   const remove = useServerFn(deleteCampaign);
   const location = useLocation();
   const [form, setForm] = useState(initialForm);
   const [showForm, setShowForm] = useState(data.campaigns.length === 0);
   const [pending, setPending] = useState(false);
   const [generationError, setGenerationError] = useState("");
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [deletePending, setDeletePending] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
   const [weeklyPending, setWeeklyPending] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const startDateRef = useRef<HTMLInputElement>(null);
@@ -133,8 +143,11 @@ function Campaigns() {
     if (pending || !form.channels.length) return;
     setPending(true);
     setGenerationError("");
+    const requestId = generation.begin();
     try {
-      await create({ data: { ...form, budget: form.budget.trim() ? Number(form.budget) : null } });
+      await create({
+        data: { ...form, requestId, budget: form.budget.trim() ? Number(form.budget) : null },
+      });
       toast.success("A kampány és a 30 napos AI-terv elkészült.");
       await router.invalidate();
       setShowForm(false);
@@ -146,22 +159,23 @@ function Campaigns() {
       // Earlier weekly chunks can already be saved even when a later AI request fails.
       await router.invalidate();
     } finally {
+      generation.end();
       setPending(false);
     }
   }
   async function removeCampaign(id: string) {
-    if (
-      !window.confirm(
-        "Törlöd a kampányt és a hozzá tartozó tervtételeket? A már elkészült posztok megmaradnak.",
-      )
-    )
-      return;
+    if (deletePending) return;
+    setDeletePending(true);
+    setDeleteError("");
     try {
       await remove({ data: { campaignId: id } });
       await router.invalidate();
+      setDeleteId(null);
       toast.success("Kampány törölve.");
     } catch (cause) {
-      toast.error(cause instanceof Error ? cause.message : "Nem sikerült törölni a kampányt.");
+      setDeleteError(cause instanceof Error ? cause.message : "Nem sikerült törölni a kampányt.");
+    } finally {
+      setDeletePending(false);
     }
   }
   const creating = showForm || mode === "weekly";
@@ -310,7 +324,7 @@ function Campaigns() {
                   />
                 </div>
                 <div>
-                  <Label>Leírás / brief</Label>
+                  <Label>Leírás / ötlet</Label>
                   <Textarea
                     className="mt-2 min-h-24"
                     value={form.description}
@@ -396,10 +410,10 @@ function Campaigns() {
                 />
               </div>
             </details>
-            <div className="flex justify-end">
+            <div className="flex md:justify-end">
               <Button
                 type="submit"
-                className="rounded-full"
+                className="campaign-submit rounded-full"
                 disabled={pending || !form.channels.length}
               >
                 {pending ? (
@@ -407,7 +421,7 @@ function Campaigns() {
                 ) : (
                   <Sparkles className="mr-1 h-4 w-4" />
                 )}
-                {pending ? "AI-terv készül…" : "Kampányterv készítése"}
+                {pending ? generation.label || "AI-terv készül…" : "Kampányterv készítése"}
               </Button>
             </div>
             {generationError && (
@@ -432,11 +446,48 @@ function Campaigns() {
             <CampaignCard
               key={campaign.id}
               campaign={campaign}
-              onRemove={() => void removeCampaign(campaign.id)}
+              onRemove={() => {
+                setDeleteError("");
+                setDeleteId(campaign.id);
+              }}
             />
           ))
         )}
       </div>
+      <CampaignAttempts attempts={data.attempts} />
+      <AlertDialog
+        open={deleteId !== null}
+        onOpenChange={(open) => {
+          if (!open && !deletePending) setDeleteId(null);
+        }}
+      >
+        <AlertDialogContent className="max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Biztosan törlöd a kampányt?</AlertDialogTitle>
+            <AlertDialogDescription>
+              A kampány és a hozzá tartozó tervtételek végleg törlődnek. A már elkészült posztok
+              megmaradnak.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {deleteError && (
+            <p role="alert" className="text-sm text-destructive">
+              {deleteError}
+            </p>
+          )}
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deletePending}>Mégse</AlertDialogCancel>
+            <Button
+              variant="destructive"
+              disabled={deletePending}
+              onClick={() => {
+                if (deleteId) void removeCampaign(deleteId);
+              }}
+            >
+              {deletePending ? "Törlés…" : "Kampány törlése"}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
@@ -453,59 +504,71 @@ function CampaignCard({
       ? Math.round((campaign.counts.created / campaign.counts.planned) * 100)
       : 0;
   return (
-    <Card className="v2-feature-card rounded-3xl border-0 p-5">
+    <Card className="v2-feature-card campaign-list-card min-w-0 rounded-3xl border-0 p-5">
       <div className="grid gap-5 md:grid-cols-[190px_minmax(0,1fr)]">
-        <div className="v2-campaign-visual flex min-h-44 flex-col justify-between rounded-2xl p-4 text-white">
+        <div className="v2-campaign-visual hidden min-h-44 flex-col justify-between overflow-hidden rounded-2xl p-4 text-white md:flex">
           <div className="flex items-center justify-between">
             <span className="text-[10px] font-semibold tracking-[0.16em] text-white/60">
-              CAMPAIGN
+              KAMPÁNY
             </span>
             <Sparkles className="h-4 w-4 text-white/70" />
           </div>
           <div>
             <div className="text-4xl font-bold">{campaign.name.slice(0, 1).toUpperCase()}</div>
-            <div className="mt-1 truncate text-xs text-white/70">{campaign.objective}</div>
+            <div className="mt-1 break-words text-sm text-white/70">{campaign.objective}</div>
           </div>
         </div>
-        <div>
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
+        <div className="min-w-0">
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0 flex-1">
               <Link
                 to="/app/campaigns/$id"
                 params={{ id: campaign.id }}
-                className="text-xl font-semibold hover:underline"
+                className="break-words text-xl font-semibold hover:underline"
               >
-                {campaign.name}
+                {campaignTitle(campaign)}
               </Link>
+              <Badge
+                className="mt-2 w-fit rounded-full"
+                variant={
+                  campaign.status === "active" && !campaign.contentBlockers.length
+                    ? "default"
+                    : "secondary"
+                }
+              >
+                {campaignStatusLabel(campaign)}
+              </Badge>
               <div className="mt-1 text-sm text-muted-foreground">
                 {campaign.brandName} · {campaignDateLabel(campaign.startDate)} –{" "}
                 {campaignDateLabel(campaign.endDate)}
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              <Badge
-                className="rounded-full"
-                variant={campaign.status === "active" ? "default" : "secondary"}
-              >
-                {STATUS_LABELS[campaign.status as keyof typeof STATUS_LABELS]}
-              </Badge>
-              <Button
-                size="icon"
-                variant="ghost"
-                className="rounded-full text-destructive"
-                onClick={onRemove}
-              >
-                <Trash2 className="h-4 w-4" />
-              </Button>
-            </div>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="h-11 w-11 shrink-0 rounded-full"
+                  aria-label={`${campaignTitle(campaign)} műveletei`}
+                >
+                  <MoreHorizontal className="h-5 w-5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onSelect={onRemove} className="min-h-11 text-destructive">
+                  <Trash2 className="h-4 w-4" /> Kampány törlése
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
-          <div className="mt-5 grid gap-3 sm:grid-cols-4">
+          <div className="campaign-metrics mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
             <Metric label="Terv" value={campaign.counts.planned} />
             <Metric label="Elkészült" value={campaign.counts.created} />
             <Metric label="Piszkozat" value={campaign.counts.drafts} />
             <Metric label="Hátra" value={campaign.counts.remaining} />
           </div>
-          <div className="mt-5">
+          <CampaignFeedback campaign={campaign} />
+          <div className="mt-3">
             <div className="flex items-center justify-between text-xs text-muted-foreground">
               <span>Haladás</span>
               <span>{progress}%</span>
@@ -517,7 +580,7 @@ function CampaignCard({
               />
             </div>
           </div>
-          <div className="mt-5 flex flex-wrap gap-2">
+          <div className="mt-3 flex flex-wrap gap-2">
             {campaign.channels.map((channel: PostPlatform) => (
               <Badge key={channel} variant="outline" className="rounded-full">
                 {CHANNELS.find((item) => item.id === channel)?.label ?? channel}

@@ -1,3 +1,23 @@
+import { normalizeBusinessType } from "./business-types";
+
+export function validateMainProducts(value: string) {
+  if (value.split(/[,;\n]/).filter((item) => item.trim()).length > 5)
+    throw new Error("Legfeljebb 5 fő terméket adj meg, vesszővel elválasztva.");
+  return value.trim();
+}
+
+/** Server and onboarding share the same required Other description and five-item limit. */
+export function validateBusinessTypeDetails(
+  businessType: string,
+  industry: string,
+  products: string,
+) {
+  validateMainProducts(products);
+  if (normalizeBusinessType(businessType) === "other" && !industry.trim())
+    throw new Error("Írd le röviden, mivel foglalkozol.");
+  return { industry: industry.trim(), products: products.trim() };
+}
+
 export function normalizeBusinessWebsite(value: string) {
   const text = value.trim();
   if (!text) return "";

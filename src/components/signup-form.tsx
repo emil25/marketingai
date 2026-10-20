@@ -8,6 +8,8 @@ import { Label } from "@/components/ui/label";
 import { BUSINESS_TYPES } from "@/lib/business-types";
 import { PublicInfoLinks } from "@/components/public-info-page";
 import { Eye, EyeOff } from "lucide-react";
+import { AuthChallenge } from "./auth-challenge";
+import { brandForLocale, DEFAULT_MARKET_LOCALE } from "@/config/brand";
 
 export interface OnboardingBrandDetails {
   name: string;
@@ -26,6 +28,7 @@ export interface OnboardingBrandDetails {
   industry?: string;
   mood?: "" | "Letisztult" | "Prémium" | "Lendületes";
   audience?: string;
+  approvedClaims?: string[];
 }
 export function SignupForm({
   businessType = "other",
@@ -40,6 +43,7 @@ export function SignupForm({
   embedded?: boolean;
   onRegistered?: () => void;
 }) {
+  const brand = brandForLocale(DEFAULT_MARKET_LOCALE);
   const register = useServerFn(registerUser);
   const [form, setForm] = useState({
     displayName: "",
@@ -52,6 +56,12 @@ export function SignupForm({
   const [pending, setPending] = useState(false);
   const [registered, setRegistered] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [botToken, setBotToken] = useState("");
+  const [ready, setReady] = useState(false);
+  const [attempt, setAttempt] = useState(0);
+  const [privateBeta, setPrivateBeta] = useState(false);
+  const [inviteCode, setInviteCode] = useState("");
+  const [nextUrl, setNextUrl] = useState("/verify-email");
   const update = (key: keyof typeof form) => (event: React.ChangeEvent<HTMLInputElement>) =>
     setForm((current) => ({ ...current, [key]: event.target.value }));
   async function submit(event: FormEvent) {
@@ -59,14 +69,19 @@ export function SignupForm({
     setError("");
     setPending(true);
     try {
+      let destination = nextUrl;
       if (!registered) {
-        await register({
+        const result = await register({
           data: {
             ...form,
             ...(embedded && brandDetails ? { workspaceName: brandDetails.name, businessType } : {}),
             brandDetails,
+            botToken,
+            inviteCode,
           },
         });
+        setNextUrl(result.nextUrl);
+        destination = result.nextUrl;
         setRegistered(true);
         onRegistered?.();
       }
@@ -87,9 +102,10 @@ export function SignupForm({
           );
         }
       }
-      window.location.assign("/app/channels");
+      window.location.assign(destination);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Nem sikerült regisztrálni.");
+      setAttempt((value) => value + 1);
     } finally {
       setPending(false);
     }
@@ -103,7 +119,7 @@ export function SignupForm({
               <span className="grid h-8 w-8 place-items-center rounded-xl gradient-brand text-primary-foreground">
                 M
               </span>
-              MarketingPilot
+              {brand.productName}
             </Link>
             <h1 className="text-2xl font-semibold">Fiók létrehozása</h1>
             <p className="mt-1 text-sm text-muted-foreground">
@@ -113,6 +129,14 @@ export function SignupForm({
         )}
         <form onSubmit={submit} className={`${embedded ? "mt-6" : "mt-8"} space-y-4`}>
           <fieldset disabled={registered} className="space-y-4">
+            {privateBeta && (
+              <div>
+                <Label htmlFor="inviteCode">Van meghívókódod?</Label>
+                <Input id="inviteCode" type="password" autoComplete="off" required maxLength={512}
+                  value={inviteCode} onChange={(event) => setInviteCode(event.target.value)} className="mt-2" />
+                <p className="mt-2 text-sm text-muted-foreground">Zárt béta: a kapott meghívókóddal levélmegerősítés nélkül kipróbálhatod.</p>
+              </div>
+            )}
             {!embedded && (
               <div>
                 <Label htmlFor="businessType">Vállalkozás típusa (opcionális)</Label>
@@ -206,6 +230,7 @@ export function SignupForm({
               {error}
             </p>
           )}
+          {!registered && <AuthChallenge key={attempt} action="signup" onReady={setReady} onToken={setBotToken} onConfiguration={(config) => setPrivateBeta(config.privateBeta)} />}
           <p className="text-sm text-muted-foreground">
             A regisztrációval elfogadod a{" "}
             <Link to="/terms" className="underline">
@@ -217,7 +242,7 @@ export function SignupForm({
             </Link>{" "}
             olvashatsz.
           </p>
-          <Button className="w-full rounded-full" disabled={pending}>
+          <Button className="w-full rounded-full" disabled={pending || (!registered && !ready)}>
             {pending ? "Mentés…" : registered ? "Logó mentésének újrapróbálása" : "Regisztráció"}
           </Button>
           {registered && (
@@ -225,7 +250,7 @@ export function SignupForm({
               type="button"
               variant="outline"
               className="w-full rounded-full"
-              onClick={() => window.location.assign("/app/channels")}
+              onClick={() => window.location.assign(nextUrl)}
             >
               Folytatás logó nélkül
             </Button>
@@ -240,7 +265,7 @@ export function SignupForm({
         <div className="mt-6 border-t pt-4 text-muted-foreground">
           <PublicInfoLinks />
           <p className="mt-3 text-center text-sm">
-            Nyilvános béta. Az üzemeltetői és végleges jogi adatok előkészítés alatt állnak.
+            {privateBeta ? "Zárt béta, meghívott résztvevőknek." : "A béta üzemeltetői és végleges jogi adatai előkészítés alatt állnak."}
           </p>
         </div>
       </div>

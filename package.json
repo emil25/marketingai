@@ -12,8 +12,16 @@
     "preview": "vite preview",
     "db:migrate": "node scripts/migrate-postgres.mjs",
     "db:migrate:json": "tsx scripts/migrate-json-to-postgres.ts",
+    "db:check-migrations": "tsx scripts/check-migrations.ts",
     "lint": "eslint .",
-    "format": "prettier --write ."
+    "test": "tsx --import ./tests/fixture-env.mjs --test tests/*.test.ts",
+    "test:e2e": "playwright test",
+    "test:preview:seed": "tsx scripts/prepare-preview-e2e.ts",
+    "qa:generate": "tsx scripts/qa-generate.ts",
+    "seed:demo": "tsx scripts/seed-demo.ts",
+    "dev:demo": "node scripts/dev-demo.mjs",
+    "format": "prettier --write .",
+    "brand:sync": "tsx scripts/sync-brand-docs.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
@@ -74,8 +82,10 @@
     "zod": "^3.24.2"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
     "@eslint/js": "^9.32.0",
     "@lovable.dev/vite-tanstack-config": "2.13.1",
+    "@playwright/test": "^1.64.0",
     "@types/node": "^22.16.5",
     "@types/pg": "^8.23.1",
     "@types/react": "^19.2.0",

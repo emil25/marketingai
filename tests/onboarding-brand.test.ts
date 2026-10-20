@@ -9,6 +9,7 @@ import {
 import { contentRuleViolations } from "../src/lib/content-quality";
 import { buildBusinessContext, normalizeBusinessType } from "../src/lib/business-types";
 import type { BrandRecord, BrandProfileRecord } from "../src/lib/data-model";
+import { approvedClaimSuggestions, cleanApprovedClaims } from "../src/lib/approved-claims";
 
 test("bakery and shop categories survive normalization and enter the existing business context", () => {
   for (const businessType of ["bakery_cafe", "retail"]) {
@@ -21,6 +22,64 @@ test("bakery and shop categories survive normalization and enter the existing bu
     assert.equal(context.industry, "Kerékpárkölcsönzés");
     assert.match(context.guardrails, /többes szám második személy/);
   }
+});
+test("type-specific owner-confirmed claims are stored in brand context and draft recovery", () => {
+  assert.ok(approvedClaimSuggestions("bakery_cafe").includes("Frissen sütünk"));
+  for (const type of [
+    "beauty_salon",
+    "dental_practice",
+    "lawyer",
+    "fogorvos",
+    "orvos",
+    "ügyvéd",
+    "szépészeti kezelés",
+  ])
+    assert.deepEqual(
+      approvedClaimSuggestions(type),
+      [],
+      `${type} must not offer promise-like claims`,
+    );
+  for (const type of [
+    "bakery_cafe",
+    "retail",
+    "restaurant",
+    "accommodation",
+    "hair_salon",
+    "auto_service",
+    "electrician",
+    "accountant",
+    "ecommerce",
+    "real_estate",
+    "fitness",
+    "car_dealer",
+    "local_business",
+    "other",
+  ])
+    assert.ok(approvedClaimSuggestions(type).length <= 5, `${type} must offer at most five claims`);
+  assert.deepEqual(cleanApprovedClaims(undefined), [], "no claims are preselected by default");
+  const claims = cleanApprovedClaims(["Frissen sütünk", "  Helyi alapanyagokat használunk  ", "x"]);
+  assert.deepEqual(claims, ["Frissen sütünk", "Helyi alapanyagokat használunk"]);
+  const brand = { id: "brand-claims", name: "Teszt", products: "kenyér" } as BrandRecord;
+  const profile = { approvedClaims: claims } as BrandProfileRecord;
+  assert.deepEqual(buildBusinessContext(brand, profile).approvedClaims, claims);
+  const draft = sanitizeOnboardingDraft({
+    version: 1,
+    savedAt: Date.now(),
+    step: 1,
+    approvedClaims: claims,
+    details: { name: "Pékség" },
+  });
+  assert.deepEqual(draft?.approvedClaims, claims);
+  const longDraft = sanitizeOnboardingDraft({
+    version: 1,
+    savedAt: Date.now(),
+    approvedClaims: ["TÚL HOSSZÚ".repeat(40), "ok"],
+    details: {},
+  })?.approvedClaims;
+  assert.deepEqual(
+    longDraft?.map((claim) => claim.length),
+    [200, 2],
+  );
 });
 test("addressing defaults fit the business type and all three forms have explicit AI instructions", () => {
   assert.equal(defaultAddressing("lawyer"), "Ön");
@@ -42,6 +101,27 @@ test("live style sample changes addressing and tone without inventing business f
   assert.notEqual(plural, singular);
   assert.doesNotMatch(singular + formal + plural, /díjnyertes|kedvezmény|reggel nyit/);
 });
+test("style samples use the business type and professional energy never adds emoji", () => {
+  const bakery = brandStyleSample(
+    "TESZT Pékség",
+    "Professzionális",
+    "ti",
+    "Lendületes",
+    "bakery_cafe",
+  );
+  const hotel = brandStyleSample(
+    "TESZT Panzió",
+    "Professzionális",
+    "Ön",
+    "Lendületes",
+    "accommodation",
+  );
+  assert.match(bakery, /kínálatról van kérdésetek/);
+  assert.match(hotel, /szállásról van kérdése/);
+  assert.doesNotMatch(bakery + hotel, /\p{Extended_Pictographic}/u);
+  assert.match(brandStyleSample("TESZT", "Barátságos", "te", "Lendületes", "restaurant"), /✨/);
+});
+
 test("valid plural and formal calls to action are accepted; two plural CTAs are rejected", () => {
   assert.deepEqual(
     contentRuleViolations("Kenyér elvitelre. Írjatok nekünk!", "facebook", "kenyér"),

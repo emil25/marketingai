@@ -5,6 +5,23 @@ export type UserRecord = {
   email: string;
   displayName: string;
   passwordHash: string;
+  uiMode?: "simple" | "detailed";
+  uiModeSuggestionDismissed?: boolean;
+  auth?: {
+    emailVerifiedAt: string | null;
+    sessionVersion: number;
+    /** Admission is not email verification. Valid only while private beta is enabled. */
+    betaInvitedAt?: string;
+    verification?: { hash: string; expiresAt: string };
+    reset?: { hash: string; expiresAt: string };
+    deleting?: boolean;
+    weeklyReminder?: {
+      enabled: boolean;
+      subscriptionId: string;
+      lastSentWeek?: string;
+      delivery?: { week: string; lease: string; leaseUntil: string; preparedAt: string };
+    };
+  };
   createdAt: string;
 };
 
@@ -44,8 +61,19 @@ export type BrandProfileRecord = {
   brandId: string;
   /** Stable business category used to tailor quick starts and AI context. */
   businessType?: string;
+  /** Preferred default for simple post creation; legacy brands default to Facebook. */
+  mainChannel?: "facebook" | "instagram";
   address?: string;
   openingHours?: string;
+  /** Optional Romanian-market details; legacy profiles remain valid without them. */
+  phone?: string;
+  houseNumber?: string;
+  county?: string;
+  cityNameMode?: "hu" | "ro" | "both";
+  localPhrases?: string;
+  localEvents?: string;
+  /** Business claims explicitly confirmed by the owner. */
+  approvedClaims?: string[];
   tone: string;
   ctaStyle: string;
   values: string;
@@ -62,6 +90,13 @@ export type BrandProfileRecord = {
   /** AI-generated style summary derived from learningSamples. */
   learnedSummary?: string;
   learnedAt?: string | null;
+  /** Per-brand saved ideas, refreshed only when explicitly requested or the profile changes. */
+  ideaBank?: {
+    businessType: string;
+    audience: string;
+    ideas: string[];
+    generatedAt: string;
+  } | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -193,6 +228,7 @@ export type PostAdCopyRecord = {
 };
 
 export type PostVariantRecord = {
+  manualPublishedAt?: string | null;
   verificationWarnings?: string[];
   id: string;
   postId: string;
@@ -354,7 +390,7 @@ export type AppData = {
   publishAttempts: PublishAttemptRecord[];
 };
 
-export type PublicUser = Omit<UserRecord, "passwordHash">;
+export type PublicUser = Omit<UserRecord, "passwordHash" | "auth"> & { emailVerified?: boolean; canUseAi?: boolean };
 
 export type WorkspaceSnapshot = {
   user: PublicUser;

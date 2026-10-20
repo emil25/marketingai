@@ -1,4 +1,5 @@
-import { useState, type ReactNode } from "react";
+import { useCampaignProgress } from "@/lib/use-campaign-progress";
+import { useEffect, useState, type ReactNode } from "react";
 import { useRouter } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { Loader2, Sparkles } from "lucide-react";
@@ -27,8 +28,11 @@ export function WeeklyMarketingForm({
 }) {
   const router = useRouter();
   const create = useServerFn(createWeeklyMarketingPlan);
+  const generation = useCampaignProgress();
   const generate = useServerFn(createMissingPlanItemPost);
   const [brief, setBrief] = useState("");
+  const [ready, setReady] = useState(false);
+  useEffect(() => setReady(true), []);
   const [startDate, setStartDate] = useState(() =>
     new Intl.DateTimeFormat("sv-SE", { timeZone: "Europe/Bucharest" }).format(new Date()),
   );
@@ -40,9 +44,11 @@ export function WeeklyMarketingForm({
     if (pending) return;
     setPending(true);
     onPendingChange?.(true);
-    setProgress("A heti terv készül…");
+    setProgress("");
+    const requestId = generation.begin();
     try {
-      const campaign = await create({ data: { brief, startDate, channels: platforms } });
+      const campaign = await create({ data: { brief, startDate, channels: platforms, requestId } });
+      generation.end();
       let failed = 0;
       for (const [index, item] of campaign.planItems.entries()) {
         setProgress(`Posztszövegek készülnek: ${index + 1}/${campaign.planItems.length}`);
@@ -60,7 +66,9 @@ export function WeeklyMarketingForm({
       toast.error(
         cause instanceof Error ? cause.message : "Nem sikerült elkészíteni a heti tervet.",
       );
+      await router.invalidate();
     } finally {
+      generation.end();
       setPending(false);
       onPendingChange?.(false);
       setProgress("");
@@ -83,7 +91,7 @@ export function WeeklyMarketingForm({
           required
           minLength={10}
           maxLength={4000}
-          disabled={pending}
+          disabled={pending || !ready}
           value={brief}
           onChange={(event) => setBrief(event.target.value)}
           placeholder="Például: szeretném bemutatni az új szolgáltatásunkat, és több érdeklődőt szerezni a környékről."
@@ -131,16 +139,16 @@ export function WeeklyMarketingForm({
           a poszt szerkesztőjében adhatsz hozzá. Ez a lépés nem publikál automatikusan.
         </p>
         <Button
-          disabled={pending || !platforms.length || brief.trim().length < 10}
+          disabled={pending || !ready || !platforms.length || brief.trim().length < 10}
           type="submit"
-          className="rounded-full"
+          className="campaign-submit rounded-full"
         >
           {pending ? (
             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
           ) : (
             <Sparkles className="mr-2 h-4 w-4" />
           )}
-          {pending ? progress : "Heti marketing elkészítése"}
+          {pending ? progress || generation.label : "Heti marketing elkészítése"}
         </Button>
         {pending && (
           <p role="status" className="text-sm text-muted-foreground">

@@ -1,9 +1,11 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { LegalDraftNotice, PublicInfoPage } from "@/components/public-info-page";
+import { brandForLocale, DEFAULT_MARKET_LOCALE } from "@/config/brand";
+const productName = brandForLocale(DEFAULT_MARKET_LOCALE).productName;
 export const Route = createFileRoute("/terms")({
   head: () => ({
     meta: [
-      { title: "Használati feltételek — MarketingPilot" },
+      { title: `Használati feltételek — ${productName}` },
       { name: "robots", content: "noindex,follow" },
     ],
   }),
@@ -13,11 +15,19 @@ function Terms() {
   return (
     <PublicInfoPage
       title="Használati feltételek"
-      subtitle="Béta használati tájékoztató · Frissítve: 2026. október 6."
+      subtitle="Béta használati tájékoztató · Frissítve: 2026. október 16."
     >
       <LegalDraftNotice />
       <section>
-        <h2>Mire használható a MarketingPilot?</h2>
+        <h2>Korhatár és rendeltetésszerű használat</h2>
+        <p>
+          A szolgáltatást kizárólag 18. életévüket betöltött személyek használhatják. A {productName}
+          nem kiskorúaknak készült, és nem nekik szóló szolgáltatás. Fiók létrehozásával kijelented,
+          hogy elmúltál 18 éves.
+        </p>
+      </section>
+      <section>
+        <h2>Mire használható a {productName}?</h2>
         <p>
           Marketingtartalmak tervezésére, AI-val történő előkészítésére, szerkesztésére és
           tárolására. Saját munkatér, márkahang, platformváltozatok, kampány és tartalomnaptár
@@ -41,6 +51,16 @@ function Terms() {
           jogokat. Csak olyan képet, szöveget vagy saját posztpéldát adj meg, amelynek használatára
           jogosult vagy. Az AI válasza hibás vagy hiányos is lehet; a szerkesztőben javíthatod, és a
           szöveget másolhatod vagy mentheted.
+        </p>
+      </section>
+      <section>
+        <h2>Nem ad szakmai tanácsot</h2>
+        <p>
+          A szolgáltatás nem nyújt orvosi, jogi vagy pénzügyi tanácsot. Egészségügyi, jogi,
+          pénzügyi és más szabályozott területeken a generált szöveg kizárólag általános,
+          tájékoztató jellegű tartalom lehet, ígéret és személyre szabott szakmai útmutatás nélkül.
+          Nem helyettesíti az arra jogosult szakember tanácsát. A tartalmat közzététel előtt mindig
+          ellenőrizd, és ilyen területen szükség esetén kérd szakember jóváhagyását.
         </p>
       </section>
       <section>

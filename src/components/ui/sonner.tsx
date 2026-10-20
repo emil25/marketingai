@@ -16,6 +16,7 @@ const Toaster = ({ ...props }: ToasterProps) => {
         },
       }}
       {...props}
+      style={{ "--success-text": "#006923", ...props.style } as React.CSSProperties}
     />
   );
 };

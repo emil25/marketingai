@@ -10,15 +10,22 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AccountDeletionRouteImport } from './routes/account-deletion'
 import { Route as AppRouteImport } from './routes/app'
 import { Route as ContactRouteImport } from './routes/contact'
+import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as OnboardingRouteImport } from './routes/onboarding'
 import { Route as PrivacyRouteImport } from './routes/privacy'
+import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as SignupRouteImport } from './routes/signup'
 import { Route as TermsRouteImport } from './routes/terms'
+import { Route as VerifyEmailRouteImport } from './routes/verify-email'
+import { Route as WeeklyReminderRouteImport } from './routes/weekly-reminder'
 import { Route as ApiGenerateImageRouteImport } from './routes/api/generate-image'
+import { Route as ApiHealthRouteImport } from './routes/api/health'
 import { Route as ApiMediaRouteImport } from './routes/api/media'
+import { Route as ApiUiPreferencesRouteImport } from './routes/api/ui-preferences'
 import { Route as AppIndexRouteImport } from './routes/app.index'
 import { Route as AppAdminRouteImport } from './routes/app.admin'
 import { Route as AppAnalyticsRouteImport } from './routes/app.analytics'
@@ -34,7 +41,9 @@ import { Route as AppPostsRouteImport } from './routes/app.posts'
 import { Route as AppRecommendationsRouteImport } from './routes/app.recommendations'
 import { Route as AppSettingsRouteImport } from './routes/app.settings'
 import { Route as AppSubscriptionRouteImport } from './routes/app.subscription'
+import { Route as AppWeeklyRouteImport } from './routes/app.weekly'
 import { Route as ApiChannelsOauthCallbackRouteImport } from './routes/api/channels/oauth-callback'
+import { Route as ApiCronAiMonitorRouteImport } from './routes/api/cron/ai-monitor'
 import { Route as ApiMediaIdRouteImport } from './routes/api/media.$id'
 import { Route as AppCampaignsIdRouteImport } from './routes/app.campaigns.$id'
 import { Route as AppContentTypeRouteImport } from './routes/app.content.$type'
@@ -46,6 +55,11 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AccountDeletionRoute = AccountDeletionRouteImport.update({
+  id: '/account-deletion',
+  path: '/account-deletion',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AppRoute = AppRouteImport.update({
   id: '/app',
   path: '/app',
@@ -54,6 +68,11 @@ const AppRoute = AppRouteImport.update({
 const ContactRoute = ContactRouteImport.update({
   id: '/contact',
   path: '/contact',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ForgotPasswordRoute = ForgotPasswordRouteImport.update({
+  id: '/forgot-password',
+  path: '/forgot-password',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LoginRoute = LoginRouteImport.update({
@@ -71,6 +90,11 @@ const PrivacyRoute = PrivacyRouteImport.update({
   path: '/privacy',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ResetPasswordRoute = ResetPasswordRouteImport.update({
+  id: '/reset-password',
+  path: '/reset-password',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SignupRoute = SignupRouteImport.update({
   id: '/signup',
   path: '/signup',
@@ -81,14 +105,34 @@ const TermsRoute = TermsRouteImport.update({
   path: '/terms',
   getParentRoute: () => rootRouteImport,
 } as any)
+const VerifyEmailRoute = VerifyEmailRouteImport.update({
+  id: '/verify-email',
+  path: '/verify-email',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const WeeklyReminderRoute = WeeklyReminderRouteImport.update({
+  id: '/weekly-reminder',
+  path: '/weekly-reminder',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiGenerateImageRoute = ApiGenerateImageRouteImport.update({
   id: '/api/generate-image',
   path: '/api/generate-image',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiHealthRoute = ApiHealthRouteImport.update({
+  id: '/api/health',
+  path: '/api/health',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiMediaRoute = ApiMediaRouteImport.update({
   id: '/api/media',
   path: '/api/media',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiUiPreferencesRoute = ApiUiPreferencesRouteImport.update({
+  id: '/api/ui-preferences',
+  path: '/api/ui-preferences',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AppIndexRoute = AppIndexRouteImport.update({
@@ -166,12 +210,22 @@ const AppSubscriptionRoute = AppSubscriptionRouteImport.update({
   path: '/subscription',
   getParentRoute: () => AppRoute,
 } as any)
+const AppWeeklyRoute = AppWeeklyRouteImport.update({
+  id: '/weekly',
+  path: '/weekly',
+  getParentRoute: () => AppRoute,
+} as any)
 const ApiChannelsOauthCallbackRoute =
   ApiChannelsOauthCallbackRouteImport.update({
     id: '/api/channels/oauth-callback',
     path: '/api/channels/oauth-callback',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiCronAiMonitorRoute = ApiCronAiMonitorRouteImport.update({
+  id: '/api/cron/ai-monitor',
+  path: '/api/cron/ai-monitor',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiMediaIdRoute = ApiMediaIdRouteImport.update({
   id: '/$id',
   path: '/$id',
@@ -201,15 +255,22 @@ const ApiChannelsOauthProviderRoute =
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/account-deletion': typeof AccountDeletionRoute
   '/app': typeof AppRouteWithChildren
   '/contact': typeof ContactRoute
+  '/forgot-password': typeof ForgotPasswordRoute
   '/login': typeof LoginRoute
   '/onboarding': typeof OnboardingRoute
   '/privacy': typeof PrivacyRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/signup': typeof SignupRoute
   '/terms': typeof TermsRoute
+  '/verify-email': typeof VerifyEmailRoute
+  '/weekly-reminder': typeof WeeklyReminderRoute
   '/api/generate-image': typeof ApiGenerateImageRoute
+  '/api/health': typeof ApiHealthRoute
   '/api/media': typeof ApiMediaRouteWithChildren
+  '/api/ui-preferences': typeof ApiUiPreferencesRoute
   '/app/admin': typeof AppAdminRoute
   '/app/analytics': typeof AppAnalyticsRoute
   '/app/brand': typeof AppBrandRoute
@@ -224,8 +285,10 @@ export interface FileRoutesByFullPath {
   '/app/recommendations': typeof AppRecommendationsRoute
   '/app/settings': typeof AppSettingsRoute
   '/app/subscription': typeof AppSubscriptionRoute
+  '/app/weekly': typeof AppWeeklyRoute
   '/app/': typeof AppIndexRoute
   '/api/channels/oauth-callback': typeof ApiChannelsOauthCallbackRoute
+  '/api/cron/ai-monitor': typeof ApiCronAiMonitorRoute
   '/api/media/$id': typeof ApiMediaIdRoute
   '/app/campaigns/$id': typeof AppCampaignsIdRoute
   '/app/content/$type': typeof AppContentTypeRoute
@@ -234,14 +297,21 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/account-deletion': typeof AccountDeletionRoute
   '/contact': typeof ContactRoute
+  '/forgot-password': typeof ForgotPasswordRoute
   '/login': typeof LoginRoute
   '/onboarding': typeof OnboardingRoute
   '/privacy': typeof PrivacyRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/signup': typeof SignupRoute
   '/terms': typeof TermsRoute
+  '/verify-email': typeof VerifyEmailRoute
+  '/weekly-reminder': typeof WeeklyReminderRoute
   '/api/generate-image': typeof ApiGenerateImageRoute
+  '/api/health': typeof ApiHealthRoute
   '/api/media': typeof ApiMediaRouteWithChildren
+  '/api/ui-preferences': typeof ApiUiPreferencesRoute
   '/app/admin': typeof AppAdminRoute
   '/app/analytics': typeof AppAnalyticsRoute
   '/app/brand': typeof AppBrandRoute
@@ -256,8 +326,10 @@ export interface FileRoutesByTo {
   '/app/recommendations': typeof AppRecommendationsRoute
   '/app/settings': typeof AppSettingsRoute
   '/app/subscription': typeof AppSubscriptionRoute
+  '/app/weekly': typeof AppWeeklyRoute
   '/app': typeof AppIndexRoute
   '/api/channels/oauth-callback': typeof ApiChannelsOauthCallbackRoute
+  '/api/cron/ai-monitor': typeof ApiCronAiMonitorRoute
   '/api/media/$id': typeof ApiMediaIdRoute
   '/app/campaigns/$id': typeof AppCampaignsIdRoute
   '/app/content/$type': typeof AppContentTypeRoute
@@ -267,15 +339,22 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/account-deletion': typeof AccountDeletionRoute
   '/app': typeof AppRouteWithChildren
   '/contact': typeof ContactRoute
+  '/forgot-password': typeof ForgotPasswordRoute
   '/login': typeof LoginRoute
   '/onboarding': typeof OnboardingRoute
   '/privacy': typeof PrivacyRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/signup': typeof SignupRoute
   '/terms': typeof TermsRoute
+  '/verify-email': typeof VerifyEmailRoute
+  '/weekly-reminder': typeof WeeklyReminderRoute
   '/api/generate-image': typeof ApiGenerateImageRoute
+  '/api/health': typeof ApiHealthRoute
   '/api/media': typeof ApiMediaRouteWithChildren
+  '/api/ui-preferences': typeof ApiUiPreferencesRoute
   '/app/admin': typeof AppAdminRoute
   '/app/analytics': typeof AppAnalyticsRoute
   '/app/brand': typeof AppBrandRoute
@@ -290,8 +369,10 @@ export interface FileRoutesById {
   '/app/recommendations': typeof AppRecommendationsRoute
   '/app/settings': typeof AppSettingsRoute
   '/app/subscription': typeof AppSubscriptionRoute
+  '/app/weekly': typeof AppWeeklyRoute
   '/app/': typeof AppIndexRoute
   '/api/channels/oauth-callback': typeof ApiChannelsOauthCallbackRoute
+  '/api/cron/ai-monitor': typeof ApiCronAiMonitorRoute
   '/api/media/$id': typeof ApiMediaIdRoute
   '/app/campaigns/$id': typeof AppCampaignsIdRoute
   '/app/content/$type': typeof AppContentTypeRoute
@@ -302,15 +383,22 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/account-deletion'
     | '/app'
     | '/contact'
+    | '/forgot-password'
     | '/login'
     | '/onboarding'
     | '/privacy'
+    | '/reset-password'
     | '/signup'
     | '/terms'
+    | '/verify-email'
+    | '/weekly-reminder'
     | '/api/generate-image'
+    | '/api/health'
     | '/api/media'
+    | '/api/ui-preferences'
     | '/app/admin'
     | '/app/analytics'
     | '/app/brand'
@@ -325,8 +413,10 @@ export interface FileRouteTypes {
     | '/app/recommendations'
     | '/app/settings'
     | '/app/subscription'
+    | '/app/weekly'
     | '/app/'
     | '/api/channels/oauth-callback'
+    | '/api/cron/ai-monitor'
     | '/api/media/$id'
     | '/app/campaigns/$id'
     | '/app/content/$type'
@@ -335,14 +425,21 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/account-deletion'
     | '/contact'
+    | '/forgot-password'
     | '/login'
     | '/onboarding'
     | '/privacy'
+    | '/reset-password'
     | '/signup'
     | '/terms'
+    | '/verify-email'
+    | '/weekly-reminder'
     | '/api/generate-image'
+    | '/api/health'
     | '/api/media'
+    | '/api/ui-preferences'
     | '/app/admin'
     | '/app/analytics'
     | '/app/brand'
@@ -357,8 +454,10 @@ export interface FileRouteTypes {
     | '/app/recommendations'
     | '/app/settings'
     | '/app/subscription'
+    | '/app/weekly'
     | '/app'
     | '/api/channels/oauth-callback'
+    | '/api/cron/ai-monitor'
     | '/api/media/$id'
     | '/app/campaigns/$id'
     | '/app/content/$type'
@@ -367,15 +466,22 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/account-deletion'
     | '/app'
     | '/contact'
+    | '/forgot-password'
     | '/login'
     | '/onboarding'
     | '/privacy'
+    | '/reset-password'
     | '/signup'
     | '/terms'
+    | '/verify-email'
+    | '/weekly-reminder'
     | '/api/generate-image'
+    | '/api/health'
     | '/api/media'
+    | '/api/ui-preferences'
     | '/app/admin'
     | '/app/analytics'
     | '/app/brand'
@@ -390,8 +496,10 @@ export interface FileRouteTypes {
     | '/app/recommendations'
     | '/app/settings'
     | '/app/subscription'
+    | '/app/weekly'
     | '/app/'
     | '/api/channels/oauth-callback'
+    | '/api/cron/ai-monitor'
     | '/api/media/$id'
     | '/app/campaigns/$id'
     | '/app/content/$type'
@@ -401,16 +509,24 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AccountDeletionRoute: typeof AccountDeletionRoute
   AppRoute: typeof AppRouteWithChildren
   ContactRoute: typeof ContactRoute
+  ForgotPasswordRoute: typeof ForgotPasswordRoute
   LoginRoute: typeof LoginRoute
   OnboardingRoute: typeof OnboardingRoute
   PrivacyRoute: typeof PrivacyRoute
+  ResetPasswordRoute: typeof ResetPasswordRoute
   SignupRoute: typeof SignupRoute
   TermsRoute: typeof TermsRoute
+  VerifyEmailRoute: typeof VerifyEmailRoute
+  WeeklyReminderRoute: typeof WeeklyReminderRoute
   ApiGenerateImageRoute: typeof ApiGenerateImageRoute
+  ApiHealthRoute: typeof ApiHealthRoute
   ApiMediaRoute: typeof ApiMediaRouteWithChildren
+  ApiUiPreferencesRoute: typeof ApiUiPreferencesRoute
   ApiChannelsOauthCallbackRoute: typeof ApiChannelsOauthCallbackRoute
+  ApiCronAiMonitorRoute: typeof ApiCronAiMonitorRoute
   ApiChannelsOauthProviderRoute: typeof ApiChannelsOauthProviderRoute
 }
 
@@ -421,6 +537,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/account-deletion': {
+      id: '/account-deletion'
+      path: '/account-deletion'
+      fullPath: '/account-deletion'
+      preLoaderRoute: typeof AccountDeletionRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/app': {
@@ -435,6 +558,13 @@ declare module '@tanstack/react-router' {
       path: '/contact'
       fullPath: '/contact'
       preLoaderRoute: typeof ContactRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/forgot-password': {
+      id: '/forgot-password'
+      path: '/forgot-password'
+      fullPath: '/forgot-password'
+      preLoaderRoute: typeof ForgotPasswordRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/login': {
@@ -458,6 +588,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PrivacyRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/reset-password': {
+      id: '/reset-password'
+      path: '/reset-password'
+      fullPath: '/reset-password'
+      preLoaderRoute: typeof ResetPasswordRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/signup': {
       id: '/signup'
       path: '/signup'
@@ -472,6 +609,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TermsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/verify-email': {
+      id: '/verify-email'
+      path: '/verify-email'
+      fullPath: '/verify-email'
+      preLoaderRoute: typeof VerifyEmailRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/weekly-reminder': {
+      id: '/weekly-reminder'
+      path: '/weekly-reminder'
+      fullPath: '/weekly-reminder'
+      preLoaderRoute: typeof WeeklyReminderRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/generate-image': {
       id: '/api/generate-image'
       path: '/api/generate-image'
@@ -479,11 +630,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiGenerateImageRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/health': {
+      id: '/api/health'
+      path: '/api/health'
+      fullPath: '/api/health'
+      preLoaderRoute: typeof ApiHealthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/media': {
       id: '/api/media'
       path: '/api/media'
       fullPath: '/api/media'
       preLoaderRoute: typeof ApiMediaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/ui-preferences': {
+      id: '/api/ui-preferences'
+      path: '/api/ui-preferences'
+      fullPath: '/api/ui-preferences'
+      preLoaderRoute: typeof ApiUiPreferencesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/app/': {
@@ -591,11 +756,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppSubscriptionRouteImport
       parentRoute: typeof AppRoute
     }
+    '/app/weekly': {
+      id: '/app/weekly'
+      path: '/weekly'
+      fullPath: '/app/weekly'
+      preLoaderRoute: typeof AppWeeklyRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/api/channels/oauth-callback': {
       id: '/api/channels/oauth-callback'
       path: '/api/channels/oauth-callback'
       fullPath: '/api/channels/oauth-callback'
       preLoaderRoute: typeof ApiChannelsOauthCallbackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/cron/ai-monitor': {
+      id: '/api/cron/ai-monitor'
+      path: '/api/cron/ai-monitor'
+      fullPath: '/api/cron/ai-monitor'
+      preLoaderRoute: typeof ApiCronAiMonitorRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/media/$id': {
@@ -675,6 +854,7 @@ interface AppRouteChildren {
   AppRecommendationsRoute: typeof AppRecommendationsRoute
   AppSettingsRoute: typeof AppSettingsRoute
   AppSubscriptionRoute: typeof AppSubscriptionRoute
+  AppWeeklyRoute: typeof AppWeeklyRoute
   AppIndexRoute: typeof AppIndexRoute
   AppContentTypeRoute: typeof AppContentTypeRoute
 }
@@ -694,6 +874,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppRecommendationsRoute: AppRecommendationsRoute,
   AppSettingsRoute: AppSettingsRoute,
   AppSubscriptionRoute: AppSubscriptionRoute,
+  AppWeeklyRoute: AppWeeklyRoute,
   AppIndexRoute: AppIndexRoute,
   AppContentTypeRoute: AppContentTypeRoute,
 }
@@ -714,16 +895,24 @@ const ApiMediaRouteWithChildren = ApiMediaRoute._addFileChildren(
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AccountDeletionRoute: AccountDeletionRoute,
   AppRoute: AppRouteWithChildren,
   ContactRoute: ContactRoute,
+  ForgotPasswordRoute: ForgotPasswordRoute,
   LoginRoute: LoginRoute,
   OnboardingRoute: OnboardingRoute,
   PrivacyRoute: PrivacyRoute,
+  ResetPasswordRoute: ResetPasswordRoute,
   SignupRoute: SignupRoute,
   TermsRoute: TermsRoute,
+  VerifyEmailRoute: VerifyEmailRoute,
+  WeeklyReminderRoute: WeeklyReminderRoute,
   ApiGenerateImageRoute: ApiGenerateImageRoute,
+  ApiHealthRoute: ApiHealthRoute,
   ApiMediaRoute: ApiMediaRouteWithChildren,
+  ApiUiPreferencesRoute: ApiUiPreferencesRoute,
   ApiChannelsOauthCallbackRoute: ApiChannelsOauthCallbackRoute,
+  ApiCronAiMonitorRoute: ApiCronAiMonitorRoute,
   ApiChannelsOauthProviderRoute: ApiChannelsOauthProviderRoute,
 }
 export const routeTree = rootRouteImport

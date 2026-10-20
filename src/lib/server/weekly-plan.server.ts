@@ -2,11 +2,15 @@ import { z } from "zod";
 import type { BusinessContext } from "../business-types";
 import { businessContextPrompt } from "../business-types";
 import {
-  FACTUAL_CONTENT_RULES,
   contentPlaceholders,
-  contentRuleViolations,
+  contentRuleFindings,
+  contentSoftClaimWarnings,
+  needsOfferDetails,
 } from "../content-quality";
 import { requestAiJson } from "./ai-json.server";
+import { annotateAiResponse } from "./ai-calls.server";
+import { weekPlanPromptForLanguage } from "@/i18n/prompts/hu-RO";
+import { seasonForDate } from "@/lib/market/ro";
 
 const channels = [
   "facebook",
@@ -24,6 +28,7 @@ const types = [
   "vélemény",
   "szezonális",
   "tipp",
+  "hasznos_tipp_ellenorzo_lista",
 ] as const;
 const formats = ["egyképes", "carousel", "reel", "story", "szöveges"] as const;
 const phases = ["ismertség", "bizalom", "cselekvésre hívás"] as const;
@@ -107,12 +112,21 @@ export const WeekPlanSchema = z.object({
 });
 export type WeekPlan = z.infer<typeof WeekPlanSchema>;
 
-export const WEEK_PLAN_PROMPT = `Tapasztalt, magyar kisvállalkozások mellett dolgozó közösségimédia-szakember vagy. Egy hétnyi poszttervet készítesz.
-${FACTUAL_CONTENT_RULES}
-Ne ismételd az eddig tervezett témákat és ne parafrazáld őket. Egy témakör legfeljebb egyszer szerepelhet egy héten. Teljes héten legalább három különböző poszttípust használj, hetente 3–4 posztot tervezz, ne naponta. A rövid, maradék hétre arányosan kevesebb posztot adj.
-A kampány íve: ismertség 1–10. nap, bizalom/közösség 11–20. nap, cselekvés/ajánlat 21–30. nap. A dátumok szerinti szakaszhoz igazítsd a témákat; 7 napos kampánynál a három szakasz egy héten belül jelenjen meg. Minden posztban pontosan egy konkrét CTA legyen. Kérdés-posztnál például az Írd meg kommentben! az egyetlen CTA, ilyenkor ne írj mellé Látogass el hozzánk! felhívást.
-Igazítsd a napokat/időpontokat a vállalkozás típusához. Ezek javaslatok, nem mért adatok. Ne váltogasd gépiesen a csatornákat. A kevésbé használt kiválasztott csatornákra is tervezz a hónapban.
-Csak a bemenetben kapott helyi ünnepeket/eseményeket használd; ha üres a lista, ne találj ki eseményt. Adj formátumot és egy mondatos fotó/videóötletet. A vazlat kész posztszöveg, CTA-val és a csatorna szerinti hashtagekkel. Az ellenorizendo külön mező minden helykitöltőhöz és megerősítendő állításhoz. Csak érvényes JSON, magyarázat és kódblokk nélkül.`;
+export const WEEK_PLAN_PROMPT = weekPlanPromptForLanguage("magyar");
+
+const SERVICE_BUSINESSES = new Set([
+  "hair_salon", "beauty_salon", "auto_service", "electrician", "accountant",
+  "lawyer", "dental_practice", "fitness", "real_estate", "local_business", "other",
+]);
+const REGULATED_BUSINESSES = new Set([
+  "beauty_salon", "lawyer", "dental_practice", "doctor", "medical_practice",
+]);
+export function weeklyServiceTipRule(businessType: string) {
+  if (!SERVICE_BUSINESSES.has(businessType)) return "";
+  return REGULATED_BUSINESSES.has(businessType)
+    ? "A heti poszttípusok között lehet Hasznos tipp / ellenőrzőlista, de szabályozott területen csak általános, ígéret nélküli tájékoztatást adj; ne adj diagnózist, kezelési, egészségügyi, szépségápolási vagy jogi eredményígéretet."
+    : "A heti poszttípusok között legalább egy Hasznos tipp / ellenőrzőlista témát is válassz, ha természetesen illik a vállalkozáshoz.";
+}
 
 export function campaignWeeks(startDate: string, days: 7 | 30) {
   return Array.from({ length: Math.ceil(days / 7) }, (_, index) => {
@@ -160,6 +174,30 @@ export async function generateWeeklyPlan(
   const maximum = input.week.length === 7 ? 4 : Math.min(2, input.week.length);
   const allowed = input.channels.map((p) => (p === "google-business" ? "google_business" : p));
   const normalize = (s: string) => s.toLocaleLowerCase("hu").replace(/[^\p{L}\p{N}]/gu, "");
+  const weekdayNames = ["vasárnap", "hétfő", "kedd", "szerda", "csütörtök", "péntek", "szombat"];
+  const allowedWeekdays = Array.from({ length: input.week.length }, (_, index) => {
+    const day = new Date(Date.parse(`${input.week.startDate}T00:00:00Z`) + index * 86400000).getUTCDay();
+    return weekdayNames[day];
+  });
+  const claimContext = {
+    businessType: input.businessContext.businessType,
+    approvedClaims: input.businessContext.approvedClaims,
+    allowedWeekdays,
+  };
+  const facts = JSON.stringify({
+    industry: input.businessContext.industry,
+    brandDescription: input.businessContext.brandDescription,
+    products: input.businessContext.products,
+    services: input.businessContext.services,
+    offers: input.businessContext.offers,
+    address: input.businessContext.address,
+    phone: input.businessContext.phone,
+    region: input.businessContext.region,
+    openingHours: input.businessContext.openingHours,
+    localEvents: input.localEvents,
+    offer: input.campaign.offer,
+    brief: input.campaign.description,
+  });
   const validate = WeekPlanSchema.superRefine((value, ctx) => {
     const invalid = (message: string) => ctx.addIssue({ code: "custom", message });
     if (
@@ -181,24 +219,21 @@ export async function generateWeeklyPlan(
       invalid("Azonos napra ismételt poszt.");
     if (input.week.length === 7 && new Set(value.posztok.map((p) => p.tipus)).size < 3)
       invalid("Legalább három poszttípus szükséges.");
-    const facts = JSON.stringify({
-      products: input.businessContext.products,
-      services: input.businessContext.services,
-      offers: input.businessContext.offers,
-      address: input.businessContext.address,
-      openingHours: input.businessContext.openingHours,
-      offer: input.campaign.offer,
-      brief: input.campaign.description,
-    });
     for (const post of value.posztok)
-      for (const message of contentRuleViolations(
+      for (const finding of contentRuleFindings(
         post.vazlat,
         post.csatorna,
         facts,
         undefined,
         input.businessContext.language,
+        claimContext,
       ))
-        invalid(`${post.datum} / ${post.tema}: ${message}`);
+        if (finding.severity === "hard")
+          ctx.addIssue({
+            code: "custom",
+            message: `${post.datum} / ${post.tema}: ${finding.message}`,
+            params: { category: finding.category },
+          });
     const topics = value.posztok.map((p) => normalize(p.tema));
     const repeated = value.posztok.filter(
       (post, index) =>
@@ -222,7 +257,10 @@ export async function generateWeeklyPlan(
   const result = await requestAiJson(
     {
       messages: [
-        { role: "system", content: WEEK_PLAN_PROMPT },
+        {
+          role: "system",
+          content: `${weekPlanPromptForLanguage(input.businessContext.language)}\n${weeklyServiceTipRule(input.businessContext.businessType)}\nKemény tények: árat, kedvezményt, dátumot, időpontot, címet, telefonszámot, nyitvatartást, díjat, garanciát, felsőfokú állítást, díjat/oklevelet, egészségügyi, kozmetikai vagy műszaki ígéretet, újdonságot, termék- vagy szolgáltatásnevet csak a márkaprofilból, a kampánybriefből vagy a jóváhagyott állításokból vegyél át. A márkanév önmagában nem bizonyítja a kínálatot. Hiányzó kemény adat helyett írj [helykitöltőt]. A vállalkozáshoz illő hangulati jelzők használhatók, de kerüljenek az ellenőrizendő listába, ha a megadott profil nem erősíti meg őket.\n${needsOfferDetails({ businessType: input.businessContext.businessType, industry: input.businessContext.industry, products: input.businessContext.products, services: input.businessContext.services }, input.campaign.offer + " " + input.campaign.description) ? "Kevés konkrét kínálati adat áll rendelkezésre. Ne töltsd ki a hiányt általános marketingszöveggel, ne találj ki terméket vagy szolgáltatást, és minden szükséges hiányzó adatot helykitöltővel jelölj. A tulajdonosnak külön kérdésként ezt add meg: Mit kínálsz? Egy mondatban. Ne tedd a kérdést a posztok szövegébe." : ""}`,
+        },
         {
           role: "user",
           content: JSON.stringify({
@@ -231,13 +269,19 @@ export async function generateWeeklyPlan(
             most_tervezendo_het: input.week,
             kivalasztott_csatornak: allowed,
             helyi_unnepek_es_esemenyek: input.localEvents,
+            szezon: seasonForDate(input.week.startDate) ?? null,
             eddig_tervezett_temak: input.plannedTopics,
             csatornankenti_eddigi_posztok: input.channelCounts,
             kert_posztok: `${minimum}–${maximum}`,
+            followUpQuestionForOwner: needsOfferDetails(
+              { businessType: input.businessContext.businessType, industry: input.businessContext.industry, products: input.businessContext.products, services: input.businessContext.services },
+              input.campaign.offer + " " + input.campaign.description,
+            ) ? "Mit kínálsz? Egy mondatban." : "",
           }),
         },
       ],
       schemaName: "weekly_campaign_plan",
+      brandId: input.businessContext.brandId,
       schema,
       maxTokens: 4000,
       model: input.model,
@@ -245,8 +289,20 @@ export async function generateWeeklyPlan(
     },
     validate,
     send,
+    async (value, response) => {
+      const hasSoftFindings = value.posztok.some(
+        (post) => contentSoftClaimWarnings(post.vazlat, facts, claimContext).length > 0,
+      );
+      if (hasSoftFindings) await annotateAiResponse(response, "SOFT_CLAIM_ADJECTIVE");
+    },
   );
   for (const post of result.posztok)
-    post.ellenorizendo = [...new Set([...post.ellenorizendo, ...contentPlaceholders(post.vazlat)])];
+    post.ellenorizendo = [
+      ...new Set([
+        ...post.ellenorizendo,
+        ...contentSoftClaimWarnings(post.vazlat, facts, claimContext),
+        ...contentPlaceholders(post.vazlat),
+      ]),
+    ];
   return result;
 }

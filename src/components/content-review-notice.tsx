@@ -4,9 +4,11 @@ import { Link } from "@tanstack/react-router";
 export function ContentReviewNotice({
   warnings = [],
   texts = [],
+  onReplace,
 }: {
   warnings?: string[];
   texts?: string[];
+  onReplace?: (placeholder: string, value: string) => void;
 }) {
   const missing = contentPlaceholders(...texts);
   const items = contentReviewItems(warnings, texts);
@@ -28,6 +30,22 @@ export function ContentReviewNotice({
           közzé.
         </p>
       )}
+      {onReplace &&
+        missing.map((placeholder) => (
+          <label key={placeholder} className="mt-3 block">
+            {placeholder}
+            <input
+              className="mt-1 block w-full rounded-md border bg-white px-3 py-2 text-foreground"
+              placeholder="Add meg a valódi adatot, majd nyomj Entert"
+              onKeyDown={(event) => {
+                if (event.key !== "Enter") return;
+                event.preventDefault();
+                const value = event.currentTarget.value.trim();
+                if (value && !contentPlaceholders(value).length) onReplace(placeholder, value);
+              }}
+            />
+          </label>
+        ))}
       {missing.some((item) => /\[(?:cím|nyitvatartás)\]/iu.test(item)) && (
         <p className="mt-2">
           <Link to="/app/brand" className="font-medium underline underline-offset-4">

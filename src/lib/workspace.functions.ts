@@ -12,7 +12,11 @@ import {
   transact,
   getWorkspaceSnapshot,
 } from "./server/store.server";
-import { openRouterChat } from "./server/ai-provider.server";
+import { requestAiJson } from "./server/ai-json.server";
+import { MainChannelSchema } from "./main-channel";
+import { normalizeRomanianPhone } from "./market/ro";
+import { applyBrandOfferAnswer } from "./brand-offer";
+import { marketWritingRules } from "@/i18n/prompts/hu-RO";
 import {
   BUSINESS_TYPES,
   buildBusinessContext,
@@ -26,7 +30,7 @@ const BrandInputSchema = z.object({
   website: z.string().trim().max(500).optional().default(""),
   cityRegion: z.string().trim().max(160).optional().default(""),
   languageMarket: z.string().trim().max(120).optional().default("magyar"),
-  industry: z.string().trim().max(160).optional().default(""),
+  industry: z.string().trim().max(500).optional().default(""),
   products: z.string().trim().max(4000).optional().default(""),
   services: z.string().trim().max(4000).optional().default(""),
   offers: z.string().trim().max(4000).optional().default(""),
@@ -35,8 +39,16 @@ const BrandInputSchema = z.object({
 
 const VoiceInputSchema = z.object({
   brandId: z.string().min(1),
+  mainChannel: MainChannelSchema.optional(),
   businessType: z.string().trim().optional().default("other"),
   address: z.string().trim().max(1000).optional(),
+  houseNumber: z.string().trim().max(80).optional(),
+  county: z.string().trim().max(120).optional(),
+  phone: z.string().trim().max(80).transform(normalizeRomanianPhone).optional(),
+  cityNameMode: z.enum(["hu", "ro", "both"]).optional(),
+  localPhrases: z.string().trim().max(1000).optional(),
+  localEvents: z.string().trim().max(4000).optional(),
+  approvedClaims: z.array(z.string().trim().min(2).max(200)).max(30).optional().default([]),
   openingHours: z.string().trim().max(1000).optional(),
   tone: z.string().trim().max(120).default("Barátságos"),
   ctaStyle: z.string().trim().max(240).default("Barátságos és közvetlen"),
@@ -128,6 +140,26 @@ export const updateBrand = createServerFn({ method: "POST" })
       );
       if (!brand) throw new Error("A márka nem található ebben a munkatérben.");
       Object.assign(brand, data, { updatedAt: nowIso() });
+    });
+    return requireAuthContext();
+  });
+
+/** Save a missing offer description to the authenticated user's own active brand. */
+export const saveBrandOfferDetails = createServerFn({ method: "POST" })
+  .inputValidator((data: unknown) =>
+    z.object({ brandId: z.string().min(1), answer: z.string().trim().min(5).max(1000) }).parse(data),
+  )
+  .handler(async ({ data }) => {
+    const context = await requireAuthContext();
+    if (!context.brands.some((brand) => brand.id === data.brandId))
+      throw new Error("Nincs hozzáférés ehhez a vállalkozáshoz.");
+    await transact((database) => {
+      const brand = database.brands.find(
+        (item) => item.id === data.brandId && item.workspaceId === context.workspace.id,
+      );
+      const profile = database.brandProfiles.find((item) => item.brandId === data.brandId);
+      if (!brand || !profile) throw new Error("A vállalkozás nem található ebben a munkatérben.");
+      applyBrandOfferAnswer(brand, profile, data.answer, nowIso());
     });
     return requireAuthContext();
   });
@@ -263,7 +295,7 @@ export const saveBrandVoice = createServerFn({ method: "POST" })
         ...data,
         businessType: normalizeBusinessType(data.businessType),
       };
-      if (existing) Object.assign(existing, voice, { updatedAt: timestamp });
+      if (existing) Object.assign(existing, Object.fromEntries(Object.entries(voice).filter(([, value]) => value !== undefined)), { updatedAt: timestamp });
       else
         db.brandProfiles.push({
           id: newId("voice"),
@@ -294,44 +326,40 @@ export const learnBrandVoice = createServerFn({ method: "POST" })
     );
     await transact((database) => startAiJob(database, job.id));
     try {
-      const response = await openRouterChat({
-        messages: [
-          {
-            role: "system",
-            content:
-              "Magyar márkastratéga vagy. Elemezd a felhasználó saját posztpéldáit, és foglald össze a visszatérő kommunikációs stílust. Ne találj ki üzleti tényeket. A választ csak a megadott JSON sémában add vissza.",
-          },
-          {
-            role: "user",
-            content: `Üzleti kontextus:\n${businessContextPrompt(buildBusinessContext(brand, brand.profile))}\n\nSaját posztpéldák:\n${samples.map((sample, index) => `--- ${index + 1} ---\n${sample}`).join("\n")}`,
-          },
-        ],
-        schemaName: "brand_voice_learning",
-        schema: {
-          type: "object",
-          additionalProperties: false,
-          required: ["summary", "tone", "patterns", "doNotChange"],
-          properties: {
-            summary: { type: "string" },
-            tone: { type: "string" },
-            patterns: { type: "array", items: { type: "string" } },
-            doNotChange: { type: "array", items: { type: "string" } },
+      const parsed = await requestAiJson(
+        {
+          brandId: brand.id,
+          messages: [
+            {
+              role: "system",
+              content:
+                `A márka nyelvén dolgozó márkastratéga vagy. ${marketWritingRules(brand.languageMarket)} Elemezd a felhasználó saját posztpéldáit, és foglald össze a visszatérő kommunikációs stílust. Ne találj ki üzleti tényeket. A választ csak a megadott JSON sémában add vissza.`,
+            },
+            {
+              role: "user",
+              content: `Üzleti kontextus:\n${businessContextPrompt(buildBusinessContext(brand, brand.profile))}\n\nSaját posztpéldák:\n${samples.map((sample, index) => `--- ${index + 1} ---\n${sample}`).join("\n")}`,
+            },
+          ],
+          schemaName: "brand_voice_learning",
+          schema: {
+            type: "object",
+            additionalProperties: false,
+            required: ["summary", "tone", "patterns", "doNotChange"],
+            properties: {
+              summary: { type: "string" },
+              tone: { type: "string" },
+              patterns: { type: "array", items: { type: "string" } },
+              doNotChange: { type: "array", items: { type: "string" } },
+            },
           },
         },
-      });
-      if (!response.ok)
-        throw new Error(`AI hiba (${response.status}): ${(await response.text()).slice(0, 200)}`);
-      const json = (await response.json()) as { choices?: { message?: { content?: string } }[] };
-      const raw = json.choices?.[0]?.message?.content;
-      if (!raw) throw new Error("Az AI üres márkahang-összefoglalót adott.");
-      const parsed = z
-        .object({
-          summary: z.string().max(12000),
-          tone: z.string().max(1000),
+        z.object({
+          summary: z.string().trim().min(1).max(12000),
+          tone: z.string().trim().min(1).max(1000),
           patterns: z.array(z.string().max(1000)).max(20),
           doNotChange: z.array(z.string().max(1000)).max(20),
-        })
-        .parse(JSON.parse(raw));
+        }),
+      );
       const learnedSummary = [
         parsed.summary,
         `Jellemző hangnem: ${parsed.tone}.`,

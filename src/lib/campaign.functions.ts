@@ -20,10 +20,27 @@ import {
   transact,
 } from "@/lib/server/store.server";
 import { generateFactualPost } from "@/lib/server/post-content.server";
+import { plannerContentPreview } from "@/lib/server/planner-preview.server";
 import { campaignWeeks, generateWeeklyPlan } from "@/lib/server/weekly-plan.server";
-import { assertContentReady } from "@/lib/content-quality";
+import {
+  storedCampaignWeeks,
+  applyCompleteCampaignWeeks,
+  planDuration,
+  resumableCampaignWeeks,
+} from "@/lib/server/campaign-week-store.server";
+import type { WeekPlan } from "@/lib/server/weekly-plan.server";
+import { assertContentReady, contentPlaceholders } from "@/lib/content-quality";
 import { buildBusinessContext } from "@/lib/business-types";
+import { localMarketEvents } from "@/lib/market/ro";
 import { parsePostScheduleInput } from "@/lib/post-schedule";
+import {
+  campaignContentBlockers,
+  campaignDisplayNames,
+  campaignGeneration,
+  campaignJobRunning,
+  campaignJobs,
+  uniqueCampaignName,
+} from "@/lib/campaign-presentation";
 
 const platforms = [
   "facebook",
@@ -63,6 +80,7 @@ const CalendarDateSchema = z
 const CalendarTimeSchema = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Érvénytelen időpont.");
 
 const CampaignInputSchema = z.object({
+  requestId: z.string().uuid().optional(),
   name: z.string().trim().min(1).max(200),
   objective: z.string().trim().min(1).max(240),
   audience: z.string().trim().max(4000).default(""),
@@ -78,9 +96,11 @@ const CampaignInputSchema = z.object({
   status: CampaignStatusSchema.default("draft"),
 });
 
-const CampaignUpdateSchema = CampaignInputSchema.partial().extend({
-  campaignId: z.string().min(1),
-});
+const CampaignUpdateSchema = CampaignInputSchema.omit({ requestId: true })
+  .partial()
+  .extend({
+    campaignId: z.string().min(1),
+  });
 const PlanItemUpdateSchema = z.object({
   planItemId: z.string().min(1),
   fields: z.object({
@@ -95,6 +115,8 @@ const PlanItemUpdateSchema = z.object({
 });
 
 export type CampaignSnapshot = CampaignRecord & {
+  generation: ReturnType<typeof campaignGeneration>;
+  contentBlockers: ReturnType<typeof campaignContentBlockers>;
   brandName: string;
   planItems: PlanItemRecord[];
   posts: PostRecord[];
@@ -106,6 +128,8 @@ export type PlannerItemSnapshot = PlanItemRecord & {
   brandName: string;
   postTitle: string | null;
   postStatus: PostStatus | null;
+  postContent?: string | null;
+  postImage?: { id: string; altText: string } | null;
 };
 
 function ownsBrand(context: WorkspaceSnapshot, brandId: string) {
@@ -142,6 +166,14 @@ function campaignSnapshot(
   const planned = planItems.length;
   return {
     ...campaign,
+    name:
+      campaignDisplayNames(
+        database.campaigns.filter(
+          (item) => item.workspaceId === campaign.workspaceId && item.brandId === campaign.brandId,
+        ),
+      ).get(campaign.id) ?? campaign.name,
+    generation: campaignGeneration(campaign, database.aiJobs, planned),
+    contentBlockers: campaignContentBlockers(posts, database.postVariants),
     brandName:
       context.brands.find((brand) => brand.id === campaign.brandId)?.name ?? "Ismeretlen márka",
     planItems,
@@ -204,6 +236,7 @@ export const getCampaigns = createServerFn({ method: "GET" }).handler(async () =
       (campaign) =>
         campaign.workspaceId === context.workspace.id && ownsBrand(context, campaign.brandId),
     )
+    .filter((campaign) => campaign.strategy || database.planItems.some((p) => p.campaignId === campaign.id) || !campaignJobs(campaign, database.aiJobs).some((j) => j.status === "failed"))
     .map((campaign) => campaignSnapshot(database, context, campaign));
 });
 
@@ -252,7 +285,9 @@ function plannerItems(
         (!campaignId || item.campaignId === campaignId),
     )
     .map((item): PlannerItemSnapshot => {
-      const post = item.postId ? posts.get(item.postId) : undefined;
+      const candidate = item.postId ? posts.get(item.postId) : undefined;
+      const post = candidate?.brandId === item.brandId ? candidate : undefined;
+      const preview = plannerContentPreview(database, item);
       return {
         ...item,
         postId: post?.id ?? null,
@@ -261,6 +296,8 @@ function plannerItems(
           context.brands.find((brand) => brand.id === item.brandId)?.name ?? "Ismeretlen márka",
         postTitle: post?.title ?? null,
         postStatus: post?.status ?? null,
+        postContent: preview.postContent,
+        postImage: preview.postImage,
       };
     })
     .sort((a, b) => `${a.date} ${a.time ?? ""}`.localeCompare(`${b.date} ${b.time ?? ""}`));
@@ -274,6 +311,7 @@ export const createWeeklyMarketingPlan = createServerFn({ method: "POST" })
   .inputValidator((data: unknown) =>
     z
       .object({
+        requestId: z.string().uuid().optional(),
         brief: z.string().trim().min(10).max(4000),
         startDate: CalendarDateSchema,
         channels: z.array(PlatformSchema).min(1).max(4),
@@ -283,6 +321,7 @@ export const createWeeklyMarketingPlan = createServerFn({ method: "POST" })
   .handler(async ({ data }) =>
     createCampaignPlan(
       CampaignInputSchema.parse({
+        requestId: data.requestId,
         name: `Heti marketing · ${data.startDate}`,
         objective: "Érdeklődés és ügyfélszerzés",
         description: data.brief,
@@ -295,21 +334,104 @@ export const createWeeklyMarketingPlan = createServerFn({ method: "POST" })
     ),
   );
 
-async function createCampaignPlan(data: z.infer<typeof CampaignInputSchema>, days: 7 | 30) {
+export const retryCampaignPlan = createServerFn({ method: "POST" })
+  .inputValidator((data: unknown) => z.object({ campaignId: z.string().min(1) }).parse(data))
+  .handler(async ({ data }) => {
+    const context = await requireAuthContext();
+    const campaign = findCampaign(await readData(), context, data.campaignId);
+    return createCampaignPlan(
+      CampaignInputSchema.parse(campaign),
+      planDuration(campaign),
+      campaign.id,
+    );
+  });
+
+export const getCampaignAttempts = createServerFn({ method: "GET" }).handler(async () => {
+  const context = await requireAuthContext();
+  const db = await readData();
+  return db.aiJobs.filter((j) => j.type === "campaign" && j.workspaceId === context.workspace.id && j.input.userId === context.user.id && ownsBrand(context, j.brandId) && j.status !== "completed" && !db.campaigns.some((c) => c.id === j.input.campaignId && (c.strategy || db.planItems.some((p) => p.campaignId === c.id))))
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    .map((j) => ({ id: j.id, brandId: j.brandId, createdAt: j.createdAt, days: j.input.days === 7 ? 7 : 30, name: String(j.input.name || "Kampányterv"), status: campaignJobRunning(j) ? "running" as const : "failed" as const, completedWeeks: storedCampaignWeeks(j.input).length, error: j.error || "A generálás megszakadt. Újrapróbálhatod.", legacyCampaignId: db.campaigns.some((c) => c.id === j.input.campaignId) ? String(j.input.campaignId) : null }));
+});
+export const retryCampaignAttempt = createServerFn({ method: "POST" }).inputValidator((data: unknown) => z.object({ attemptId: z.string().min(1) }).parse(data)).handler(async ({ data }) => {
+  const context = await requireAuthContext();
+  const job = (await readData()).aiJobs.find((j) => j.id === data.attemptId && j.type === "campaign" && j.workspaceId === context.workspace.id && j.input.userId === context.user.id && ownsBrand(context, j.brandId));
+  if (!job) throw new Error("A generálási kísérlet nem található.");
+  const db = await readData();
+  const legacy = db.campaigns.find((c) => c.id === job.input.campaignId && c.workspaceId === context.workspace.id && c.brandId === job.brandId);
+  return createCampaignPlan(CampaignInputSchema.parse({ ...job.input, requestId: undefined }), job.input.days === 7 ? 7 : 30, legacy?.id, legacy ? undefined : job.id);
+});
+
+async function createCampaignPlan(
+  data: z.infer<typeof CampaignInputSchema>,
+  days: 7 | 30,
+  existingId?: string,
+  attemptId?: string,
+) {
   if (data.endDate < data.startDate)
     throw new Error("A kampány záró dátuma nem lehet a kezdő dátum előtt.");
   if (data.endDate < addDays(data.startDate, days - 1))
     throw new Error("A kampány időtartama túl rövid a kért tervhez.");
   const context = await requireAuthContext();
-  const brand = context.activeBrand;
+  const attempt = attemptId ? (await readData()).aiJobs.find((j) => j.id === attemptId && j.type === "campaign" && j.workspaceId === context.workspace.id && j.input.userId === context.user.id && ownsBrand(context, j.brandId)) : null;
+  if (attemptId && !attempt) throw new Error("A generálási kísérlet nem található.");
+  if (attempt) { data = CampaignInputSchema.parse({ ...attempt.input, requestId: undefined }); days = attempt.input.days === 7 ? 7 : 30; }
+  const existing = existingId ? findCampaign(await readData(), context, existingId) : null;
+  if (existing) {
+    data = CampaignInputSchema.parse(existing);
+    days = planDuration(existing);
+  }
+  const brand = existing
+    ? context.brands.find((item) => item.id === existing.brandId)
+    : attempt ? context.brands.find((b) => b.id === attempt.brandId) : context.activeBrand;
   if (!brand) throw new Error("Aktív márka szükséges a kampány indításához.");
-  const campaign = await transact((database) => {
+  const businessContext = buildBusinessContext(brand, brand.profile, {
+    goal: data.objective,
+    audience: data.audience || brand.audience,
+    language: brand.languageMarket,
+    platform: data.channels.join(", "),
+  });
+  const { campaign, job, savedWeeks } = await transact((database) => {
+    const attemptJob = attempt ? database.aiJobs.find((j) => j.id === attempt.id && j.input.userId === context.user.id && j.workspaceId === context.workspace.id) : null;
+    if (attempt && (!attemptJob || attemptJob.status === "completed" || campaignJobRunning(attemptJob))) throw new Error("Ez a generálás már fut vagy elkészült. Frissítsd az oldalt.");
+    if (!database.brands.some((b) => b.id === brand.id && b.workspaceId === context.workspace.id)) throw new Error("A márka időközben megszűnt.");
+    if (
+      data.requestId &&
+      database.aiJobs.some(
+        (job) => job.workspaceId === context.workspace.id && job.input.requestId === data.requestId,
+      )
+    )
+      throw new Error("Ez a kérés már elindult. A kampánylistában ellenőrizheted az állapotát.");
     const timestamp = nowIso();
-    const created: CampaignRecord = {
+    const current = existingId ? findCampaign(database, context, existingId) : null;
+    const previousJobs = current ? campaignJobs(current, database.aiJobs) : [];
+    if (previousJobs.some((job) => campaignJobRunning(job)))
+      throw new Error("A kampányon már dolgozik az AI. Várd meg az eredményt.");
+    if (
+      current &&
+      (current.updatedAt !== existing?.updatedAt ||
+        current.strategy ||
+        database.planItems.some(
+          (item) =>
+            item.campaignId === current.id &&
+            item.workspaceId === current.workspaceId &&
+            item.brandId === current.brandId,
+        ))
+    )
+      throw new Error(
+        "A kampány már elkészült vagy közben megváltozott. Frissítsd az oldalt; a meglévő tartalmakat nem írjuk felül.",
+      );
+    const pendingCampaign = attemptJob?.input.pendingCampaign as CampaignRecord | undefined;
+    const created: CampaignRecord = current ?? pendingCampaign ?? {
       id: newId("campaign"),
       workspaceId: context.workspace.id,
       brandId: brand.id,
-      name: data.name,
+      name: uniqueCampaignName(
+        data.name,
+        database.campaigns
+          .filter((item) => item.workspaceId === context.workspace.id && item.brandId === brand.id)
+          .map((item) => item.name),
+      ),
       objective: data.objective,
       audience: data.audience || brand.audience,
       offer: data.offer,
@@ -326,47 +448,51 @@ async function createCampaignPlan(data: z.infer<typeof CampaignInputSchema>, day
       createdAt: timestamp,
       updatedAt: timestamp,
     };
-    database.campaigns.push(created);
-    return created;
-  });
-  const businessContext = buildBusinessContext(brand, brand.profile, {
-    goal: data.objective,
-    audience: data.audience || brand.audience,
-    language: brand.languageMarket,
-    platform: data.channels.join(", "),
-  });
-  const job = await transact((database) =>
-    createAiJob(database, {
+    const savedWeeks = resumableCampaignWeeks(created, attemptJob?.input ?? previousJobs[0]?.input ?? {});
+    created.status = "planning";
+    created.updatedAt = timestamp;
+    const input = {
+        pendingCampaign: created,
+        businessContext,
+        workspace: context.workspace.name,
+        campaignId: created.id,
+        days,
+        totalWeeks: campaignWeeks(data.startDate, days).length,
+        completedWeeks: savedWeeks.length,
+        weekPlans: savedWeeks,
+        userId: context.user.id,
+        ...data,
+        brandVoice: brand.profile,
+        brand: { name: brand.name, industry: brand.industry, products: brand.products, services: brand.services, offers: brand.offers, audience: brand.audience, cityRegion: brand.cityRegion, languageMarket: brand.languageMarket },
+    };
+    const job = attemptJob ?? createAiJob(database, {
       workspaceId: context.workspace.id,
       brandId: brand.id,
       type: "campaign",
-      input: {
-        businessContext,
-        workspace: context.workspace.name,
-        campaignId: campaign.id,
-        ...data,
-        brandVoice: brand.profile,
-        brand: {
-          name: brand.name,
-          industry: brand.industry,
-          products: brand.products,
-          services: brand.services,
-          offers: brand.offers,
-          audience: brand.audience,
-          cityRegion: brand.cityRegion,
-          languageMarket: brand.languageMarket,
-        },
-      },
-    }),
-  );
-  await transact((database) => startAiJob(database, job.id));
+      input,
+    });
+    job.input = input;
+    job.error = undefined;
+    job.createdAt = timestamp;
+    job.completedAt = undefined;
+    startAiJob(database, job.id);
+    return { campaign: created, job, savedWeeks };
+  });
   try {
-    const plannedTopics: string[] = [];
+    const weekPlans: WeekPlan[] = [...savedWeeks];
+    const plannedTopics: string[] = savedWeeks.flatMap((plan) => [
+      ...plan.temak_osszefoglalo,
+      ...plan.posztok.map((item) => item.tema),
+    ]);
     const channelCounts: Record<string, number> = {};
+    for (const plan of savedWeeks)
+      for (const item of plan.posztok)
+        channelCounts[item.csatorna] = (channelCounts[item.csatorna] ?? 0) + 1;
     const weeks = campaignWeeks(data.startDate, days);
     // Finish before the Vercel server budget so failure/partial results can be persisted.
     const deadlineAt = Date.now() + 240_000;
     for (const week of weeks) {
+      if (weekPlans.some((plan) => plan.het === week.week)) continue;
       let plan;
       try {
         plan = await generateWeeklyPlan({
@@ -376,73 +502,30 @@ async function createCampaignPlan(data: z.infer<typeof CampaignInputSchema>, day
           week,
           plannedTopics,
           channelCounts,
-          localEvents: [],
+          localEvents: localMarketEvents(week.startDate, week.endDate, businessContext.localEvents)
+            .map((event) => `${event.date} — ${event.name}`),
           weekly: days === 7,
           deadlineAt,
         });
       } catch (cause) {
         throw new Error(
-          `A(z) ${week.week}. hét tervezése nem sikerült. ${week.week > 1 ? "Az előző hetek mentett terve megmaradt. " : ""}${cause instanceof Error ? cause.message : "Próbáld újra."}`,
+          `A(z) ${week.week}. hét tervezése nem sikerült. ${week.week > 1 ? "Az előző hetek ellenőrzött piszkozata megmaradt; a naptárba csak a teljes terv kerül. " : ""}${cause instanceof Error ? cause.message : "Próbáld újra."}`,
         );
       }
       await transact((database) => {
-        const current = findCampaign(database, context, campaign.id);
         const timestamp = nowIso();
-        for (const [index, item] of plan.posztok.entries()) {
-          const platform = item.csatorna === "google_business" ? "google-business" : item.csatorna;
-          database.planItems.push({
-            id: newId("plan"),
-            workspaceId: context.workspace.id,
-            brandId: brand.id,
-            campaignId: current.id,
-            postId: null,
-            date: item.datum,
-            time: item.idopont,
-            timezone: current.timezone,
-            platform,
-            contentType: item.forma,
-            topic: item.tema,
-            objective: item.cel,
-            status: "planned",
-            aiGenerated: true,
-            draftContent: item.vazlat,
-            visualIdea: item.vizualis_otlet,
-            verificationWarnings: item.ellenorizendo,
-            topicSummary: plan.temak_osszefoglalo[index],
-            createdAt: timestamp,
-            updatedAt: timestamp,
-          });
-        }
-        const all = database.planItems.filter(
-          (item) =>
-            item.campaignId === current.id &&
-            item.workspaceId === current.workspaceId &&
-            item.brandId === current.brandId,
-        );
-        current.strategy = {
-          summary: `${days} napos kampány, heti 3–4 poszttal. Eddig ${all.length} poszt megtervezve. Az időpontok javaslatok, nem mért adatok.`,
-          mainMessage: current.offer || current.objective,
-          cta: current.cta,
-          contentPillars: [...new Set(all.map((item) => item.topicSummary || item.topic))].slice(
-            0,
-            8,
-          ),
-          recommendedFrequency: "Heti 3–4 poszt; a rövid záró hétre arányosan kevesebb.",
-          channelStrategies: Object.fromEntries(
-            data.channels.map((platform) => [
-              platform,
-              `${all.filter((item) => item.platform === platform).length} tervezett poszt a kampányban.`,
-            ]),
-          ),
-        } satisfies CampaignStrategy;
-        current.updatedAt = timestamp;
+        const current = database.campaigns.find((c) => c.id === campaign.id && c.workspaceId === context.workspace.id && c.brandId === brand.id);
+        if (current) current.updatedAt = timestamp;
         const currentJob = database.aiJobs.find(
           (item) => item.id === job.id && item.workspaceId === context.workspace.id,
         );
+        if (!currentJob || !database.users.some((u) => u.id === context.user.id && !u.auth?.deleting)) throw new Error("A generálás megszakadt, a fiók már nem aktív.");
         if (currentJob)
           currentJob.input = {
             ...currentJob.input,
-            completedWeeks: week.week,
+            completedWeeks: weekPlans.length + 1,
+            weekPlans: [...weekPlans, plan],
+            totalWeeks: weeks.length,
             plannedTopics: [
               ...plannedTopics,
               ...plan.temak_osszefoglalo,
@@ -450,17 +533,22 @@ async function createCampaignPlan(data: z.infer<typeof CampaignInputSchema>, day
             ],
           };
       });
+      weekPlans.push(plan);
       plannedTopics.push(...plan.temak_osszefoglalo, ...plan.posztok.map((item) => item.tema));
       for (const item of plan.posztok)
         channelCounts[item.csatorna] = (channelCounts[item.csatorna] ?? 0) + 1;
     }
     const saved = await transact((database) => {
-      const current = findCampaign(database, context, campaign.id);
-      current.status = "active";
-      current.updatedAt = nowIso();
+      if (!database.aiJobs.some((j) => j.id === job.id) || !database.brands.some((b) => b.id === brand.id && b.workspaceId === context.workspace.id) || !database.users.some((u) => u.id === context.user.id && !u.auth?.deleting)) throw new Error("A generálás megszakadt, a márka vagy a fiók már nem aktív.");
+      let current = database.campaigns.find((c) => c.id === campaign.id && c.workspaceId === context.workspace.id && c.brandId === brand.id);
+      if (!current) {
+        current = { ...campaign, name: uniqueCampaignName(data.name, database.campaigns.filter((c) => c.workspaceId === context.workspace.id && c.brandId === brand.id).map((c) => c.name)) };
+        database.campaigns.push(current);
+      }
+      applyCompleteCampaignWeeks(database, current, weekPlans);
+      completeAiJob(database, job.id);
       return current.id;
     });
-    await transact((database) => completeAiJob(database, job.id));
     const database = await readData();
     return campaignSnapshot(database, context, findCampaign(database, context, saved));
   } catch (cause) {
@@ -475,14 +563,12 @@ async function createCampaignPlan(data: z.infer<typeof CampaignInputSchema>, day
         current.status = "draft";
         current.updatedAt = nowIso();
       }
-    });
-    await transact((database) =>
       completeAiJob(
         database,
         job.id,
         cause instanceof Error ? cause.message : "AI kampányterv hiba",
-      ),
-    );
+      );
+    });
     throw cause;
   }
 }
@@ -493,6 +579,8 @@ export const updateCampaign = createServerFn({ method: "POST" })
     const context = await requireAuthContext();
     const result = await transact((database) => {
       const campaign = findCampaign(database, context, data.campaignId);
+      if (campaignJobs(campaign, database.aiJobs).some((job) => campaignJobRunning(job)))
+        throw new Error("A kampányon már dolgozik az AI. A szerkesztéssel várd meg az eredményt.");
       const nextStart = data.startDate ?? campaign.startDate;
       const nextEnd = data.endDate ?? campaign.endDate;
       if (nextEnd < nextStart)
@@ -500,6 +588,18 @@ export const updateCampaign = createServerFn({ method: "POST" })
       if (nextEnd < addDays(nextStart, campaign.endDate < addDays(campaign.startDate, 29) ? 6 : 29))
         throw new Error("A kampány időtartama túl rövid a meglévő tervhez.");
       const { campaignId: _campaignId, ...fields } = data;
+      if (fields.name !== undefined)
+        fields.name = uniqueCampaignName(
+          fields.name,
+          database.campaigns
+            .filter(
+              (item) =>
+                item.id !== campaign.id &&
+                item.workspaceId === campaign.workspaceId &&
+                item.brandId === campaign.brandId,
+            )
+            .map((item) => item.name),
+        );
       const timestamp = nowIso();
       Object.assign(campaign, fields, { updatedAt: timestamp });
       if (data.timezone !== undefined)
@@ -774,7 +874,9 @@ async function generatePlanItemPost(
           content: variant.content,
           hashtags: variant.hashtags,
           cta: variant.cta,
-          status: "prepared",
+          status: contentPlaceholders(variant.content, variant.cta, ...variant.hashtags).length
+            ? "draft"
+            : "prepared",
           createdAt: timestamp,
           updatedAt: timestamp,
         });
@@ -800,7 +902,9 @@ async function generatePlanItemPost(
             content: variant.content,
             hashtags: variant.hashtags,
             cta: variant.cta,
-            status: "prepared" as const,
+            status: contentPlaceholders(variant.content, variant.cta, ...variant.hashtags).length
+              ? ("draft" as const)
+              : ("prepared" as const),
             updatedAt: timestamp,
           });
         } else
@@ -812,7 +916,9 @@ async function generatePlanItemPost(
             content: variant.content,
             hashtags: variant.hashtags,
             cta: variant.cta,
-            status: "prepared",
+            status: contentPlaceholders(variant.content, variant.cta, ...variant.hashtags).length
+              ? "draft"
+              : "prepared",
             createdAt: timestamp,
             updatedAt: timestamp,
           });
@@ -900,4 +1006,178 @@ export const generateCampaignContentPackage = createServerFn({ method: "POST" })
       }
     }
     return { campaignId: campaign.id, total: planItemIds.length, completed, failed };
+  });
+
+export const getCampaignGenerationProgress = createServerFn({ method: "GET" })
+  .inputValidator((data: unknown) => z.object({ requestId: z.string().uuid() }).parse(data))
+  .handler(async ({ data }) => {
+    const context = await requireAuthContext();
+    const db = await readData();
+    const job = db.aiJobs.find(
+      (j) =>
+        j.workspaceId === context.workspace.id &&
+        j.input.requestId === data.requestId &&
+        j.input.userId === context.user.id &&
+        ownsBrand(context, j.brandId),
+    );
+    if (!job) return null;
+    return {
+      status: job.status,
+      completedWeeks: storedCampaignWeeks(job.input).length,
+      totalWeeks: Number(job.input.totalWeeks) || 5,
+      error: job.error ?? null,
+    };
+  });
+
+export const getCampaignWeekDrafts = createServerFn({ method: "GET" })
+  .inputValidator((data: unknown) => z.object({ campaignId: z.string().min(1) }).parse(data))
+  .handler(async ({ data }) => {
+    const context = await requireAuthContext();
+    const db = await readData();
+    const campaign = findCampaign(db, context, data.campaignId);
+    const jobs = db.aiJobs
+      .filter(
+        (j) =>
+          j.workspaceId === context.workspace.id &&
+          j.brandId === campaign.brandId &&
+          j.input.campaignId === campaign.id,
+      )
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    return {
+      weeks: campaignWeeks(campaign.startDate, planDuration(campaign)),
+      plans: storedCampaignWeeks(jobs[0]?.input ?? {}),
+      running: jobs.some(
+        (j) => j.status === "running" && Date.now() - Date.parse(j.createdAt) < 300000,
+      ),
+    };
+  });
+
+export const regenerateCampaignWeek = createServerFn({ method: "POST" })
+  .inputValidator((data: unknown) =>
+    z.object({ campaignId: z.string().min(1), week: z.number().int().min(1).max(5) }).parse(data),
+  )
+  .handler(async ({ data }) => {
+    const context = await requireAuthContext();
+    const reserved = await transact((db) => {
+      const campaign = findCampaign(db, context, data.campaignId);
+      const brand = context.brands.find((b) => b.id === campaign.brandId)!;
+      const week = campaignWeeks(campaign.startDate, planDuration(campaign)).find(
+        (w) => w.week === data.week,
+      );
+      if (!week) throw new Error("Ez a hét nem része a kampánynak.");
+      const jobs = db.aiJobs
+        .filter(
+          (j) =>
+            j.workspaceId === context.workspace.id &&
+            j.brandId === brand.id &&
+            j.input.campaignId === campaign.id,
+        )
+        .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+      if (jobs.some((j) => j.status === "running" && Date.now() - Date.parse(j.createdAt) < 300000))
+        throw new Error("A kampányon már dolgozik az AI. Várd meg az eredményt.");
+      const items = db.planItems.filter(
+        (p) =>
+          p.workspaceId === context.workspace.id &&
+          p.brandId === brand.id &&
+          p.campaignId === campaign.id &&
+          p.date >= week.startDate &&
+          p.date <= week.endDate,
+      );
+      if (items.some((p) => p.postId || ["ready", "scheduled", "published"].includes(p.status)))
+        throw new Error(
+          "Ehhez a héthez már jóváhagyott, ütemezett vagy elkészített poszt tartozik. A posztot külön szerkesztheted.",
+        );
+      const plans = storedCampaignWeeks(jobs[0]?.input ?? {});
+      const job = createAiJob(db, {
+        workspaceId: context.workspace.id,
+        brandId: brand.id,
+        type: "campaign",
+        input: {
+          campaignId: campaign.id,
+          weekPlans: plans,
+          totalWeeks: campaignWeeks(campaign.startDate, planDuration(campaign)).length,
+          regeneratingWeek: data.week,
+          userId: context.user.id,
+        },
+      });
+      startAiJob(db, job.id);
+      return {
+        campaign,
+        brand,
+        week,
+        plans,
+        jobId: job.id,
+        itemsFingerprint: JSON.stringify(items),
+      };
+    });
+    try {
+      const businessContext = buildBusinessContext(reserved.brand, reserved.brand.profile, {
+        goal: reserved.campaign.objective,
+        audience: reserved.campaign.audience,
+        platform: reserved.campaign.channels.join(", "),
+      });
+      const otherPlans = reserved.plans.filter((p) => p.het !== data.week);
+      const db = await readData();
+      const otherItems = db.planItems.filter(
+        (p) =>
+          p.workspaceId === context.workspace.id &&
+          p.brandId === reserved.brand.id &&
+          p.campaignId === reserved.campaign.id &&
+          (p.date < reserved.week.startDate || p.date > reserved.week.endDate),
+      );
+      const plan = await generateWeeklyPlan({
+        businessContext,
+        campaign: reserved.campaign,
+        channels: reserved.campaign.channels,
+        week: reserved.week,
+        plannedTopics: [
+          ...otherPlans.flatMap((p) => p.temak_osszefoglalo),
+          ...otherItems.map((p) => p.topicSummary || p.topic),
+        ],
+        channelCounts: {},
+        localEvents: localMarketEvents(reserved.week.startDate, reserved.week.endDate, businessContext.localEvents)
+          .map((event) => `${event.date} — ${event.name}`),
+        weekly: planDuration(reserved.campaign) === 7,
+      });
+      await transact((database) => {
+        const current = findCampaign(database, context, reserved.campaign.id);
+        const items = database.planItems.filter(
+          (p) =>
+            p.workspaceId === context.workspace.id &&
+            p.brandId === reserved.brand.id &&
+            p.campaignId === current.id &&
+            p.date >= reserved.week.startDate &&
+            p.date <= reserved.week.endDate,
+        );
+        if (
+          current.updatedAt !== reserved.campaign.updatedAt ||
+          JSON.stringify(items) !== reserved.itemsFingerprint
+        )
+          throw new Error(
+            "A terv közben megváltozott. Nem írtuk felül a módosításaidat; próbáld újra.",
+          );
+        const plans = [...otherPlans, plan].sort((a, b) => a.het - b.het);
+        const job = database.aiJobs.find(
+          (j) => j.id === reserved.jobId && j.workspaceId === context.workspace.id,
+        )!;
+        job.input = { ...job.input, weekPlans: plans, completedWeeks: plans.length };
+        const expected = campaignWeeks(current.startDate, planDuration(current)).length;
+        if (plans.length === expected || current.strategy) {
+          const ids = new Set(items.map((p) => p.id));
+          database.planItems = database.planItems.filter((p) => !ids.has(p.id));
+          applyCompleteCampaignWeeks(database, current, plans, !!current.strategy);
+        }
+        completeAiJob(database, job.id);
+      });
+      return { week: plan.het };
+    } catch (error) {
+      await transact((db) =>
+        completeAiJob(
+          db,
+          reserved.jobId,
+          error instanceof Error ? error.message : "A hét generálása nem sikerült.",
+        ),
+      );
+      throw error;
+    }
   });

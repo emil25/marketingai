@@ -3,6 +3,7 @@ import { z } from "zod";
 import { requireBrandContext } from "@/lib/server/auth-context.server";
 import { completeAiJob, createAiJob, startAiJob, transact } from "@/lib/server/store.server";
 import { assertOpenRouterConfigured, openRouterImage } from "@/lib/server/ai-provider.server";
+import { buildMarketImagePrompt } from "@/lib/market/image-prompt";
 
 export const Route = createFileRoute("/api/generate-image")({
   server: {
@@ -22,6 +23,7 @@ export const Route = createFileRoute("/api/generate-image")({
         const brand = context.activeBrand;
         if (!brand) return Response.json({ error: "Bejelentkezés és aktív márka szükséges." }, { status: 401 });
         if (brandId && brandId !== brand.id) return Response.json({ error: "Nincs hozzáférés ehhez a márkához." }, { status: 403 });
+        const localizedPrompt = buildMarketImagePrompt(prompt, brand, brand.profile, format);
         const job = await transact((database) => createAiJob(database, { workspaceId: context.workspace.id, brandId: brand.id, type: "image", input: { prompt, format, brandVoice: brand.profile, language: brand.languageMarket, audience: brand.audience, region: brand.cityRegion } }));
         await transact((database) => startAiJob(database, job.id));
         try {
@@ -34,7 +36,7 @@ export const Route = createFileRoute("/api/generate-image")({
 
         let upstream: Response;
         try {
-          upstream = await openRouterImage({ prompt, stream });
+          upstream = await openRouterImage({ prompt: localizedPrompt, stream });
         } catch (cause) {
           const message = cause instanceof Error ? cause.message : "Image provider unavailable";
           await transact((database) => completeAiJob(database, job.id, message));

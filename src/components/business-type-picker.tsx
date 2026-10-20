@@ -20,6 +20,9 @@ import {
 } from "@/lib/business-types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { brandForLocale, DEFAULT_MARKET_LOCALE } from "@/config/brand";
+
+const productName = brandForLocale(DEFAULT_MARKET_LOCALE).productName;
 
 const featured = [
   "restaurant",
@@ -128,7 +131,7 @@ export function BusinessTypePicker({
             Vállalkozásodra szabva
           </h2>
           <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
-            Válassz egy irányt, és a MarketingPilot hozzád illő posztötletekkel és gyorsindítókkal
+            Válassz egy irányt, és a {productName} hozzád illő posztötletekkel és gyorsindítókkal
             dolgozik. Nem kell új alkalmazást telepítened; később bármikor módosíthatod.
           </p>
         </div>

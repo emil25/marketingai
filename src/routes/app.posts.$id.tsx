@@ -6,8 +6,10 @@ import {
   useRouter,
   useRouterState,
 } from "@tanstack/react-router";
+import { contentPlaceholders } from "@/lib/content-quality";
 import { ContentReviewNotice } from "@/components/content-review-notice";
 import { useServerFn } from "@tanstack/react-start";
+import { z } from "zod";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -38,6 +40,7 @@ import {
   generatePostABVariants,
   generatePostAdCopies,
   updatePostMedia,
+  markPostManuallyPublished,
   type PostSnapshot,
 } from "@/lib/post.functions";
 import { getCampaigns, type CampaignSnapshot } from "@/lib/campaign.functions";
@@ -84,8 +87,18 @@ import {
   Wand2,
 } from "lucide-react";
 import { toast } from "sonner";
+import { EasyPost } from "@/components/easy-post";
+import { useUiMode } from "@/components/ui-mode";
 
 export const Route = createFileRoute("/app/posts/$id")({
+  validateSearch: z.object({
+    topic: z.string().max(4000).optional(),
+    quickStart: z.string().max(4000).optional(),
+    platform: z
+      .enum(["facebook", "instagram", "linkedin", "tiktok", "youtube", "google-business"])
+      .optional(),
+    first: z.union([z.literal("1"), z.boolean()]).optional(),
+  }),
   loader: async ({ params }) => ({
     workspace: await getWorkspace(),
     post: params.id === "new" ? null : await getPost({ data: { postId: params.id } }),
@@ -94,15 +107,49 @@ export const Route = createFileRoute("/app/posts/$id")({
     media: await getMediaAssets(),
     campaigns: await getCampaigns(),
   }),
-  component: PostEditor,
+  component: ModePostEditor,
 });
+
+function ModePostEditor() {
+  const data = Route.useLoaderData();
+  const search = Route.useSearch();
+  const { mode } = useUiMode();
+  const [advancedPostId, setAdvancedPostId] = useState<string | null>(null);
+  return (
+    <div className="space-y-5">
+      <EasyPost
+        key={`${data.post?.post.id ?? "new"}:${data.workspace.activeBrand?.id}`}
+        workspace={data.workspace}
+        initial={data.post}
+        initialIdea={data.post ? "" : (search.topic ?? search.quickStart ?? "").trim().slice(0, 4000)}
+        initialPlatform={search.platform}
+        showWelcome={!data.post && (search.first === "1" || search.first === true)}
+      />
+      {data.post && (
+        <details
+          key={data.post.post.id}
+          hidden={mode !== "detailed"}
+          onToggle={(event) => {
+            if (event.currentTarget.open) setAdvancedPostId(data.post!.post.id);
+          }}
+          className="mx-auto max-w-5xl rounded-xl border bg-card p-4"
+        >
+          <summary className="min-h-11 cursor-pointer font-semibold">
+            Több beállítás: kép, időzítés és szövegötletek
+          </summary>
+          {advancedPostId === data.post.post.id && <PostEditor key={data.post.post.id} />}
+        </details>
+      )}
+    </div>
+  );
+}
 
 const STEPS = ["Cél", "Közönség", "Csatorna", "Tartalom", "Időzítés", "Ellenőrzés"];
 const GOALS = [
   "ajánlat",
   "érdeklődőszerzés",
   "weboldal-forgalom",
-  "engagement",
+  "beszélgetés",
   "információ",
   "esemény",
   "hasznos tipp",
@@ -114,7 +161,7 @@ const PLATFORMS: Array<{ id: PostPlatform; label: string }> = [
   { id: "tiktok", label: "TikTok" },
   { id: "linkedin", label: "LinkedIn" },
   { id: "youtube", label: "YouTube" },
-  { id: "google-business", label: "Google Business" },
+  { id: "google-business", label: "Google Cégprofil" },
 ];
 const STATUS_LABELS: Record<PostStatus, string> = {
   idea: "Ötlet",
@@ -148,8 +195,10 @@ function PostEditor() {
   const navigate = useNavigate();
   const router = useRouter();
   const search = useRouterState({ select: (state) => state.location.searchStr });
+  const reviewHash = useRouterState({ select: (state) => state.location.hash });
   const generatedPostId = useRef<string | null>(null);
   const loadedEditor = useRef<string | null>(null);
+  const [editorReady, setEditorReady] = useState(false);
   const brand = data.post
     ? (data.workspace.brands.find((item) => item.id === data.post?.post.brandId) ?? null)
     : data.workspace.activeBrand;
@@ -209,7 +258,11 @@ function PostEditor() {
       );
     } else {
       const params = new URLSearchParams(search);
-      const topic = params.get("topic")?.trim();
+      const topic =
+        params.get("topic")?.trim() ||
+        (params.get("first") === "1" && brand
+          ? `${brand.name} bemutatása${brand.products || brand.services ? `: ${brand.products || brand.services}` : ""}.`
+          : "");
       const goal = params.get("goal")?.trim();
       const platform = params.get("platform") as PostPlatform | null;
       setForm({
@@ -228,7 +281,42 @@ function PostEditor() {
     setAbVariants(data.post?.abVariants ?? []);
     setAdCopies(data.post?.adCopies ?? []);
     generatedPostId.current = null;
+    setEditorReady(true);
   }, [editorIdentity, data.post, brand, search]);
+
+  useEffect(() => {
+    // Refresh publication metadata without replacing the user's edited text.
+    setVariants((current) =>
+      current.map((variant) => {
+        const saved = data.post?.variants.find((item) => item.id === variant.id);
+        return saved?.status === "published"
+          ? { ...variant, status: saved.status, manualPublishedAt: saved.manualPublishedAt }
+          : variant;
+      }),
+    );
+  }, [data.post?.variants]);
+
+  useEffect(() => {
+    const target = reviewHash.replace(/^#/, "");
+    const platform = target.replace(/^review-/, "");
+    if (
+      !target.startsWith("review-") ||
+      !data.post?.post.id ||
+      !PLATFORMS.some((item) => item.id === platform)
+    )
+      return;
+    setSelectedPlatform(platform as PostPlatform);
+    setSimpleMode(true);
+    setStep(3);
+    const timer = window.setTimeout(() => {
+      const editor = document.getElementById(target);
+      editor?.scrollIntoView({ block: "center" });
+      editor
+        ?.querySelector<HTMLInputElement | HTMLTextAreaElement>("input, textarea")
+        ?.focus({ preventScroll: true });
+    }, 100);
+    return () => window.clearTimeout(timer);
+  }, [reviewHash, data.post?.post.id]);
 
   useEffect(() => {
     const post = data.post?.post;
@@ -434,7 +522,7 @@ function PostEditor() {
             data: {
               postId: data.post.post.id,
               fields,
-              variants: variants.filter((variant) => variant.status !== "published"),
+              variants,
               hooks,
               selectedHook,
               abVariants,
@@ -484,20 +572,26 @@ function PostEditor() {
   }
   const currentVariant = (id: string, key: "content" | "cta" | "hashtags", value: string) =>
     setVariants((current) =>
-      current.map((item) =>
-        item.id === id
-          ? {
-              ...item,
-              [key]:
-                key === "hashtags"
-                  ? value
-                      .split(" ")
-                      .map((tag) => tag.trim())
-                      .filter(Boolean)
-                  : value,
-            }
-          : item,
-      ),
+      current.map((item) => {
+        if (item.id !== id) return item;
+        const edited = {
+          ...item,
+          [key]:
+            key === "hashtags"
+              ? value
+                  .split(" ")
+                  .map((tag) => tag.trim())
+                  .filter(Boolean)
+              : value,
+        };
+        // A missing fact can be saved as a draft, never as prepared content.
+        if (
+          edited.status === "prepared" &&
+          contentPlaceholders(edited.content, edited.cta, ...edited.hashtags).length
+        )
+          edited.status = "draft";
+        return edited;
+      }),
     );
   const currentAbVariant = (id: string, key: "content" | "cta" | "hashtags", value: string) =>
     setAbVariants((current) =>
@@ -523,7 +617,7 @@ function PostEditor() {
       const result = await generateHooks({ data: { postId: data.post.post.id, count: 4 } });
       setHooks(result.hooks);
       setSelectedHook(result.hooks[0] ?? null);
-      toast.success("Hook ötletek elkészültek.");
+      toast.success("Nyitómondat-ötletek elkészültek.");
     } catch (cause) {
       toast.error(cause instanceof Error ? cause.message : "Nem sikerült hookokat generálni.");
     } finally {
@@ -802,6 +896,7 @@ function PostEditor() {
                   publication={data.publication}
                   publishingPlatform={publishingPlatform}
                   actionsBusy={
+                    !editorReady ||
                     saving ||
                     generating ||
                     extrasBusy !== null ||
@@ -809,6 +904,8 @@ function PostEditor() {
                     creativeBusy ||
                     publishingPlatform !== null
                   }
+                  inputReady={editorReady}
+                  aiAllowed={data.workspace.user.canUseAi === true || data.workspace.user.emailVerified !== false}
                   hasJpeg={activeMedia.some(
                     (asset) =>
                       form.mediaAssetIds.includes(asset.id) && asset.mimeType === "image/jpeg",
@@ -845,7 +942,7 @@ function PostEditor() {
                     </div>
                   </OptionalSection>
                 )}
-                <OptionalSection title="Képposzt és carousel — opcionális">
+                <OptionalSection title="Képposzt és több képes poszt — opcionális">
                   <PostCreativeComposer
                     postId={data.post?.post.id}
                     brand={activeBrand}
@@ -1223,15 +1320,17 @@ function OptionalSection({
   );
 }
 function variantStatusLabel(status: PostVariantRecord["status"]) {
-  return status === "draft" || status === "prepared"
-    ? "Előkészítve"
-    : status === "review"
-      ? "Ellenőrzés"
-      : status === "failed"
-        ? "Sikertelen"
-        : status === "published"
-          ? "Közzétéve"
-          : "Publikálásra kész";
+  return status === "draft"
+    ? "Piszkozat"
+    : status === "prepared"
+      ? "Előkészítve"
+      : status === "review"
+        ? "Ellenőrzés"
+        : status === "failed"
+          ? "Sikertelen"
+          : status === "published"
+            ? "Közzétéve"
+            : "Publikálásra kész";
 }
 
 function StepGoal({
@@ -1294,7 +1393,7 @@ function StepAudience({
       <div>
         <h2 className="text-xl font-semibold">Kinek szól?</h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          Az aktív Brand Voice és a kiválasztott kampánykontextus bekerül a generálásba.
+          A vállalkozásod hangját és a kiválasztott terv adatait használjuk a szöveghez.
         </p>
       </div>
       <div>
@@ -1332,7 +1431,7 @@ function StepAudience({
           />
         </div>
         <div>
-          <Label>CTA-stílus</Label>
+          <Label>Felhívás stílusa</Label>
           <Input
             value={form.ctaStyle}
             onChange={(event) => update("ctaStyle", event.target.value)}
@@ -1362,7 +1461,7 @@ function StepAudience({
         )}
       </div>
       <p className="rounded-2xl bg-brand-soft p-4 text-sm">
-        Brand Voice hangnem: <strong>{brand?.profile.tone}</strong>. Ezt az AI automatikusan
+        A vállalkozásod hangneme: <strong>{brand?.profile.tone}</strong>. Ezt az AI automatikusan
         használja.
       </p>
     </div>
@@ -1441,6 +1540,8 @@ function StepContent({
   publication,
   publishingPlatform,
   actionsBusy,
+  inputReady,
+  aiAllowed,
   hasJpeg,
   onPublish,
 }: {
@@ -1477,6 +1578,8 @@ function StepContent({
   publication: SafePublicationInfo | null;
   publishingPlatform: PublishPlatform | null;
   actionsBusy: boolean;
+  inputReady: boolean;
+  aiAllowed: boolean;
   hasJpeg: boolean;
   onPublish: (platform: PublishPlatform, attemptId?: string) => void;
 }) {
@@ -1487,7 +1590,11 @@ function StepContent({
       if (!navigator.clipboard?.writeText)
         throw new Error("A böngészőben nem érhető el a vágólap. Jelöld ki és másold a szöveget.");
       await navigator.clipboard.writeText(postCopyText(variant));
-      toast.success("A szerkesztett posztszöveg a vágólapra került.");
+      if (contentPlaceholders(postCopyText(variant)).length)
+        toast.warning(
+          "Kimásoltad, de még hiányzó adatok vannak benne. Közzététel előtt töltsd ki őket.",
+        );
+      else toast.success("A szerkesztett posztszöveg a vágólapra került.");
     } catch (cause) {
       toast.error(cause instanceof Error ? cause.message : "Nem sikerült másolni.");
     }
@@ -1527,7 +1634,7 @@ function StepContent({
           <Label htmlFor="post-brief">{quick ? "Az ötleted vagy ajánlatod" : "Téma / brief"}</Label>
           <Textarea
             id="post-brief"
-            disabled={publishingPlatform !== null}
+            disabled={!inputReady || publishingPlatform !== null}
             value={form.topic}
             onChange={(event) => update("topic", event.target.value)}
             placeholder={briefPlaceholder}
@@ -1567,7 +1674,9 @@ function StepContent({
         <Button
           className="rounded-full"
           onClick={onGenerate}
-          disabled={actionsBusy || form.topic.trim().length < 2 || !form.platforms.length}
+          disabled={
+            actionsBusy || !aiAllowed || form.topic.trim().length < 2 || !form.platforms.length
+          }
         >
           {generating ? (
             <Loader2 className="mr-1 h-4 w-4 animate-spin" />
@@ -1620,7 +1729,11 @@ function StepContent({
         {variants
           .filter((variant) => variant.platform === editorPlatform)
           .map((variant) => (
-            <div key={variant.id} className="post-studio-variant rounded-2xl border p-4">
+            <div
+              key={variant.id}
+              id={`review-${variant.platform}`}
+              className="post-studio-variant rounded-2xl border p-4 scroll-mt-24"
+            >
               <div className="mb-2 flex items-center justify-between">
                 <Badge className="rounded-full" variant="outline">
                   {platformLabel(variant.platform)}
@@ -1630,6 +1743,25 @@ function StepContent({
                 </Badge>
               </div>
               <ContentReviewNotice
+                onReplace={
+                  variant.status === "published" || publishingPlatform
+                    ? undefined
+                    : (placeholder, value) => {
+                        onVariant(
+                          variant.id,
+                          "content",
+                          variant.content.split(placeholder).join(value),
+                        );
+                        onVariant(variant.id, "cta", variant.cta.split(placeholder).join(value));
+                        onVariant(
+                          variant.id,
+                          "hashtags",
+                          variant.hashtags
+                            .map((tag) => tag.split(placeholder).join(value))
+                            .join(" "),
+                        );
+                      }
+                }
                 warnings={variant.verificationWarnings}
                 texts={[variant.content, variant.cta, ...variant.hashtags]}
               />
@@ -1658,15 +1790,15 @@ function StepContent({
                   className="mt-2"
                 />
                 <Label htmlFor={`cta-${variant.id}`} className="mt-3 block">
-                  Mit tegyen az olvasó? (CTA)
+                  Mit tegyen az olvasó?
                 </Label>
                 <Input
                   id={`cta-${variant.id}`}
-                  aria-label={`${platformLabel(variant.platform)} CTA`}
+                  aria-label={`${platformLabel(variant.platform)} felhívás`}
                   disabled={publishingPlatform !== null || variant.status === "published"}
                   value={variant.cta}
                   onChange={(event) => onVariant(variant.id, "cta", event.target.value)}
-                  placeholder="CTA"
+                  placeholder="Írj nekünk!"
                   className="mt-2"
                 />
               </OptionalSection>
@@ -1697,12 +1829,15 @@ function StepContent({
           <p className="text-sm text-muted-foreground">Még nincs generált változat.</p>
         )}
       </div>
-      <OptionalSection enabled={quick} title="További AI-eszközök: hookok, A/B, hirdetésszöveg">
+      <OptionalSection
+        enabled={quick}
+        title="További szövegötletek: nyitómondatok, változatok, hirdetés"
+      >
         <div className="grid gap-4">
           <div className="rounded-2xl border p-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div>
-                <h3 className="font-semibold">Hook ötletek</h3>
+                <h3 className="font-semibold">Nyitómondat-ötletek</h3>
                 <p className="text-xs text-muted-foreground">Erős kezdések a témádhoz.</p>
               </div>
               <Button
@@ -1785,7 +1920,7 @@ function StepContent({
                   <Input
                     value={item.cta}
                     onChange={(event) => onAbVariant(item.id, "cta", event.target.value)}
-                    placeholder="CTA"
+                    placeholder="Írj nekünk!"
                     className="mt-2"
                   />
                 </div>
@@ -1805,7 +1940,7 @@ function StepContent({
                 Meta hirdetésszöveg
               </h3>
               <p className="text-xs text-muted-foreground">
-                Primary Text, Headline, Description és CTA.
+                Hirdetésszöveg, címsor, rövid leírás és felhívás.
               </p>
             </div>
             <Button
@@ -1825,25 +1960,25 @@ function StepContent({
               <Textarea
                 value={item.primaryText}
                 onChange={(event) => onAdCopy(item.id, "primaryText", event.target.value)}
-                placeholder="Primary Text"
+                placeholder="Hirdetésszöveg"
                 className="min-h-20"
               />
               <Input
                 value={item.headline}
                 onChange={(event) => onAdCopy(item.id, "headline", event.target.value)}
-                placeholder="Headline"
+                placeholder="Címsor"
                 className="mt-2"
               />
               <Input
                 value={item.description}
                 onChange={(event) => onAdCopy(item.id, "description", event.target.value)}
-                placeholder="Description"
+                placeholder="Rövid leírás"
                 className="mt-2"
               />
               <Input
                 value={item.cta}
                 onChange={(event) => onAdCopy(item.id, "cta", event.target.value)}
-                placeholder="CTA"
+                placeholder="Írj nekünk!"
                 className="mt-2"
               />
             </div>
@@ -2108,71 +2243,52 @@ function VariantPublishAction({
   hasJpeg: boolean;
   onPublish: (platform: PublishPlatform, attemptId?: string) => void;
 }) {
-  if (variant.platform !== "facebook" && variant.platform !== "instagram") {
-    return (
-      <p className="w-full text-xs text-muted-foreground">
-        Ehhez a csatornához a közvetlen közzététel még nem érhető el; a szöveget másolhatod.
-      </p>
-    );
-  }
-  const platform = variant.platform;
-  const label = platform === "facebook" ? "Facebookon" : "Instagramon";
-  const connection = publication?.connections.find((item) => item.provider === platform);
-  const latest = publication?.attempts.find((item) => item.platform === platform);
-  const reason = publicationBlockReason(platform, connection, variant, hasJpeg);
-  const published = variant.status === "published" || latest?.status === "published";
-  const pending = latest?.status === "pending" || latest?.status === "running";
-  const busy = busyPlatform === platform;
-  const needsConnection =
-    !connection ||
-    connection.status !== "connected" ||
-    !connection.hasAccessToken ||
-    !connection.scopes.includes(
-      platform === "facebook" ? "pages_manage_posts" : "instagram_content_publish",
-    );
+  const mark = useServerFn(markPostManuallyPublished);
+  const save = useServerFn(updatePost);
+  const router = useRouter();
+  const [pending, setPending] = useState(false);
+  const [done, setDone] = useState(false);
+  const blockers = contentPlaceholders(variant.content, variant.cta, ...variant.hashtags);
+  const published = done || variant.status === "published";
   return (
     <>
       <Button
         type="button"
         size="sm"
-        className="rounded-full"
-        disabled={disabled || published || pending || Boolean(reason)}
-        onClick={() => onPublish(platform, latest?.status === "failed" ? latest.id : undefined)}
+        variant="outline"
+        disabled={disabled || pending || published || !!blockers.length || !variant.content.trim()}
+        onClick={async () => {
+          setPending(true);
+          try {
+            await save({
+              data: {
+                postId: variant.postId,
+                fields: {},
+                variants: [variant],
+                createVersion: true,
+              },
+            });
+            await mark({ data: { postId: variant.postId, variantId: variant.id } });
+            setDone(true);
+            await router.invalidate();
+            toast.success("Közzétéve jelölés elmentve. A posztot te tetted közzé a csatornán.");
+          } catch (cause) {
+            toast.error(cause instanceof Error ? cause.message : "A jelölés mentése nem sikerült.");
+          } finally {
+            setPending(false);
+          }
+        }}
       >
-        {busy ? (
-          <Loader2 className="mr-1 h-4 w-4 animate-spin" />
-        ) : (
-          <Send className="mr-1 h-4 w-4" />
-        )}
-        {busy || pending
-          ? "Közzététel folyamatban…"
-          : published
-            ? `Közzétéve ${label}`
-            : latest?.status === "failed"
-              ? `Újrapróbálás ${label}`
-              : `Közzététel ${label}`}
+        {pending ? "Mentés…" : published ? "Közzétéve · kézzel jelölve" : "Közzétettem"}
       </Button>
-      {needsConnection && !published && (
-        <Link
-          to="/app/channels"
-          className="inline-flex min-h-9 items-center text-sm font-semibold text-primary hover:underline"
-        >
-          {platform === "facebook" ? "Facebook" : "Instagram"} csatlakoztatása →
-        </Link>
-      )}
       <p className="w-full text-xs text-muted-foreground">
         {published
-          ? "Ez a változat már közzé van téve."
-          : (reason ??
-            `Cél: ${connection?.externalAccountName ?? label}. A szerkesztett szöveg közzététel előtt automatikusan mentődik.`)}
+          ? "A szerkesztés csak az itt mentett szöveget módosítja. A közösségi oldalon külön kell átírnod."
+          : "Másold ki a szöveget, tedd közzé a saját csatornádon, majd jelöld itt. Ez a gomb nem posztol helyetted."}
       </p>
-      {latest?.status === "failed" && latest.error && (
-        <p className="w-full text-xs text-destructive">{latest.error}</p>
-      )}
     </>
   );
 }
-
 function PublicationPanel({
   publication,
   variants,
@@ -2186,156 +2302,14 @@ function PublicationPanel({
   onPublish: (platform: PublishPlatform) => void;
   onRetry: (platform: PublishPlatform, attemptId: string) => void;
 }) {
-  const labels: Record<PublishPlatform, string> = {
-    facebook: "Facebook Page",
-    instagram: "Instagram Professional",
-  };
   return (
-    <div className="rounded-2xl border border-primary/20 bg-brand-soft/25 p-4">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <h3 className="font-semibold">Valódi publikálás</h3>
-          <p className="mt-1 text-xs text-muted-foreground">
-            A művelet a kapcsolt csatornára kerül, és minden kísérlet naplózódik.
-          </p>
-        </div>
-        <Badge variant="outline" className="rounded-full">
-          Szerveroldali
-        </Badge>
-      </div>
-      <div className="mt-4 grid gap-3 md:grid-cols-2">
-        {(["facebook", "instagram"] as PublishPlatform[]).map((platform) => {
-          const connection = publication.connections.find((item) => item.provider === platform);
-          const variant = variants.find((item) => item.platform === platform);
-          const latest = publication.attempts.find((attempt) => attempt.platform === platform);
-          const busy = busyPlatform === platform;
-          const connected = connection?.status === "connected" && connection.hasAccessToken;
-          const hasPermission = connection?.scopes.includes(
-            platform === "facebook" ? "pages_manage_posts" : "instagram_content_publish",
-          );
-          return (
-            <div key={platform} className="rounded-xl border bg-card p-3">
-              <div className="flex items-center justify-between gap-2">
-                <strong className="text-sm">{labels[platform]}</strong>
-                <Badge
-                  variant={
-                    latest?.status === "published"
-                      ? "default"
-                      : latest?.status === "failed"
-                        ? "destructive"
-                        : "outline"
-                  }
-                  className="rounded-full text-[10px]"
-                >
-                  {latest?.status === "published"
-                    ? "Közzétéve"
-                    : latest?.status === "failed"
-                      ? "Sikertelen"
-                      : connected
-                        ? "Kapcsolva"
-                        : "Nincs kapcsolat"}
-                </Badge>
-              </div>
-              <p className="mt-2 text-xs text-muted-foreground">
-                {connection?.externalAccountName ?? "Csatlakoztasd a csatornát a publikáláshoz."}
-              </p>
-              {!variant && (
-                <p className="mt-2 text-xs text-amber-700">
-                  Ehhez a platformhoz nincs mentett változat.
-                </p>
-              )}
-              {connected && !hasPermission && (
-                <p className="mt-2 text-xs text-amber-700">
-                  Újracsatlakozás szükséges a publikálási jogosultsághoz.
-                </p>
-              )}
-              {latest?.error && <p className="mt-2 text-xs text-destructive">{latest.error}</p>}
-              {latest?.externalId && (
-                <p className="mt-2 break-all text-[10px] text-muted-foreground">
-                  Külső azonosító: {latest.externalId}
-                </p>
-              )}
-              <div className="mt-3 flex flex-wrap gap-2">
-                {latest?.status === "failed" ? (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="rounded-full"
-                    disabled={
-                      busyPlatform !== null ||
-                      !connected ||
-                      !hasPermission ||
-                      !variant?.content.trim()
-                    }
-                    onClick={() => onRetry(platform, latest.id)}
-                  >
-                    {busy ? "Újrapróbálás…" : "Újrapróbálás"}
-                  </Button>
-                ) : (
-                  <Button
-                    size="sm"
-                    className="rounded-full"
-                    disabled={
-                      busyPlatform !== null ||
-                      !connected ||
-                      !hasPermission ||
-                      !variant?.content.trim() ||
-                      variant.status === "published"
-                    }
-                    onClick={() => onPublish(platform)}
-                  >
-                    {busy ? "Publikálás…" : "Publikálás"}
-                  </Button>
-                )}
-                {!connected && (
-                  <Link
-                    to="/app/channels"
-                    className="inline-flex items-center text-xs font-medium text-primary hover:underline"
-                  >
-                    Csatornák megnyitása
-                  </Link>
-                )}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-      {publication.attempts.length > 0 && (
-        <div className="mt-4 border-t border-border/70 pt-3">
-          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-            Legutóbbi kísérletek
-          </p>
-          <div className="mt-2 space-y-1">
-            {publication.attempts.slice(0, 6).map((attempt) => (
-              <div
-                key={attempt.id}
-                className="flex flex-wrap items-center justify-between gap-2 text-xs"
-              >
-                <span>
-                  {labels[attempt.platform]} ·{" "}
-                  {new Date(attempt.requestedAt).toLocaleString("hu-HU")}
-                </span>
-                <Badge
-                  variant={
-                    attempt.status === "published"
-                      ? "default"
-                      : attempt.status === "failed"
-                        ? "destructive"
-                        : "outline"
-                  }
-                  className="rounded-full text-[10px]"
-                >
-                  {attempt.status === "published"
-                    ? "Közzétéve"
-                    : attempt.status === "failed"
-                      ? "Sikertelen"
-                      : attempt.status}
-                </Badge>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+    <div className="rounded-2xl border bg-secondary/30 p-4 text-sm">
+      <strong>Kézi közzététel</strong>
+      <p className="mt-2">
+        Másold ki a kiválasztott csatorna szövegét, tedd közzé, majd kattints a „Közzétettem”
+        gombra. A naptárban az időpont a saját emlékeztetőd; automatikus posztolás nincs a zárt
+        bétában.
+      </p>
     </div>
   );
 }

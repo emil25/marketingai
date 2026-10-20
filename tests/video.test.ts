@@ -1,13 +1,13 @@
-import { before, test } from "node:test";
+import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, writeFile, readFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { writeFile, readFile } from "node:fs/promises";
 import path from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import type { AppData, WorkspaceSnapshot } from "../src/lib/data-model";
 import { VideoScenesSchema, wrapVideoCaption } from "../src/lib/video";
 import { ownedVideoContext } from "../src/lib/server/video-context.server";
+import { createTestDataDir, removeTestDataDir } from "./test-data-dir";
 
 let database: AppData;
 let context: WorkspaceSnapshot;
@@ -19,7 +19,7 @@ const sourceIds = [
 ];
 
 before(async () => {
-  directory = await mkdtemp(path.join(tmpdir(), "marketingpilot-video-qa-"));
+  directory = await createTestDataDir("video-qa");
   process.env.MARKETINGPILOT_DATA_DIR = directory;
   process.env.DATABASE_URL = "";
   process.env.DIRECT_URL = "";
@@ -148,7 +148,10 @@ before(async () => {
     brands: [{ ...brand, profile }],
     activeBrand: { ...brand, profile },
   };
-  await writeFile(path.resolve("video-qa-directory.local"), directory, "utf8");
+});
+
+after(async () => {
+  if (directory) await removeTestDataDir(directory);
 });
 
 test("video validation rejects invalid durations, empty captions and too many scenes", () => {

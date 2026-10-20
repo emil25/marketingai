@@ -1,4 +1,5 @@
 import type { BrandProfileRecord, BrandRecord, PostPlatform } from "@/lib/data-model";
+import { displayCityName, formatRomanianAddress, type CityNameMode } from "@/lib/market/ro";
 
 export const BUSINESS_TYPES = [
   {
@@ -255,6 +256,7 @@ export function businessTypeQuickStarts(value: string | null | undefined) {
 }
 
 export type BusinessContext = {
+  brandId?: string;
   businessType: BusinessType;
   businessTypeLabel: string;
   brandName: string;
@@ -272,7 +274,13 @@ export type BusinessContext = {
   avoidedPhrases: string;
   learnedBrandVoice: string;
   address: string;
+  phone: string;
   openingHours: string;
+  localPhrases: string;
+  localEvents: string;
+  approvedClaims: string[];
+  cityNameMode: CityNameMode;
+  currency: "RON";
   guardrails: string;
   brandDescription: string;
   goal?: string;
@@ -290,11 +298,12 @@ export function buildBusinessContext(
   const businessType = normalizeBusinessType(profile.businessType);
   return {
     businessType,
+    brandId: brand.id,
     businessTypeLabel: businessTypeLabel(businessType),
     brandName: brand.name,
     industry: brand.industry,
     website: brand.website,
-    region: overrides.region ?? brand.cityRegion,
+    region: displayCityName(overrides.region ?? brand.cityRegion ?? "", profile.cityNameMode ?? "hu"),
     language: overrides.language ?? brand.languageMarket,
     products: brand.products,
     services: brand.services,
@@ -305,8 +314,23 @@ export function buildBusinessContext(
     preferredPhrases: profile.preferredPhrases,
     avoidedPhrases: profile.avoidedPhrases,
     learnedBrandVoice: profile.learnedSummary ?? "",
-    address: profile.address ?? "",
+    address:
+      formatRomanianAddress(
+        {
+          city: brand.cityRegion,
+          street: profile.address,
+          houseNumber: profile.houseNumber,
+          county: profile.county,
+        },
+        profile.cityNameMode ?? "hu",
+      ) || profile.address || "",
+    phone: profile.phone ?? "",
     openingHours: profile.openingHours ?? "",
+    localPhrases: profile.localPhrases ?? "",
+    localEvents: profile.localEvents ?? "",
+    approvedClaims: profile.approvedClaims ?? [],
+    cityNameMode: profile.cityNameMode ?? "hu",
+    currency: "RON",
     guardrails: profile.aiGuardrails,
     brandDescription: profile.description,
     ...(overrides.goal ? { goal: overrides.goal } : {}),

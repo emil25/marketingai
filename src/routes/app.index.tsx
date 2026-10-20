@@ -36,6 +36,8 @@ import {
 } from "@/lib/dashboard";
 import { SocialPreview, PlatformMark } from "@/components/social-preview";
 import "@/dashboard-workspace.css";
+import { EasyPost } from "@/components/easy-post";
+import { brandForLanguage } from "@/i18n";
 
 export const Route = createFileRoute("/app/")({
   loader: async () => ({
@@ -46,8 +48,14 @@ export const Route = createFileRoute("/app/")({
     planItems: await getPlanner({ data: {} }),
     channels: await getChannelConnections(),
   }),
-  component: Dashboard,
+  component: EasyHome,
 });
+
+function EasyHome() {
+  const data = Route.useLoaderData();
+  const brand = data.workspace.activeBrand;
+  return <EasyPost key={brand?.id ?? 'new-brand'} workspace={data.workspace} />;
+}
 
 const STATUS_LABELS: Record<string, string> = {
   idea: "Ötlet",
@@ -143,7 +151,7 @@ function Dashboard() {
 
   return (
     <div className="owner-dashboard">
-      <QuickCreator brandName={brand.name} businessType={brand.profile.businessType} />
+      <QuickCreator brandName={brand.name} businessType={brand.profile.businessType} productName={brandForLanguage(brand.languageMarket).productName} />
       {(!posts.length || !campaigns.length || !connectionCount) && (
         <section className="owner-panel owner-setup" aria-label="Kezdő lépések">
           <div className="flex flex-wrap items-center justify-between gap-2">
@@ -340,7 +348,7 @@ function Dashboard() {
   );
 }
 
-function QuickCreator({ brandName, businessType }: { brandName: string; businessType?: string }) {
+function QuickCreator({ brandName, businessType, productName }: { brandName: string; businessType?: string; productName: string }) {
   const [brief, setBrief] = useState("");
   const navigate = useNavigate();
   return (
@@ -350,7 +358,7 @@ function QuickCreator({ brandName, businessType }: { brandName: string; business
       </span>
       <h1>A következő jó posztod itt kezdődik.</h1>
       <p>
-        Mit szeretnél megosztani? Írd le pár szóban az ötletedet. A MarketingPilot a{" "}
+        Mit szeretnél megosztani? Írd le pár szóban az ötletedet. A {productName} a{" "}
         <strong>{brandName}</strong> mentett márkahangjával dolgozik.
       </p>
       <form

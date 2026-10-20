@@ -1906,10 +1906,13 @@
     width: 100%;
   }
   .content-calendar .calendar-week-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(7, minmax(240px, 80vw));
+    overflow-x: auto;
+    scroll-snap-type: x proximity;
   }
   .content-calendar .calendar-week-column {
     min-height: auto;
+    scroll-snap-align: start;
   }
   .content-calendar .calendar-month-cell {
     min-height: 76px;
@@ -2057,6 +2060,42 @@
   display: block;
   line-height: 1.5;
 }
+.campaign-submit {
+  min-width: 0;
+  max-width: 100%;
+  min-height: 44px;
+  height: auto;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.campaign-metrics > * {
+  min-width: 0;
+  padding: 10px 12px;
+}
+.campaign-feedback:not(:empty) {
+  margin-top: 12px;
+}
+#campaign-status {
+  scroll-margin-top: 120px;
+}
+.campaign-list-card .v2-campaign-visual::after {
+  border-radius: inherit;
+}
+@media (max-width: 767px) {
+  .campaign-submit {
+    width: 100%;
+  }
+  .campaign-list-card .v2-campaign-visual {
+    display: none;
+  }
+  .campaign-list-card {
+    padding: 16px;
+  }
+  .workspace-mobile-nav a {
+    font-size: 11px;
+    line-height: 1.25;
+  }
+}
 .social-preview-skeleton {
   display: flex;
   flex-direction: column;
@@ -2099,4 +2138,75 @@
 }
 .marketing-workspace.theme-marketingpilot-v2 .reference-brand-switcher {
   margin-top: auto;
+}
+/* Tablet uses the same accessible drawer as mobile; desktop begins at 1024px. */
+@media (max-width: 1023px) {
+  .marketing-workspace.theme-marketingpilot-v2 .reference-main-column {
+    margin-left: 0 !important;
+    width: 100%;
+  }
+  .marketing-workspace.theme-marketingpilot-v2 .reference-main {
+    padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px));
+  }
+  .marketing-workspace .workspace-mobile-nav[data-editing="true"] {
+    display: none;
+  }
+  /* Keep save actions in the document flow so they cannot cover the brief or keyboard. */
+  .marketing-workspace.theme-marketingpilot-v2 .post-studio-savebar {
+    position: static;
+    bottom: auto;
+  }
+}
+
+/* Accessibility corrections to the existing cream/forest/coral system. */
+.theme-marketingpilot-v2 {
+  --primary: #b54028;
+  --brand: #b54028;
+  --muted-foreground: #52655a;
+}
+.marketing-workspace.theme-marketingpilot-v2 {
+  --primary: #b54028;
+  --brand: #b54028;
+  --muted-foreground: #52655a;
+}
+.theme-marketingpilot-v2 :is(button, [role="button"], select, summary, input:not([type="checkbox"]):not([type="radio"])) {
+  min-height: 44px !important;
+}
+.theme-marketingpilot-v2 :is(button, [role="button"], summary) {
+  min-width: 44px !important;
+}
+.theme-marketingpilot-v2 a:not(:has(button)) {
+  min-height: 44px !important;
+  min-width: 44px !important;
+}
+.theme-marketingpilot-v2 a:not([class*="flex"]):not([class*="grid"]):not(:has(button)) {
+  display: inline-flex;
+  align-items: center;
+}
+.theme-marketingpilot-v2 a:has(button) {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+}
+.theme-marketingpilot-v2 label:has(input[type="checkbox"]),
+.theme-marketingpilot-v2 label:has(input[type="radio"]) {
+  min-height: 44px !important;
+  cursor: pointer;
+}
+.marketing-workspace.theme-marketingpilot-v2 .reference-sidebar nav a {
+  min-height: 44px !important;
+}
+.marketing-workspace.theme-marketingpilot-v2 :is(.reference-new-post, .tt-primary, .owner-setup-links a[data-state="next"], .bg-primary, .post-schedule-dialog button[type="submit"]) {
+  background-color: #b54028 !important;
+  color: #fff !important;
+}
+.marketing-workspace.theme-marketingpilot-v2 :is(.text-muted-foreground, .workspace-breadcrumb a, .reference-eyebrow, .reference-greeting-sub, .social-preview-account small, .tt-eyebrow, .tt-badge, .tt-pill, .tt-onboarding-step small, .tt-onboarding-step > span, .social-preview-skeleton) {
+  color: #52655a !important;
+}
+.marketing-workspace.theme-marketingpilot-v2 :is(a.text-primary, .tt-link, .text-brand, .workspace-mobile-nav a.bg-brand-soft span) {
+  color: #a43722 !important;
+}
+.theme-marketingpilot-v2 :is(a, button, input, select, textarea, summary):focus-visible {
+  outline: 2px solid #315c45;
+  outline-offset: 3px;
 }

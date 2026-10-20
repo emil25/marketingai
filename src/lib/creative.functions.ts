@@ -1,6 +1,8 @@
 import { createServerFn } from "@tanstack/react-start";
+import { aiProviderMessage } from "@/lib/ai-call-policy";
 import { z } from "zod";
 import { buildBusinessContext, businessContextPrompt } from "@/lib/business-types";
+import { marketWritingRules } from "@/i18n/prompts/hu-RO";
 import {
   CREATIVE_FORMATS,
   CreativeDraftSchema,
@@ -153,7 +155,7 @@ export const generatePostCreative = createServerFn({ method: "POST" })
         messages: [
           {
             role: "system",
-            content: `Instagram képposztot vagy lapozható tartalmat tervezel. Pontosan ${count} lapot készíts, a márka nyelvén. Rövid, a képen olvasható címek és szövegek kellenek. Egy lap esetén ajánlat és CTA; több lap esetén hook → különböző hasznos tartalmi lapok → záró CTA. Ne ismételd ugyanazt minden lapon. Ne találj ki árakat, kedvezményeket, véleményeket vagy tényeket. Headline legfeljebb 100, body 260, CTA 70 karakter. Caption legfeljebb 2200 karakter, nem a lapok szövegének másolata. ${businessContextPrompt(businessContext)}\nBrand Voice: ${JSON.stringify({ tone: profile.tone, ctaStyle: profile.ctaStyle, approvedExamples: profile.approvedExamples, learnedSummary: profile.learnedSummary, aiGuardrails: profile.aiGuardrails })}\nKampány: ${JSON.stringify(campaign ? { objective: campaign.objective, audience: campaign.audience, offer: campaign.offer, cta: campaign.cta, strategy: campaign.strategy } : null)}`,
+            content: `Instagram képposztot vagy lapozható tartalmat tervezel. Pontosan ${count} lapot készíts, a márka nyelvén. Rövid, a képen olvasható címek és szövegek kellenek. Egy lap esetén ajánlat és CTA; több lap esetén hook → különböző hasznos tartalmi lapok → záró CTA. Ne ismételd ugyanazt minden lapon. Ne találj ki árakat, kedvezményeket, véleményeket vagy tényeket. Headline legfeljebb 100, body 260, CTA 70 karakter. Caption legfeljebb 2200 karakter, nem a lapok szövegének másolata. ${marketWritingRules(businessContext.language)}\n${businessContextPrompt(businessContext)}\nBrand Voice: ${JSON.stringify({ tone: profile.tone, ctaStyle: profile.ctaStyle, approvedExamples: profile.approvedExamples, learnedSummary: profile.learnedSummary, aiGuardrails: profile.aiGuardrails })}\nKampány: ${JSON.stringify(campaign ? { objective: campaign.objective, audience: campaign.audience, offer: campaign.offer, cta: campaign.cta, strategy: campaign.strategy } : null)}`,
           },
           {
             role: "user",
@@ -187,7 +189,7 @@ export const generatePostCreative = createServerFn({ method: "POST" })
       if (!response.ok)
         throw new Error(
           response.status === 402
-            ? "Nincs elegendő AI kredit. A képfeliratokat kézzel is megadhatod."
+            ? aiProviderMessage(402)
             : `A kreatív szövegét az AI nem tudta elkészíteni (${response.status}).`,
         );
       const result = (await response.json()) as { choices?: { message?: { content?: string } }[] };

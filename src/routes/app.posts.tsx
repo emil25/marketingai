@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState } from "react";
+import { contentPlaceholders } from "@/lib/content-quality";
 import {
   createFileRoute,
   Link,
@@ -48,6 +49,9 @@ import {
   type PostInboxFilters,
 } from "@/lib/post-inbox";
 import { toast } from "sonner";
+import { EasyPostList } from "@/components/easy-post-list";
+import { useUiMode } from "@/components/ui-mode";
+import { Route as AppRoute } from "./app";
 
 export const Route = createFileRoute("/app/posts")({ loader: () => getPosts(), component: Posts });
 
@@ -70,6 +74,8 @@ const PLATFORM_LABELS: Record<string, string> = {
 
 function Posts() {
   const posts = Route.useLoaderData();
+  const { mode } = useUiMode();
+  const auth = AppRoute.useLoaderData();
   const router = useRouter();
   const navigate = useNavigate();
   const location = useLocation();
@@ -90,6 +96,7 @@ function Posts() {
     [posts, query, status, platform, sort],
   );
   if (location.pathname.startsWith("/app/posts/")) return <Outlet />;
+  if (mode === 'simple') return <EasyPostList posts={posts} brandId={auth.activeBrand?.id} />;
   function resetFilters() {
     setQuery("");
     setStatus("all");
@@ -374,7 +381,11 @@ function PostCard({
     setCopying(true);
     try {
       await navigator.clipboard.writeText(postCopyText(variant));
-      toast.success(`${PLATFORM_LABELS[variant.platform]} szöveg kimásolva.`);
+      if (contentPlaceholders(postCopyText(variant)).length)
+        toast.warning(
+          "Másolva, de még hiányzó adatok vannak benne. Közzététel előtt töltsd ki őket.",
+        );
+      else toast.success(`${PLATFORM_LABELS[variant.platform]} szöveg kimásolva.`);
     } catch {
       toast.error(
         "A böngésző nem engedte a másolást. Nyisd meg a posztot, és másold ki a szöveget.",

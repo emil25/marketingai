@@ -15,7 +15,7 @@ export function createMediaStorage(
     if (!/^media_[a-f0-9-]+$/i.test(id)) throw new Error("Érvénytelen médiaazonosító.");
     return `marketingpilot/${id}`;
   }
-  function useBlob() {
+  function isBlobStorage() {
     const mode = environment.MEDIA_STORAGE?.trim();
     if (mode && mode !== "local" && mode !== "vercel-blob")
       throw new Error("Ismeretlen médiatároló beállítás.");
@@ -28,7 +28,7 @@ export function createMediaStorage(
       const pathname = key(id);
       if (!bytes.byteLength || bytes.byteLength > MAX_BYTES)
         throw new Error("A médiafájl üres vagy túl nagy.");
-      if (useBlob()) {
+      if (isBlobStorage()) {
         await api.put(pathname, Buffer.from(bytes), {
           access: "private",
           addRandomSuffix: false,
@@ -44,7 +44,7 @@ export function createMediaStorage(
     },
     async read(id: string) {
       const pathname = key(id);
-      if (useBlob()) {
+      if (isBlobStorage()) {
         const result = await api.get(pathname, {
           access: "private",
           abortSignal: AbortSignal.timeout(60_000),
@@ -64,7 +64,7 @@ export function createMediaStorage(
     },
     async remove(id: string) {
       const pathname = key(id);
-      if (useBlob()) {
+      if (isBlobStorage()) {
         await api.del(pathname, { abortSignal: AbortSignal.timeout(60_000) });
         return;
       }

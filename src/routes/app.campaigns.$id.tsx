@@ -1,6 +1,8 @@
 import { useMemo, useState } from "react";
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { ContentReviewNotice } from "@/components/content-review-notice";
+import { CampaignFeedback } from "@/components/campaign-feedback";
+import { campaignDateLabel, campaignStatusLabel, campaignTitle } from "@/lib/campaign-presentation";
 import { useServerFn } from "@tanstack/react-start";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -8,6 +10,8 @@ import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/app-chrome";
 import {
   getCampaign,
+  getCampaignWeekDrafts,
+  regenerateCampaignWeek,
   generatePlanItems,
   generateCampaignContentPackage,
   createMissingPlanItemPost,
@@ -23,6 +27,7 @@ export const Route = createFileRoute("/app/campaigns/$id")({
   loader: async ({ params }) => ({
     campaign: await getCampaign({ data: { campaignId: params.id } }),
     posts: await getPosts(),
+    weekDrafts: await getCampaignWeekDrafts({ data: { campaignId: params.id } }),
   }),
   component: CampaignDetail,
 });
@@ -36,14 +41,6 @@ const STATUS_LABELS: Record<PlanItemStatus, string> = {
   published: "Publikált",
   skipped: "Kihagyva",
 };
-const CAMPAIGN_STATUS_LABELS: Record<CampaignStatus, string> = {
-  draft: "Piszkozat",
-  planning: "Tervezés alatt",
-  active: "Aktív",
-  paused: "Szüneteltetve",
-  completed: "Lezárva",
-  archived: "Archiválva",
-};
 const PLATFORM_LABELS: Record<string, string> = {
   facebook: "Facebook",
   instagram: "Instagram",
@@ -54,10 +51,12 @@ const PLATFORM_LABELS: Record<string, string> = {
 };
 
 function CampaignDetail() {
-  const { campaign, posts } = Route.useLoaderData();
+  const { campaign, posts, weekDrafts } = Route.useLoaderData();
   const weekly = (Date.parse(campaign.endDate) - Date.parse(campaign.startDate)) / 86400000 < 29;
   const router = useRouter();
   const generate = useServerFn(generatePlanItems);
+  const regenerateWeek = useServerFn(regenerateCampaignWeek);
+  const [weekPending, setWeekPending] = useState<number | null>(null);
   const generateMissing = useServerFn(createMissingPlanItemPost);
   const [progress, setProgress] = useState("");
   const [errors, setErrors] = useState<string[]>([]);
@@ -145,8 +144,8 @@ function CampaignDetail() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title={campaign.name}
-        sub={`${campaign.brandName} · ${campaign.startDate} – ${campaign.endDate}`}
+        title={campaignTitle(campaign)}
+        sub={`${campaign.brandName} · ${campaignDateLabel(campaign.startDate)} – ${campaignDateLabel(campaign.endDate)}`}
         action={
           <Link to="/app/campaigns">
             <Button variant="outline" className="rounded-full">
@@ -156,7 +155,8 @@ function CampaignDetail() {
           </Link>
         }
       />
-      <div className="grid gap-4 md:grid-cols-4">
+      <CampaignFeedback campaign={campaign} />
+      <div className="campaign-metrics grid grid-cols-2 gap-2 md:grid-cols-4">
         <Metric label="Tervtétel" value={campaign.counts.planned} />
         <Metric label="Elkészült" value={campaign.counts.created} />
         <Metric label="Piszkozat" value={campaign.counts.drafts} />
@@ -175,12 +175,13 @@ function CampaignDetail() {
               className="rounded-full"
               variant={campaign.status === "active" ? "default" : "secondary"}
             >
-              {CAMPAIGN_STATUS_LABELS[campaign.status]}
+              {campaignStatusLabel(campaign)}
             </Badge>
             <select
+              id="campaign-status"
               aria-label="Kampány státusza"
               value={campaign.status}
-              disabled={statusPending}
+              disabled={statusPending || campaign.generation !== null}
               onChange={(event) => void changeStatus(event)}
               className="h-9 rounded-full border bg-card px-3 text-xs"
             >
@@ -308,6 +309,52 @@ function CampaignDetail() {
           </div>
         )}
         <div className="mt-5 grid gap-3 md:grid-cols-2">
+          <div className="mb-4 rounded-xl border p-4">
+            <h3 className="font-semibold">Heti terv</h3>
+            {!campaign.strategy && (
+              <p className="mt-1 text-sm text-muted-foreground">
+                A kész hetek piszkozatát megőrizzük. A teljes terv elkészülésekor kerülnek a
+                naptárba.
+              </p>
+            )}
+            <div className="mt-3 flex flex-wrap gap-2">
+              {weekDrafts.weeks.map((week) => (
+                <Button
+                  key={week.week}
+                  variant="outline"
+                  size="sm"
+                  disabled={weekPending !== null || weekDrafts.running || pending || packagePending}
+                  onClick={async () => {
+                    setWeekPending(week.week);
+                    try {
+                      await regenerateWeek({ data: { campaignId: campaign.id, week: week.week } });
+                      toast.success(`${week.week}. hét elkészült.`);
+                      await router.invalidate();
+                    } catch (error) {
+                      toast.error(
+                        error instanceof Error ? error.message : "A hét generálása nem sikerült.",
+                      );
+                    } finally {
+                      setWeekPending(null);
+                    }
+                  }}
+                >
+                  {weekPending === week.week ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : null}
+                  {week.week}. hét ·{" "}
+                  {weekPending === week.week
+                    ? "Készül…"
+                    : weekDrafts.plans.some((p) => p.het === week.week) ||
+                        campaign.planItems.some(
+                          (p) => p.date >= week.startDate && p.date <= week.endDate,
+                        )
+                      ? "Újragenerálás"
+                      : "Elkészítés"}
+                </Button>
+              ))}
+            </div>
+          </div>
           {campaign.planItems.map((item) => (
             <div key={item.id} className="rounded-2xl border p-4">
               <div className="flex items-start justify-between gap-3">

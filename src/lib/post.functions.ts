@@ -19,9 +19,24 @@ import {
 } from "@/lib/server/store.server";
 import { requestAiJson } from "@/lib/server/ai-json.server";
 import { generateFactualPost } from "@/lib/server/post-content.server";
-import { FACTUAL_CONTENT_RULES, assertContentReady } from "@/lib/content-quality";
+import {
+  FACTUAL_CONTENT_RULES,
+  assertContentReady,
+  contentPlaceholders,
+  contentSoftClaimWarnings,
+} from "@/lib/content-quality";
 import { buildBusinessContext, businessContextPrompt } from "@/lib/business-types";
 import { formatPostScheduleInput } from "@/lib/post-schedule";
+import { marketWritingRules } from "@/i18n/prompts/hu-RO";
+import { MainChannelSchema } from "./main-channel";
+import { channelSwitchSource, commitChannelSwitch, restoreChannelText } from "./server/post-channel.server";
+import { postCopyText } from "./post-editor";
+import {
+  generateOpeningOptions,
+  generateQuestionClosings,
+  generateSimilarPosts,
+  improveCopy,
+} from "./server/post-quick-actions.server";
 
 const platforms = [
   "facebook",
@@ -161,7 +176,7 @@ export const createPostDraft = createServerFn({ method: "POST" })
     if (!brandId || !context.brands.some((brand) => brand.id === brandId))
       throw new Error("Aktív, elérhető márka szükséges.");
     if (data.status === "published")
-      throw new Error("Publikálás csak kapcsolt csatornán lesz elérhető.");
+      throw new Error("A közzétételt a „Közzétettem” gombbal jelölheted.");
     if (data.status === "scheduled")
       throw new Error("Előbb készíts és ments posztszöveget, majd ütemezd.");
     const post = await transact((database) => {
@@ -215,6 +230,7 @@ export const createPostDraft = createServerFn({ method: "POST" })
 
 const UpdateSchema = z.object({
   postId: z.string().min(1),
+  expectedPostUpdatedAt: z.string().datetime().optional(),
   fields: PostFieldsSchema.partial(),
   variants: z.array(VariantInputSchema).optional(),
   hooks: z.array(z.string().trim().min(2).max(1000)).max(20).optional(),
@@ -233,10 +249,19 @@ export const updatePost = createServerFn({ method: "POST" })
       );
       if (!post || !context.brands.some((brand) => brand.id === post.brandId))
         throw new Error("Nincs hozzáférés ehhez a poszthoz.");
-      if (data.fields.status === "published")
-        throw new Error("Publikálás csak kapcsolt csatornán lesz elérhető.");
-      if (data.variants?.some((variant) => variant.status === "published"))
-        throw new Error("Publikálás csak kapcsolt csatornán lesz elérhető.");
+      if (data.expectedPostUpdatedAt && post.updatedAt !== data.expectedPostUpdatedAt)
+        throw new Error("A poszt közben máshol megváltozott. Nem írtuk felül; nyisd meg újra, majd illeszd be a szerkesztett szövegedet.");
+      // A stale editor cannot erase a saved manual-publication marker.
+      for (const variant of data.variants ?? []) {
+        if (database.postVariants.some((saved) => saved.id === variant.id && saved.postId === post.id && saved.status === "published")) variant.status = "published";
+      }
+      if (data.fields.status === "published" && post.status !== "published")
+        throw new Error("A közzétételt a „Közzétettem” gombbal jelölheted.");
+      if (data.variants?.some((variant) => variant.status === "published" && !database.postVariants.some((saved) => saved.id === variant.id && saved.postId === post.id && saved.status === "published")))
+        throw new Error("A közzétételt a „Közzétettem” gombbal jelölheted.");
+      for (const variant of data.variants ?? [])
+        if (variant.status === "prepared" || variant.status === "published")
+          assertContentReady(variant.content, variant.cta, ...variant.hashtags);
       const scheduledAt =
         data.fields.scheduledAt !== undefined ? data.fields.scheduledAt : post.scheduledAt;
       const finalStatus = data.fields.status ?? post.status;
@@ -321,7 +346,7 @@ export const updatePost = createServerFn({ method: "POST" })
             planItem.postId === post.id &&
             planItem.workspaceId === post.workspaceId &&
             planItem.brandId === post.brandId &&
-            planItem.status !== "skipped"
+            planItem.status !== "skipped" && planItem.status !== "published"
           ) {
             planItem.date = local.slice(0, 10);
             planItem.time = local.slice(11, 16);
@@ -346,7 +371,8 @@ export const updatePost = createServerFn({ method: "POST" })
           planItem.brandId === post.brandId &&
           planItem.status !== "skipped"
         ) {
-          planItem.status = linkedPlanStatus;
+          const variant = data.variants?.find((v) => v.platform === planItem.platform) ?? database.postVariants.find((v) => v.postId === post.id && v.platform === planItem.platform);
+          planItem.status = variant?.status === "published" ? "published" : linkedPlanStatus;
           planItem.updatedAt = timestamp;
         }
       }
@@ -488,6 +514,7 @@ export const copyPost = createServerFn({ method: "POST" })
           id: newId("variant"),
           postId: post.id,
           status: "draft",
+          manualPublishedAt: null,
           createdAt: timestamp,
           updatedAt: timestamp,
         });
@@ -509,6 +536,15 @@ export const copyPost = createServerFn({ method: "POST" })
       return post.id;
     });
     return getPostSnapshot(created, context.user.id, context.workspace.id);
+  });
+
+export const markPostManuallyPublished = createServerFn({ method: "POST" })
+  .inputValidator((data: unknown) => z.object({ postId: z.string().min(1), variantId: z.string().min(1) }).parse(data))
+  .handler(async ({ data }) => {
+    const context = await requireAuthContext();
+    const { markManualPublication } = await import("./server/manual-publication.server");
+    await transact((db) => markManualPublication(db, context, data.postId, data.variantId));
+    return getPostSnapshot(data.postId, context.user.id, context.workspace.id);
   });
 
 const GenerateSchema = z.object({
@@ -538,6 +574,7 @@ export const generatePostVariants = createServerFn({ method: "POST" })
       language: data.language || brand.languageMarket,
       platform: data.platforms.join(", "),
     });
+    if (data.tone.trim()) businessContext.tone = data.tone.trim();
     const job = await transact((database) =>
       createAiJob(database, {
         workspaceId: context.workspace.id,
@@ -611,7 +648,9 @@ export const generatePostVariants = createServerFn({ method: "POST" })
             content: item.content,
             hashtags: item.hashtags ?? [],
             cta: item.cta ?? "",
-            status: "prepared",
+            status: contentPlaceholders(item.content, item.cta, ...item.hashtags).length
+              ? "draft"
+              : "prepared",
             createdAt: timestamp,
             updatedAt: timestamp,
           });
@@ -632,6 +671,359 @@ const ExtrasInputSchema = z.object({
   platform: PlatformSchema.optional(),
   count: z.number().int().min(2).max(4).default(3),
 });
+
+export const switchPostChannel = createServerFn({ method: "POST" })
+  .inputValidator((data: unknown) => z.object({
+    postId: z.string().min(1), variantId: z.string().min(1),
+    channel: MainChannelSchema, expectedUpdatedAt: z.string().datetime(),
+  }).strict().parse(data))
+  .handler(async ({ data }) => {
+    const { context, post, brand, database } = await ownedPostContext(data.postId);
+    const scope = { userId: context.user.id, workspaceId: context.workspace.id };
+    const before = channelSwitchSource(database, scope, post.id, data.variantId, data.channel, data.expectedUpdatedAt);
+    const job = await transact((db) => createAiJob(db, {
+      workspaceId: post.workspaceId, brandId: post.brandId, type: "content",
+      input: { kind: "post_channel_switch", postId: post.id, sourceVariantId: data.variantId, channel: data.channel },
+    }));
+    await transact((db) => startAiJob(db, job.id));
+    try {
+      const businessContext = buildBusinessContext(brand, brand.profile, {
+        goal: post.goal, audience: post.audience, language: post.language, platform: data.channel,
+      });
+      const result = await generateFactualPost({
+        businessContext, title: post.title, platforms: [data.channel], ctaStyle: brand.profile.ctaStyle,
+        requireChannelTags: true,
+        brief: `A felhasználó szerkesztett posztját írd át ${data.channel === "instagram" ? "Instagramra: önálló, erős első sor, rövid bekezdések, 1–3 emoji és 4–6 hashtag" : "Facebookra: beszélgetősebb, eltérő nyitás és felépítés, 1–2 hashtag"}. Kizárólag a mentett szöveg és a vállalkozás megadott tényeit használd. Őrizd meg a hiányzó adatok helykitöltőit, ne találj ki új tényeket. Mentett, szerkesztett szöveg:\n${postCopyText(before.source)}`,
+      });
+      const selection = await transact((db) => {
+        const selected = commitChannelSwitch(db, scope, before, result.variants[0]);
+        completeAiJob(db, job.id);
+        return selected;
+      });
+      return { ...selection, snapshot: await getPostSnapshot(post.id, context.user.id, context.workspace.id) };
+    } catch (cause) {
+      await transact((db) => completeAiJob(db, job.id, cause instanceof Error ? cause.message : "A csatornaváltás nem sikerült."));
+      throw cause;
+    }
+  });
+
+export const restorePostChannelText = createServerFn({ method: "POST" })
+  .inputValidator((data: unknown) => z.object({
+    postId: z.string().min(1), versionId: z.string().min(1), expectedPostUpdatedAt: z.string().datetime(),
+  }).strict().parse(data))
+  .handler(async ({ data }) => {
+    const { context, post } = await ownedPostContext(data.postId);
+    const variantId = await transact((db) => restoreChannelText(db,
+      { userId: context.user.id, workspaceId: context.workspace.id }, post.id, data.versionId, data.expectedPostUpdatedAt));
+    return { variantId, snapshot: await getPostSnapshot(post.id, context.user.id, context.workspace.id) };
+  });
+
+// Rewrites the saved, owned text; never replaces other platform variants or publication history.
+export const rewritePostVariant = createServerFn({ method: "POST" })
+  .inputValidator((data: unknown) => z.object({ postId: z.string().min(1), variantId: z.string().min(1), style: z.enum(["alternative", "shorter", "friendlier"]) }).parse(data))
+  .handler(async ({ data }) => {
+    const { context, post, brand, database } = await ownedPostContext(data.postId);
+    const source = database.postVariants.find((v) => v.id === data.variantId && v.postId === post.id);
+    if (!source?.content.trim()) throw new Error("Előbb készíts posztszöveget.");
+    if (source.status === "published") throw new Error("A közzétett posztról előbb készíts másolatot.");
+    const job = await transact((db) => createAiJob(db, { workspaceId: post.workspaceId, brandId: post.brandId, type: "content", input: { kind: "post_rewrite", postId: post.id, style: data.style } }));
+    await transact((db) => startAiJob(db, job.id));
+    try {
+      const businessContext = buildBusinessContext(brand, brand.profile, { goal: post.goal, audience: post.audience, language: post.language, platform: source.platform });
+      const instruction = data.style === "shorter" ? "Írd át lényegesen rövidebbre, legfeljebb az eredeti hossz 75%-ára." : data.style === "friendlier" ? "Írd át közvetlenebb, barátságosabb hangon, a megadott megszólítást megtartva." : "Írj más megközelítésű változatot, más nyitással és felépítéssel.";
+      const result = await generateFactualPost({ businessContext, title: post.title, platforms: [source.platform], ctaStyle: brand.profile.ctaStyle, brief: `${instruction} Kizárólag a mentett poszt és márka tényeit használd. A helykitöltők maradjanak meg, új tényt ne adj hozzá. Mentett poszt: ${source.content}\n${source.cta}\n${source.hashtags.join(' ')}` });
+      const next = result.variants[0];
+      await transact((db) => {
+        const current = db.postVariants.find((v) => v.id === source.id && v.postId === post.id);
+        const owned = db.posts.find((p) => p.id === post.id && p.workspaceId === context.workspace.id && p.brandId === brand.id);
+        if (!current || !owned || current.content !== source.content || current.updatedAt !== source.updatedAt || current.status === "published") throw new Error("A poszt közben megváltozott. Nyisd meg újra, majd próbáld meg ismét.");
+        const timestamp = nowIso();
+        db.postVersions.push({ id: newId("version"), postId: post.id, variantId: current.id, content: current.content, createdAt: timestamp, createdBy: context.user.id });
+        Object.assign(current, { content: next.content, cta: next.cta, hashtags: next.hashtags, verificationWarnings: next.ellenorizendo, status: contentPlaceholders(next.content, next.cta, ...next.hashtags).length ? "draft" : "prepared", updatedAt: timestamp });
+        owned.updatedAt = timestamp;
+        completeAiJob(db, job.id);
+      });
+      return getPostSnapshot(post.id, context.user.id, context.workspace.id);
+    } catch (cause) {
+      await transact((db) => completeAiJob(db, job.id, cause instanceof Error ? cause.message : "Nem sikerült az átírás."));
+      throw cause;
+    }
+  });
+
+export const generatePostOpeningOptions = createServerFn({ method: "POST" })
+  .inputValidator((data: unknown) => QuickVariantInputSchema.strict().parse(data))
+  .handler(async ({ data }) => {
+    const owned = await ownedPostContext(data.postId);
+    const variant = requireFreshOwnedVariant(data, owned);
+    const jobId = await createQuickActionJob(owned.post.workspaceId, owned.brand.id, {
+      kind: "post_opening_options",
+      postId: owned.post.id,
+      variantId: variant.id,
+      platform: variant.platform,
+    });
+    try {
+      const result = await generateOpeningOptions({
+        businessContext: quickActionBusinessContext(owned.brand, owned.post, variant.platform),
+        platform: variant.platform,
+        sourceText: postCopyText(variant),
+      });
+      await finishQuickActionJob(jobId);
+      return {
+        ...result,
+        expectedPostUpdatedAt: owned.post.updatedAt,
+        expectedVariantUpdatedAt: variant.updatedAt,
+      };
+    } catch (cause) {
+      await finishQuickActionJob(jobId, cause);
+      throw cause;
+    }
+  });
+
+export const generatePostQuestionClosings = createServerFn({ method: "POST" })
+  .inputValidator((data: unknown) => QuickVariantInputSchema.strict().parse(data))
+  .handler(async ({ data }) => {
+    const owned = await ownedPostContext(data.postId);
+    const variant = requireFreshOwnedVariant(data, owned);
+    const jobId = await createQuickActionJob(owned.post.workspaceId, owned.brand.id, {
+      kind: "post_question_closings",
+      postId: owned.post.id,
+      variantId: variant.id,
+      platform: variant.platform,
+    });
+    try {
+      const result = await generateQuestionClosings({
+        businessContext: quickActionBusinessContext(owned.brand, owned.post, variant.platform),
+        platform: variant.platform,
+        sourceText: postCopyText(variant),
+      });
+      await finishQuickActionJob(jobId);
+      return {
+        ...result,
+        expectedPostUpdatedAt: owned.post.updatedAt,
+        expectedVariantUpdatedAt: variant.updatedAt,
+      };
+    } catch (cause) {
+      await finishQuickActionJob(jobId, cause);
+      throw cause;
+    }
+  });
+
+const ImproveTextSchema = z.object({ text: z.string().trim().min(10).max(10000) }).strict();
+export const improveExistingText = createServerFn({ method: "POST" })
+  .inputValidator((data: unknown) => ImproveTextSchema.parse(data))
+  .handler(async ({ data }) => {
+    const context = await requireBrandContext();
+    const brand = context.activeBrand;
+    if (!brand) throw new Error("Még nincs aktív vállalkozásod.");
+    const platform = brand.profile.mainChannel ?? "facebook";
+    const businessContext = buildBusinessContext(brand, brand.profile, {
+      goal: "A megadott szöveg javítása",
+      audience: brand.audience,
+      language: brand.languageMarket,
+      platform,
+    });
+    const jobId = await createQuickActionJob(context.workspace.id, brand.id, {
+      kind: "improve_user_copy",
+      inputLength: data.text.length,
+      platform,
+    });
+    try {
+      const result = await improveCopy({ businessContext, platform, sourceText: data.text });
+      const postId = await transact((database) => {
+        const timestamp = nowIso();
+        const title = data.text.split(/\r?\n/u).find((line) => line.trim())?.trim().slice(0, 120) || "Saját szöveg javítása";
+        const post: PostRecord = {
+          id: newId("post"),
+          workspaceId: context.workspace.id,
+          brandId: brand.id,
+          campaignId: null,
+          title,
+          goal: "Saját szöveg javítása",
+          audience: brand.audience,
+          language: brand.languageMarket,
+          tone: brand.profile.tone,
+          status: "draft",
+          scheduledAt: null,
+          timezone: "Europe/Bucharest",
+          mediaAssetIds: [],
+          platforms: [platform],
+          hooks: [],
+          selectedHook: null,
+          abVariants: [],
+          adCopies: [],
+          createdAt: timestamp,
+          updatedAt: timestamp,
+        };
+        const variant = checkedVariantValues(
+          brand,
+          post,
+          platform,
+          result.content,
+          result.cta,
+          result.hashtags,
+        );
+        database.posts.push(post);
+        database.postVariants.push({
+          id: newId("variant"),
+          postId: post.id,
+          platform,
+          ...variant,
+          createdAt: timestamp,
+          updatedAt: timestamp,
+        });
+        return post.id;
+      });
+      await finishQuickActionJob(jobId);
+      const snapshot = await getPostSnapshot(postId, context.user.id, context.workspace.id);
+      if (!snapshot) throw new Error("A javított poszt mentése nem sikerült.");
+      return { snapshot, reasons: result.reasons };
+    } catch (cause) {
+      await finishQuickActionJob(jobId, cause);
+      throw cause;
+    }
+  });
+
+async function persistSimilarPosts(input: {
+  workspaceId: string;
+  userId: string;
+  brand: Awaited<ReturnType<typeof ownedPostContext>>["brand"];
+  businessContext: ReturnType<typeof buildBusinessContext>;
+  platform: PostPlatform;
+  sourceText: string;
+  goal: string;
+  audience: string;
+  language: string;
+  tone: string;
+}) {
+  const generated = await generateSimilarPosts({
+    businessContext: input.businessContext,
+    platform: input.platform,
+    sourceText: input.sourceText,
+  });
+  const ids = await transact((database) => {
+    const timestamp = nowIso();
+    return generated.posts.map((item) => {
+      const post: PostRecord = {
+        id: newId("post"),
+        workspaceId: input.workspaceId,
+        brandId: input.brand.id,
+        campaignId: null,
+        title: item.title,
+        goal: input.goal || "Hasonló poszt",
+        audience: input.audience || input.brand.audience,
+        language: input.language || input.brand.languageMarket,
+        tone: input.tone || input.brand.profile.tone,
+        status: "draft",
+        scheduledAt: null,
+        timezone: "Europe/Bucharest",
+        mediaAssetIds: [],
+        platforms: [input.platform],
+        hooks: [],
+        selectedHook: null,
+        abVariants: [],
+        adCopies: [],
+        createdAt: timestamp,
+        updatedAt: timestamp,
+      };
+      database.posts.push(post);
+      const variant = checkedVariantValues(
+        input.brand,
+        post,
+        input.platform,
+        item.content,
+        item.cta,
+        item.hashtags,
+        item.ellenorizendo,
+      );
+      database.postVariants.push({
+        id: newId("variant"),
+        postId: post.id,
+        platform: input.platform,
+        ...variant,
+        createdAt: timestamp,
+        updatedAt: timestamp,
+      });
+      return post.id;
+    });
+  });
+  const snapshots = await Promise.all(ids.map((id) => getPostSnapshot(id, input.userId, input.workspaceId)));
+  return snapshots.filter((snapshot): snapshot is PostSnapshot => snapshot !== null);
+}
+
+export const generateThreeSimilarPosts = createServerFn({ method: "POST" })
+  .inputValidator((data: unknown) => QuickVariantInputSchema.strict().parse(data))
+  .handler(async ({ data }) => {
+    const owned = await ownedPostContext(data.postId);
+    const variant = requireFreshOwnedVariant(data, owned);
+    const businessContext = quickActionBusinessContext(owned.brand, owned.post, variant.platform);
+    const jobId = await createQuickActionJob(owned.post.workspaceId, owned.brand.id, {
+      kind: "similar_posts_from_saved",
+      postId: owned.post.id,
+      variantId: variant.id,
+      platform: variant.platform,
+    });
+    try {
+      const posts = await persistSimilarPosts({
+        workspaceId: owned.context.workspace.id,
+        userId: owned.context.user.id,
+        brand: owned.brand,
+        businessContext,
+        platform: variant.platform,
+        sourceText: postCopyText(variant),
+        goal: owned.post.goal,
+        audience: owned.post.audience,
+        language: owned.post.language,
+        tone: owned.post.tone,
+      });
+      if (posts.length !== 3) throw new Error("A három új poszt mentése nem sikerült.");
+      await finishQuickActionJob(jobId);
+      return { posts };
+    } catch (cause) {
+      await finishQuickActionJob(jobId, cause);
+      throw cause;
+    }
+  });
+
+const SimilarTextSchema = z.object({ text: z.string().trim().min(10).max(10000) }).strict();
+export const generateSimilarPostsFromText = createServerFn({ method: "POST" })
+  .inputValidator((data: unknown) => SimilarTextSchema.parse(data))
+  .handler(async ({ data }) => {
+    const context = await requireBrandContext();
+    const brand = context.activeBrand;
+    if (!brand) throw new Error("Még nincs aktív vállalkozásod.");
+    const platform = brand.profile.mainChannel ?? "facebook";
+    const businessContext = buildBusinessContext(brand, brand.profile, {
+      goal: "Hasonló posztok készítése",
+      audience: brand.audience,
+      language: brand.languageMarket,
+      platform,
+    });
+    const jobId = await createQuickActionJob(context.workspace.id, brand.id, {
+      kind: "similar_posts_from_text",
+      inputLength: data.text.length,
+      platform,
+    });
+    try {
+      const posts = await persistSimilarPosts({
+        workspaceId: context.workspace.id,
+        userId: context.user.id,
+        brand,
+        businessContext,
+        platform,
+        sourceText: data.text,
+        goal: "A megadott mintához hasonló poszt",
+        audience: brand.audience,
+        language: brand.languageMarket,
+        tone: brand.profile.tone,
+      });
+      if (posts.length !== 3) throw new Error("A három új poszt mentése nem sikerült.");
+      await finishQuickActionJob(jobId);
+      return { posts };
+    } catch (cause) {
+      await finishQuickActionJob(jobId, cause);
+      throw cause;
+    }
+  });
 const HooksResultSchema = z.object({
   hooks: z.array(z.string().trim().min(2).max(1000)).min(2).max(8),
 });
@@ -743,12 +1135,13 @@ async function ownedPostContext(postId: string) {
   return { context, database, post, brand, campaign, baseVariant };
 }
 
-async function runJsonAi(
-  jobId: string,
+async function runJsonAi<T>(
+  brandId: string,
   system: string,
   user: string,
   schemaName: string,
   schema: Record<string, unknown>,
+  validate: z.ZodType<T>,
 ) {
   return requestAiJson(
     {
@@ -757,11 +1150,92 @@ async function runJsonAi(
         { role: "user", content: user },
       ],
       schemaName,
+      brandId,
       schema,
       maxTokens: 3500,
     },
-    z.unknown(),
+    validate,
   );
+}
+
+async function createQuickActionJob(
+  workspaceId: string,
+  brandId: string,
+  input: Record<string, unknown>,
+) {
+  const job = await transact((database) =>
+    createAiJob(database, { workspaceId, brandId, type: "content", input }),
+  );
+  await transact((database) => startAiJob(database, job.id));
+  return job.id;
+}
+
+async function finishQuickActionJob(jobId: string, cause?: unknown) {
+  await transact((database) =>
+    completeAiJob(
+      database,
+      jobId,
+      cause instanceof Error ? cause.message : cause ? "A tartalom művelet nem sikerült." : undefined,
+    ),
+  );
+}
+
+function quickActionBusinessContext(
+  brand: Awaited<ReturnType<typeof ownedPostContext>>["brand"],
+  post: PostRecord,
+  platform: string,
+) {
+  return buildBusinessContext(brand, brand.profile, {
+    goal: post.goal,
+    audience: post.audience || brand.audience,
+    language: post.language || brand.languageMarket,
+    platform,
+  });
+}
+
+function checkedVariantValues(
+  brand: Awaited<ReturnType<typeof ownedPostContext>>["brand"],
+  post: PostRecord,
+  platform: PostPlatform,
+  content: string,
+  cta: string,
+  hashtags: string[],
+  warnings: string[] = [],
+) {
+  const businessContext = quickActionBusinessContext(brand, post, platform);
+  const facts = JSON.stringify({ ...businessContext, approvedClaims: brand.profile.approvedClaims });
+  const claimContext = {
+    businessType: businessContext.businessType,
+    approvedClaims: businessContext.approvedClaims,
+  };
+  const softWarnings = contentSoftClaimWarnings(content, facts, claimContext);
+  return {
+    content,
+    cta,
+    hashtags,
+    verificationWarnings: [...new Set([...warnings, ...softWarnings, ...contentPlaceholders(content, cta, ...hashtags)])],
+    status: contentPlaceholders(content, cta, ...hashtags).length ? "draft" as const : "prepared" as const,
+  };
+}
+
+const QuickVariantInputSchema = z.object({
+  postId: z.string().min(1),
+  variantId: z.string().min(1),
+  expectedPostUpdatedAt: z.string().datetime(),
+});
+
+function requireFreshOwnedVariant(
+  data: z.infer<typeof QuickVariantInputSchema>,
+  owned: Awaited<ReturnType<typeof ownedPostContext>>,
+) {
+  const variant = owned.database.postVariants.find(
+    (item) => item.id === data.variantId && item.postId === owned.post.id,
+  );
+  if (!variant) throw new Error("Nincs hozzáférés ehhez a posztváltozathoz.");
+  if (owned.post.updatedAt !== data.expectedPostUpdatedAt)
+    throw new Error("A poszt közben megváltozott. Frissítsd az oldalt, majd próbáld újra.");
+  if (variant.status === "published") throw new Error("A közzétett posztból készíts másolatot a módosítás előtt.");
+  return variant;
 }
 
 function extrasSystem(
@@ -774,7 +1248,7 @@ function extrasSystem(
     audience: post.audience || brand.audience,
     platform,
   });
-  return `Magyar nyelvű social media szakértő vagy. Használd ezt a strukturált üzleti kontextust:\n${businessContextPrompt(businessContext)}\n${FACTUAL_CONTENT_RULES}`;
+  return `A vállalkozás beállításában megadott nyelven dolgozó közösségimédia-szakember vagy. Használd ezt a strukturált üzleti kontextust:\n${businessContextPrompt(businessContext)}\n${marketWritingRules(businessContext.language)}\n${FACTUAL_CONTENT_RULES}`;
 }
 
 export const generatePostHooks = createServerFn({ method: "POST" })
@@ -799,11 +1273,12 @@ export const generatePostHooks = createServerFn({ method: "POST" })
     try {
       const parsed = HooksResultSchema.parse(
         await runJsonAi(
-          job.id,
+          brand.id,
           `${extrasSystem(brand, post, post.platforms?.join(", "))} Adj ${data.count} egymástól jól eltérő, figyelemfelkeltő nyitómondatot (hookot) a poszthoz. Ez kizárólag nyitómondat: ne adj hozzá CTA-t, hashtageket vagy külön ellenőrzési mezőt; a megadott hook-sémát kövesd.`,
           `Poszt téma: ${post.title}\nCél: ${post.goal}\nKampány: ${campaign?.name ?? "nincs"}\nKampánycél: ${campaign?.objective ?? post.goal}`,
           "post_hooks",
           HOOK_RESULT,
+          HooksResultSchema,
         ),
       );
       const hooks = [...new Set(parsed.hooks.map((hook) => hook.trim()).filter(Boolean))].slice(
@@ -864,11 +1339,12 @@ export const generatePostABVariants = createServerFn({ method: "POST" })
     try {
       const parsed = AbResultSchema.parse(
         await runJsonAi(
-          job.id,
+          brand.id,
           `${extrasSystem(brand, post, platform)} Készíts ${data.count} valóban eltérő A/B megközelítést ugyanahhoz a ${platform} poszthoz. Legyen köztük például edukáló, érzelmi, ajánlatközpontú és közösségi megközelítés.`,
           `Téma: ${post.title}\nCél: ${post.goal}\nKiinduló szöveg: ${source?.content ?? "nincs"}\nKampány: ${campaign?.name ?? "nincs"}`,
           "post_ab_variants",
           AB_RESULT,
+          AbResultSchema,
         ),
       );
       const timestamp = nowIso();
@@ -930,11 +1406,12 @@ export const generatePostAdCopies = createServerFn({ method: "POST" })
     try {
       const parsed = AdResultSchema.parse(
         await runJsonAi(
-          job.id,
+          brand.id,
           `${extrasSystem(brand, post, post.platforms?.join(", "))} Meta hirdetésszöveg-specialista vagy. Készíts ${data.count} különböző hirdetési irányt. Mindegyikben legyen Primary Text, Headline, Description és egy rövid CTA.`,
           `Téma: ${post.title}\nCél: ${post.goal}\nKampánycél: ${campaign?.objective ?? ""}\nAjánlat: ${campaign?.offer ?? brand.offers}\nKampány CTA: ${campaign?.cta ?? brand.profile.ctaStyle}`,
           "meta_ad_copies",
           AD_RESULT,
+          AdResultSchema,
         ),
       );
       const timestamp = nowIso();

@@ -7,6 +7,22 @@
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 
 export default defineConfig({
+  vite: {
+    server: {
+      watch: {
+        // Runtime data, test captures and generated builds are not source code.
+        // Watching them can reload the preview while a post is being saved.
+        ignored: [
+          "**/outputs/**",
+          "**/data/**",
+          "**/.output/**",
+          "**/.wrangler/**",
+          "**/.vercel/**",
+          "**/docs/qa/screens/**",
+        ],
+      },
+    },
+  },
   tanstackStart: {
     // Redirect TanStack Start's bundled server entry to src/server.ts (our SSR error wrapper).
     // nitro/vite builds from this

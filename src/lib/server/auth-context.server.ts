@@ -1,14 +1,17 @@
 import { redirect } from "@tanstack/react-router";
 import type { WorkspaceSnapshot } from "@/lib/data-model";
 import { getWorkspaceSnapshot, readData } from "@/lib/server/store.server";
-import { useAppSession } from "@/lib/server/session.server";
+import { useAppSession as getAppSession } from "@/lib/server/session.server";
 
 export async function getOptionalAuthContext(): Promise<WorkspaceSnapshot | null> {
-  const session = await useAppSession();
+  const session = await getAppSession();
   const userId = session.data.userId;
   const workspaceId = session.data.workspaceId;
   if (!userId || !workspaceId) return null;
-  return getWorkspaceSnapshot(await readData(), userId, workspaceId, session.data.activeBrandId);
+  const database = await readData();
+  const user = database.users.find((item) => item.id === userId);
+  if (!user || user.auth?.deleting || (user.auth?.sessionVersion ?? 0) !== (session.data.sessionVersion ?? 0)) return null;
+  return getWorkspaceSnapshot(database, userId, workspaceId, session.data.activeBrandId);
 }
 
 export async function requireAuthContext(): Promise<WorkspaceSnapshot> {
