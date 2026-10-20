@@ -76,6 +76,8 @@ test("two modes: signup, three-click post, autosave, weekly plan, persistence, i
   ).toBeGreaterThanOrEqual(44);
   await page.getByRole("button", { name: "Poszt készítése", exact: true }).click();
   await expect(page).toHaveURL(/app\/posts\/post_/, { timeout: 120000 });
+  await expect(page.getByText("Közvetlen közzététel", { exact: true })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Csatorna csatlakoztatása" })).toBeVisible();
   const postUrl = page.url();
   for (const label of ["Másolás", "Szerkesztés", "Másik változat"])
     expect(

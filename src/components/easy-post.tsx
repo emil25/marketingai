@@ -19,8 +19,15 @@ import {
   improveExistingText,
   generateThreeSimilarPosts,
   generateSimilarPostsFromText,
+  getPost,
   type PostSnapshot,
 } from "@/lib/post.functions";
+import {
+  getPostPublicationInfo,
+  publishPost,
+  type PublishPlatform,
+  type SafePublicationInfo,
+} from "@/lib/publishing.functions";
 import type { WorkspaceSnapshot, PostPlatform } from "@/lib/data-model";
 import { businessTypeQuickStarts, normalizeBusinessType } from "@/lib/business-types";
 import { contentPlaceholders, needsOfferDetails } from "@/lib/content-quality";
@@ -108,6 +115,9 @@ export function EasyPost({
   const [energy, setEnergy] = useState("");
   const [saveState, setSaveState] = useState("");
   const [shareAvailable, setShareAvailable] = useState(false);
+  const [publicationInfo, setPublicationInfo] = useState<SafePublicationInfo | null>(null);
+  const [publicationLoading, setPublicationLoading] = useState(false);
+  const [publicationCheckFailed, setPublicationCheckFailed] = useState(false);
   const [hydrated, setHydrated] = useState(false);
   const blocked = !!busy || !hydrated;
   useEffect(() => setHydrated(true), []);
@@ -115,6 +125,38 @@ export function EasyPost({
     if (!post) setIdea(initialIdea);
   }, [initialIdea, post]);
   useEffect(() => setShareAvailable(typeof navigator.share === "function"), []);
+  const loadPost = useServerFn(getPost);
+  const loadPublicationInfo = useServerFn(getPostPublicationInfo);
+  const publish = useServerFn(publishPost);
+  useEffect(() => {
+    let active = true;
+    if (!post?.post.id) {
+      setPublicationInfo(null);
+      setPublicationLoading(false);
+      setPublicationCheckFailed(false);
+      return;
+    }
+    setPublicationLoading(true);
+    void loadPublicationInfo({ data: { postId: post.post.id } })
+      .then((result) => {
+        if (active) {
+          setPublicationInfo(result);
+          setPublicationCheckFailed(false);
+        }
+      })
+      .catch(() => {
+        if (active) {
+          setPublicationInfo(null);
+          setPublicationCheckFailed(true);
+        }
+      })
+      .finally(() => {
+        if (active) setPublicationLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [post?.post.id, loadPublicationInfo]);
   const [placeholderValues, setPlaceholderValues] = useState<Record<string, string>>({});
   const generation = useServerFn(generatePostVariants);
   const save = useServerFn(updatePost);
@@ -155,6 +197,23 @@ export function EasyPost({
   const fullText = variant ? postCopyText(variant) : "";
   const missing = contentPlaceholders(editing ? text : fullText);
   const published = variant?.status === "published";
+  const directChannel: PublishPlatform | null =
+    variant && (variant.platform === "facebook" || variant.platform === "instagram")
+      ? variant.platform
+      : null;
+  const directConnection = directChannel
+    ? publicationInfo?.connections.find((connection) => connection.provider === directChannel)
+    : undefined;
+  const requiredDirectScope = directChannel === "facebook" ? "pages_manage_posts" : "instagram_content_publish";
+  const directChannelReady =
+    directConnection?.status === "connected" &&
+    directConnection.hasAccessToken &&
+    directConnection.scopes.includes(requiredDirectScope);
+  const hasInstagramJpeg = Boolean(
+    post?.media.some(
+      (asset) => post.post.mediaAssetIds.includes(asset.id) && asset.mimeType === "image/jpeg",
+    ),
+  );
   const dirty = editing && text !== fullText;
   useBlocker({
     enableBeforeUnload: () => dirty,
@@ -319,6 +378,30 @@ export function EasyPost({
       setSaveState("Automatikusan mentve");
       await router.invalidate();
       await router.navigate({ to: "/app/posts/$id", params: { id: result.post.id } });
+    });
+  }
+  async function publishCurrentPost() {
+    if (!post || !variant || !directChannel) return;
+    await run("publish", async () => {
+      if (missing.length) throw new Error("Előbb töltsd ki a jelölt adatokat.");
+      let saved = post;
+      if (editing && text !== fullText) {
+        const updated = await persist(text);
+        if (!updated)
+          throw new Error("A szerkesztett poszt mentése nem sikerült; nem indult közzététel.");
+        saved = updated;
+      }
+      await publish({ data: { postId: saved.post.id, platform: directChannel } });
+      const [refreshedPost, refreshedPublication] = await Promise.all([
+        loadPost({ data: { postId: saved.post.id } }),
+        loadPublicationInfo({ data: { postId: saved.post.id } }),
+      ]);
+      setPost(refreshedPost);
+      setPublicationInfo(refreshedPublication);
+      setEditing(false);
+      setSaveState("Közzétéve");
+      toast.success(`${labels[directChannel]}-poszt közzétéve.`);
+      await router.invalidate();
     });
   }
   async function loadQuickOptions(kind: "opening" | "closing") {
@@ -817,6 +900,53 @@ export function EasyPost({
               Másik változat
             </Button>
           </div>
+          {mode === "simple" && directChannel && !published && (
+            <div className="space-y-2 rounded-xl border border-primary/20 bg-primary/5 p-4">
+              <p className="font-medium">Közvetlen közzététel</p>
+              {publicationLoading ? (
+                <p className="text-sm text-muted-foreground" role="status">
+                  Ellenőrizzük a csatorna kapcsolatát…
+                </p>
+              ) : directChannelReady ? (
+                <>
+                  <Button
+                    className="min-h-11 w-full sm:w-auto"
+                    disabled={blocked || missing.length > 0 || (directChannel === "instagram" && !hasInstagramJpeg)}
+                    onClick={() => void publishCurrentPost()}
+                  >
+                    {busy === "publish" ? "Közzététel…" : `${labels[directChannel]}-poszt közzététele`}
+                  </Button>
+                  {directChannel === "instagram" && !hasInstagramJpeg && (
+                    <p className="text-sm text-muted-foreground">
+                      Instagram-poszthoz előbb adj hozzá egy JPEG-képet a poszt szerkesztésénél.
+                    </p>
+                  )}
+                  {missing.length > 0 && (
+                    <p className="text-sm text-muted-foreground">
+                      Közzététel előtt töltsd ki a posztban jelölt hiányzó adatokat.
+                    </p>
+                  )}
+                </>
+              ) : (
+                <div className="space-y-2">
+                  <p className="text-sm text-muted-foreground">
+                    {publicationCheckFailed
+                      ? "A csatorna kapcsolatát most nem sikerült ellenőrizni. Másolással továbbra is közzéteheted kézzel."
+                      : directConnection?.status === "expired"
+                        ? `A ${labels[directChannel]}-kapcsolat lejárt. Csatlakoztasd újra a közvetlen közzétételhez.`
+                        : directConnection?.status === "connected"
+                          ? `A ${labels[directChannel]}-közzétételhez újra kell csatlakoztatni a fiókot a szükséges engedélyekkel.`
+                          : directConnection
+                            ? `A ${labels[directChannel]}-kapcsolat nem aktív. Nyisd meg a csatornabeállításokat.`
+                            : `A ${labels[directChannel]}-fiók nincs csatlakoztatva. Másolással most is közzéteheted kézzel.`}
+                  </p>
+                  <Link to="/app/channels" className="inline-flex min-h-11 items-center font-medium text-primary underline underline-offset-4">
+                    {directConnection ? "Csatornák beállítása" : "Csatorna csatlakoztatása"}
+                  </Link>
+                </div>
+              )}
+            </div>
+          )}
           {!editing && !published && mode === "simple" && (
             <div className="space-y-3 rounded-xl border p-3">
               <div className="flex flex-wrap gap-2">
@@ -899,7 +1029,7 @@ export function EasyPost({
             </Button>
           </div>
           <p className="text-sm text-muted-foreground">
-            A másolás után te teszed közzé a közösségi oldalon. A jelölés ezt jegyzi meg.
+            A közvetlen közzététel csak csatlakoztatott, megfelelő engedélyű fiókkal működik. Másolás után kézzel is kiteheted.
           </p>
           {shareAvailable && (
             <Button
