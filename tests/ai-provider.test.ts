@@ -5,8 +5,48 @@ import {
   configuredTextAiProvider,
   openRouterChat,
   openRouterImage,
+  retryTransientProviderResponse,
   textCompletionUrl,
 } from "../src/lib/server/ai-provider.server.ts";
+
+test("temporary AI provider errors get one retry; quota errors do not", async () => {
+  let attempts = 0;
+  const response = await retryTransientProviderResponse(
+    async () => {
+      attempts += 1;
+      return attempts === 1
+        ? Response.json({ error: "temporary" }, { status: 503 })
+        : Response.json({ choices: [] });
+    },
+    async () => undefined,
+  );
+  assert.equal(response.status, 200);
+  assert.equal(attempts, 2);
+
+  attempts = 0;
+  const limited = await retryTransientProviderResponse(
+    async () => {
+      attempts += 1;
+      return Response.json({ error: "limited" }, { status: 429 });
+    },
+    async () => undefined,
+  );
+  assert.equal(limited.status, 429);
+  assert.equal(attempts, 1);
+});
+
+test("a persistent provider outage is attempted at most twice", async () => {
+  let attempts = 0;
+  const response = await retryTransientProviderResponse(
+    async () => {
+      attempts += 1;
+      return Response.json({ error: "unavailable" }, { status: 503 });
+    },
+    async () => undefined,
+  );
+  assert.equal(response.status, 503);
+  assert.equal(attempts, 2);
+});
 
 test("Groq uses its configured OpenAI-compatible model and the strict JSON schema request shape", () => {
   const previous = {
