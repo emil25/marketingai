@@ -67,7 +67,7 @@ test("unconfirmed product details need review, while popularity claims block", (
     [],
   );
 
-  for (const claim of ["A kakaós csiga közkedvelt.", "Mindenki szereti a kakaós csigát.", "Mindenki imádja a kakaós csigát.", "A kakaós csiga híres.", "A környék kedvence."]) {
+  for (const claim of ["A kakaós csiga közkedvelt.", "Mindenki szereti a kakaós csigát.", "Mindenki imádja a kakaós csigát.", "A kakaós csiga híres.", "A környék kedvence.", "A kakaós csiga sokak számára választás.", "Ezt a kakaós csigát sokan választják."]) {
     assert.ok(contentClaimFindings(claim, JSON.stringify({ products: "kakaós csiga" }), { businessType: "bakery_cafe" }).some((finding) => finding.severity === "hard" && finding.category === "HARD_CLAIM_SOCIAL_PROOF"), claim);
   }
   const ownerProvided = "Ez a vendégeink kedvence.";
@@ -75,6 +75,28 @@ test("unconfirmed product details need review, while popularity claims block", (
     contentClaimFindings(ownerProvided, JSON.stringify({ products: "kakaós csiga", brief: ownerProvided }), { businessType: "bakery_cafe" }),
     [],
   );
+});
+
+test("an occasion does not authorize takeaway, catering, drink pairings or popularity claims", () => {
+  const output = "A reggeli órákban a kakaós csiga sokak számára választás. A Példa Pékség kínálatában megtalálható termék elviteles reggelinek is kérhető. Melyik forró ital illik hozzá a reggeli kakaós csigád mellé?";
+  const facts = JSON.stringify({
+    products: "kovászos kenyér, kakaós csiga, sajtos pogácsa",
+    brief: "Mutasd be a kakaós csigát reggeli választásként.",
+  });
+  const findings = contentClaimFindings(output, facts, { businessType: "bakery_cafe" });
+  assert.ok(findings.some((finding) => finding.category === "HARD_CLAIM_SOCIAL_PROOF"), "must reject invented popularity");
+  const unsupported = findings.filter((finding) => finding.category === "HARD_CLAIM_UNSUPPORTED_PRODUCT");
+  assert.ok(unsupported.some((finding) => finding.message.includes("elviteles reggeli")), "must reject an invented takeaway format");
+  assert.ok(unsupported.some((finding) => finding.message.includes("forró ital")), "must reject an unlisted drink offer");
+  assert.match(FACTUAL_CONTENT_RULES, /alkalom vagy fogyasztási helyzet.*csak téma/);
+  assert.match(FACTUAL_CONTENT_RULES, /Ne találj ki elviteles reggelit, cateringet/);
+
+  const ownerProvidedFacts = JSON.stringify({
+    products: "kakaós csiga",
+    offers: "Elviteles reggeli, forró italok, sokak számára választás",
+    brief: "Kakaós csiga reggeli választásként.",
+  });
+  assert.deepEqual(contentClaimFindings(output, ownerProvidedFacts, { businessType: "bakery_cafe" }), []);
 });
 
 test("hard unsupported claims are categorized while owner-provided facts are exempt", () => {
