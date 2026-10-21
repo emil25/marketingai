@@ -145,6 +145,18 @@ const PRODUCT_TERMS: Record<string, RegExp[]> = {
 
 const ALL_OFFER_TERMS = Object.values(PRODUCT_TERMS).flat();
 
+// These are business formats and add-on offers, not attributes that can be
+// inferred from a product name or from the occasion mentioned in a brief.
+const CONTEXTUAL_OFFER_TERMS: RegExp[] = [
+  /\belviteles\s+reggeli\p{L}*/giu,
+  /\bvendégváró\s+falat\p{L}*/giu,
+  /\bcatering\p{L}*/giu,
+  /\bforró\s+ital\p{L}*/giu,
+  /\bgyümölcslé\p{L}*/giu,
+  /\brendezvény(?:re|ekre)\s+(?:készít\p{L}*|szállít\p{L}*|vállal\p{L}*|rendelhet\p{L}*|kérhet\p{L}*)/giu,
+  /\b(?:esküvő|rendezvény)(?:re|i)\s+(?:csomag|menü|reggeli|ellátás|kiszolgálás)\p{L}*/giu,
+];
+
 /** Show a small profile question when the profile and idea contain no concrete offer. */
 export function needsOfferDetails(
   profile: {
@@ -201,7 +213,7 @@ const HARD_CLAIMS: ClaimRule[] = [
   { category: "HARD_CLAIM_FEE", pattern: /\b(?:ingyenes|díjmentes|kiszállási díj|felár nélkül|nincs (?:külön )?díj)\b/giu, label: "díj vagy díjmentesség" },
   { category: "HARD_CLAIM_GUARANTEE", pattern: /\bgaranci\w*\b/giu, label: "garancia" },
   { category: "HARD_CLAIM_SUPERLATIVE", pattern: /\b(?:első|egyetlen|legjobb|legolcsóbb|legtapasztaltabb|legnépszerűbb|legmagasabb|leggyorsabb|legbiztonságosabb|országos első|piacvezető)\b/giu, label: "elsőség vagy felsőfokú állítás" },
-  { category: "HARD_CLAIM_SOCIAL_PROOF", pattern: /\b(?:sokak\s+(?:kedvence|kedvenc\w*|által\s+kedvelt\w*)|sokan\s+(?:szeret\w*|imád\w*)|közkedvelt\w*|mindenki\s+(?:szeret\w*|imád\w*|kedvence)|vendég\w*\s+(?:egyik\s+)?kedvenc(?:e|ei|ük)|(?:a\s+)?környék\s+(?:kedvence|kedvenc\w*)|népszerű\w*|híres\b|híresség\w*|közismert\w*)\b/giu, label: "nem igazolt népszerűségi vagy társadalmi bizonyíték" },
+  { category: "HARD_CLAIM_SOCIAL_PROOF", pattern: /\b(?:sokak\s+(?:(?:számára|által)\s+)?(?:kedvence|kedvenc\w*|választása|választás\w*|kedvelt\w*)|sokan\s+(?:választ\w*|szeret\w*|imád\w*|kedvel\w*)|közkedvelt\w*|mindenki\s+(?:szeret\w*|imád\w*|kedvence)|vendég\w*\s+(?:egyik\s+)?kedvenc(?:e|ei|ük)|(?:a\s+)?környék\s+(?:kedvence|kedvenc\w*)|népszerű\w*|híres\b|híresség\w*|közismert\w*)\b/giu, label: "nem igazolt népszerűségi vagy társadalmi bizonyíték" },
   { category: "HARD_CLAIM_AWARD", pattern: /\b(?:díjnyertes|díjat nyert|oklevelet kapott|elismerésben részesült|aranyérmes)\b/giu, label: "díj vagy oklevél" },
   { category: "HARD_CLAIM_HEALTH_PROMISE", pattern: /\b(?:gyógyít\w*|meggyógyít\w*|fájdalommentes\w*|allergiamentes\w*|méregtelenít\w*|fogyaszt\w*|ránctalanít\w*|fiatalít\w*|kisimít\w* a ráncokat|megszünteti a (?:fájdalmat|ráncokat|panaszt)|garantált eredmény)\b/giu, label: "egészségügyi vagy kozmetikai ígéret" },
   { category: "HARD_CLAIM_TECHNICAL_PROMISE", pattern: /\b(?:hibamentes\w*|örök élettartam\w*|100\s*%\s*(?:biztonság|megoldás|hiba nélküli)|minden hibát megold\w*|azonnal működni fog)\b/giu, label: "műszaki ígéret" },
@@ -253,22 +265,26 @@ function supportedProductByFacts(match: string, facts: string, approvedClaims: s
   const sources = [facts, ...approvedClaims].map(normalizeClaim).filter(Boolean);
   const matchWords = normalized.split(" ");
   const sourceWords = sources.flatMap((source) => source.split(" "));
-  // A topic may naturally build a compound around a known product ("kenyérválasztás").
-  if (matchWords.some((word) => sourceWords.some((factWord) => factWord.length >= 5 && word.startsWith(factWord))))
-    return true;
-  const suffixes = ["nak", "nek", "val", "vel", "ral", "rel", "ban", "ben", "ból", "ből", "ról", "ről", "hoz", "hez", "höz", "ra", "re", "on", "en", "ön", "at", "et", "ot", "öt", "t", "n"];
-  for (const suffix of suffixes) {
-    if (!normalized.endsWith(suffix) || normalized.length <= suffix.length + 2) continue;
-    let stem = normalized.slice(0, -suffix.length).trim();
-    if (!stem) continue;
-    // Hungarian vowel harmony can lengthen the final vowel before the object suffix (csigá-t).
-    stem = stem.replace(/[áéíóöőúüű]$/u, (vowel) => ({ á: "a", é: "e", í: "i", ó: "o", ö: "o", ő: "o", ú: "u", ü: "u", ű: "u" })[vowel] ?? vowel);
-    const lengthenedStem = stem.replace(/([aeiouöü])([^aeiouöüáéíóöőúüű]*)$/u, (_match, vowel: string, tail: string) =>
-      `${({ a: "á", e: "é", i: "í", o: "ó", ö: "ő", u: "ú", ü: "ű" })[vowel] ?? vowel}${tail}`,
-    );
-    if (sources.some((source) => source.includes(stem) || source.includes(lengthenedStem))) return true;
-  }
-  return false;
+  const suffixes = ["ként", "kénti", "nak", "nek", "val", "vel", "ral", "rel", "ban", "ben", "ból", "ből", "ról", "ről", "hoz", "hez", "höz", "ra", "re", "on", "en", "ön", "at", "et", "ot", "öt", "t", "n"];
+  const wordIsSupported = (word: string) => {
+    // A known product may form a compound ("kenyérválasztás"), but every
+    // meaningful word in a multiword offer must be supported independently.
+    if (sourceWords.some((factWord) => factWord.length >= 5 && (word.startsWith(factWord) || factWord.startsWith(word))))
+      return true;
+    for (const suffix of suffixes) {
+      if (!word.endsWith(suffix) || word.length <= suffix.length + 2) continue;
+      let stem = word.slice(0, -suffix.length).trim();
+      if (!stem) continue;
+      // Hungarian vowel harmony can lengthen the final vowel ("csigá-t").
+      stem = stem.replace(/[áéíóöőúüű]$/u, (vowel) => ({ á: "a", é: "e", í: "i", ó: "o", ö: "o", ő: "o", ú: "u", ü: "u", ű: "u" })[vowel] ?? vowel);
+      const lengthenedStem = stem.replace(/([aeiouöü])([^aeiouöüáéíóöőúüű]*)$/u, (_match, vowel: string, tail: string) =>
+        `${({ a: "á", e: "é", i: "í", o: "ó", ö: "ő", u: "ú", ü: "ű" })[vowel] ?? vowel}${tail}`,
+      );
+      if (sourceWords.some((factWord) => factWord === stem || factWord === lengthenedStem)) return true;
+    }
+    return false;
+  };
+  return matchWords.every(wordIsSupported);
 }
 
 function weekdayWasProvided(match: string, context: ContentRuleContext) {
@@ -301,11 +317,13 @@ function hardClaimFindings(
     for (const match of published.matchAll(rule.pattern)) {
       if (supportedByFacts(match[0], facts, approvedClaims)) continue;
       if (rule.category === "HARD_CLAIM_DATE" && weekdayWasProvided(match[0], context)) continue;
-      findings.push({
+      const finding = {
         severity: "hard",
         category: rule.category,
         message: `Nem szerepel ilyen tény a profilban, az ötletben vagy a jóváhagyott állításokban: „${match[0]}” (${rule.label}). Töröld ezt az állítást, vagy cseréld erre a helykitöltőre: ${CLAIM_PLACEHOLDERS[rule.category] ?? "[ellenőrizendő adat]"}.`,
-      });
+      } satisfies ContentFinding;
+      if (!findings.some((existing) => existing.category === finding.category && existing.message === finding.message))
+        findings.push(finding);
     }
   }
   const topicEvidence = explicitTopicFacts(facts);
@@ -323,15 +341,17 @@ function hardClaimFindings(
   }
   // Any concrete offer claim is checked, including when the owner selected "Other".
   // A brand name or business category alone is never evidence for a specific offer.
-  for (const rule of ALL_OFFER_TERMS) {
+  for (const rule of [...ALL_OFFER_TERMS, ...CONTEXTUAL_OFFER_TERMS]) {
     rule.lastIndex = 0;
     for (const match of published.matchAll(rule)) {
       if (supportedProductByFacts(match[0], facts, approvedClaims)) continue;
-      findings.push({
+      const finding = {
         severity: "hard",
         category: "HARD_CLAIM_UNSUPPORTED_PRODUCT",
         message: `A megadott profil vagy ötlet nem tartalmazza ezt a terméket vagy szolgáltatást: ${match[0]}. Töröld, vagy cseréld erre: ${CLAIM_PLACEHOLDERS.HARD_CLAIM_UNSUPPORTED_PRODUCT ?? "[megadott termék vagy szolgáltatás]"}.`,
-      });
+      } satisfies ContentFinding;
+      if (!findings.some((existing) => existing.category === finding.category && existing.message === finding.message))
+        findings.push(finding);
     }
   }
   return findings;
@@ -468,4 +488,4 @@ export function contentSoftClaimWarnings(
 }
 
 export const FACTUAL_CONTENT_RULES = `${HU_RO_PROMPTS.factualContentRules}
-Ne következtess a vállalkozás kínálatára a márkanévből vagy pusztán a vállalkozástípusból. Csak a márkaprofilban, termékek/szolgáltatások között, jóváhagyott állításokban vagy a felhasználó ötletében szereplő üzleti tényt használd. Ha ezek szűkösek, írj rövidebben és csak a megadott tényekből; ne pótold a hiányt általános marketingszöveggel. A szükséges, de hiányzó adatot szögletes helykitöltővel jelöld. A felhasználónak szóló kérdés külön jelenjen meg, ne a közzétehető szöveg részeként.`;
+Ne következtess a vállalkozás kínálatára a márkanévből vagy pusztán a vállalkozástípusból. Csak a márkaprofilban, termékek/szolgáltatások között, jóváhagyott állításokban vagy a felhasználó ötletében szereplő üzleti tényt használd. Az ötletben említett alkalom vagy fogyasztási helyzet (például reggeli, esküvő vagy vendégfogadás) csak téma; nem bizonyít külön szolgáltatást vagy formátumot. Ne találj ki elviteles reggelit, cateringet, rendezvényre rendelést, kiszállítást, italválasztékot vagy kiegészítő ajánlatot. Ne állíts népszerűséget („sokak számára választás”, „sokan választják”), ha ezt a vállalkozó nem erősítette meg. Ha ezek az adatok szűkösek, írj rövidebben és csak a megadott tényekből; ne pótold a hiányt általános marketingszöveggel. A szükséges, de hiányzó adatot szögletes helykitöltővel jelöld. A felhasználónak szóló kérdés külön jelenjen meg, ne a közzétehető szöveg részeként.`;
