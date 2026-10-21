@@ -2,6 +2,7 @@ import { createStart, createCsrfMiddleware, createMiddleware } from "@tanstack/r
 
 import { renderErrorPage } from "./lib/error-page";
 import { isRedirect, isNotFound } from "@tanstack/react-router";
+import { safeDatabaseErrorMetadata } from "./lib/server/safe-db-error.server";
 
 const functionErrors = createMiddleware({ type: "function" }).server(async ({ next }) => {
   try {
@@ -18,6 +19,7 @@ const functionErrors = createMiddleware({ type: "function" }).server(async ({ ne
       JSON.stringify({
         event: "server_function_failed",
         code: validation ? "INVALID_INPUT" : database ? "STORAGE_ERROR" : "OPERATION_FAILED",
+        ...(database ? { database: safeDatabaseErrorMetadata(error) } : {}),
       }),
     );
     if (validation) throw new Error("Ellenőrizd a megadott mezőket, majd próbáld újra.");
@@ -65,3 +67,4 @@ export const startInstance = createStart(() => ({
   requestMiddleware: [errorMiddleware, csrfMiddleware],
   functionMiddleware: [functionErrors],
 }));
+
