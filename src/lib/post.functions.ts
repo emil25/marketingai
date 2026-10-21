@@ -1,3 +1,6 @@
+Warning: truncated output (original token count: 15462)
+Total output lines: 1532
+
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import type {
@@ -19,6 +22,7 @@ import {
 } from "@/lib/server/store.server";
 import { requestAiJson } from "@/lib/server/ai-json.server";
 import { generateFactualPost } from "@/lib/server/post-content.server";
+import { shouldSaveIdeaAsOfflineDraft, offlineIdeaVariants } from "@/lib/offline-post-draft";
 import {
   FACTUAL_CONTENT_RULES,
   assertContentReady,
@@ -659,6 +663,57 @@ export const generatePostVariants = createServerFn({ method: "POST" })
       await transact((database) => completeAiJob(database, job.id));
       return getPostSnapshot(postId, context.user.id, context.workspace.id);
     } catch (cause) {
+      if (shouldSaveIdeaAsOfflineDraft(cause, data.postId)) {
+        try {
+          const fallbackPostId = await transact((database) => {
+            const timestamp = nowIso();
+            const post: PostRecord = {
+              id: newId("post"),
+              workspaceId: context.workspace.id,
+              brandId: brand.id,
+              campaignId: null,
+              title: data.title,
+              goal: data.goal,
+              audience: data.audience || brand.audience,
+              language: data.language || brand.languageMarket,
+              tone: data.tone || voice.tone,
+              status: "draft",
+              scheduledAt: null,
+              timezone: "Europe/Bucharest",
+              mediaAssetIds: [],
+              platforms: data.platforms,
+              hooks: [],
+              selectedHook: null,
+              abVariants: [],
+              adCopies: [],
+              createdAt: timestamp,
+              updatedAt: timestamp,
+            };
+            database.posts.push(post);
+            for (const item of offlineIdeaVariants(data.topic, data.platforms))
+              database.postVariants.push({
+                id: newId("variant"),
+                postId: post.id,
+                platform: item.platform as PostPlatform,
+                verificationWarnings: item.ellenorizendo,
+                content: item.content,
+                hashtags: item.hashtags,
+                cta: item.cta,
+                status: "draft",
+                createdAt: timestamp,
+                updatedAt: timestamp,
+              });
+            return post.id;
+          });
+          await transact((database) => completeAiJob(database, job.id, "AI_UNAVAILABLE_OFFLINE_DRAFT"));
+          const snapshot = await getPostSnapshot(fallbackPostId, context.user.id, context.workspace.id);
+          if (!snapshot) throw new Error("A piszkozat mentése nem sikerült.");
+          return snapshot;
+        } catch (fallbackError) {
+          await transact((database) => completeAiJob(database, job.id, "OFFLINE_DRAFT_SAVE_FAILED"));
+          throw fallbackError;
+        }
+      }
       await transact((database) =>
         completeAiJob(database, job.id, cause instanceof Error ? cause.message : "AI hiba"),
       );
@@ -679,32 +734,7 @@ export const switchPostChannel = createServerFn({ method: "POST" })
   }).strict().parse(data))
   .handler(async ({ data }) => {
     const { context, post, brand, database } = await ownedPostContext(data.postId);
-    const scope = { userId: context.user.id, workspaceId: context.workspace.id };
-    const before = channelSwitchSource(database, scope, post.id, data.variantId, data.channel, data.expectedUpdatedAt);
-    const job = await transact((db) => createAiJob(db, {
-      workspaceId: post.workspaceId, brandId: post.brandId, type: "content",
-      input: { kind: "post_channel_switch", postId: post.id, sourceVariantId: data.variantId, channel: data.channel },
-    }));
-    await transact((db) => startAiJob(db, job.id));
-    try {
-      const businessContext = buildBusinessContext(brand, brand.profile, {
-        goal: post.goal, audience: post.audience, language: post.language, platform: data.channel,
-      });
-      const result = await generateFactualPost({
-        businessContext, title: post.title, platforms: [data.channel], ctaStyle: brand.profile.ctaStyle,
-        requireChannelTags: true,
-        brief: `A felhasználó szerkesztett posztját írd át ${data.channel === "instagram" ? "Instagramra: önálló, erős első sor, rövid bekezdések, 1–3 emoji és 4–6 hashtag" : "Facebookra: beszélgetősebb, eltérő nyitás és felépítés, 1–2 hashtag"}. Kizárólag a mentett szöveg és a vállalkozás megadott tényeit használd. Őrizd meg a hiányzó adatok helykitöltőit, ne találj ki új tényeket. Mentett, szerkesztett szöveg:\n${postCopyText(before.source)}`,
-      });
-      const selection = await transact((db) => {
-        const selected = commitChannelSwitch(db, scope, before, result.variants[0]);
-        completeAiJob(db, job.id);
-        return selected;
-      });
-      return { ...selection, snapshot: await getPostSnapshot(post.id, context.user.id, context.workspace.id) };
-    } catch (cause) {
-      await transact((db) => completeAiJob(db, job.id, cause instanceof Error ? cause.message : "A csatornaváltás nem sikerült."));
-      throw cause;
-    }
+    const scope = { userId: context.user.id, workspaceId: context.workspace.…462 tokens truncated…  }
   });
 
 export const restorePostChannelText = createServerFn({ method: "POST" })
@@ -1477,3 +1507,4 @@ export const updatePostMedia = createServerFn({ method: "POST" })
     });
     return getPostSnapshot(result, context.user.id, context.workspace.id);
   });
+

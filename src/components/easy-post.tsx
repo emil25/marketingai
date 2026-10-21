@@ -37,6 +37,7 @@ import { mainChannel, type MainChannel } from "@/lib/main-channel";
 import { ContentReviewNotice } from "./content-review-notice";
 import { appendQuestionClosing, replaceOpeningLine } from "@/lib/post-quick-actions";
 import { saveBrandOfferDetails } from "@/lib/workspace.functions";
+import { AI_UNAVAILABLE_DRAFT_MARKER } from "@/lib/offline-post-draft";
 const labels: Record<PostPlatform, string> = {
   facebook: "Facebook",
   instagram: "Instagram",
@@ -195,6 +196,9 @@ export function EasyPost({
   // Route identity changes remount this component; mode changes do not discard the draft.
   const variant = post?.variants[selected];
   const fullText = variant ? postCopyText(variant) : "";
+  const offlineDraft = Boolean(
+    variant?.verificationWarnings?.includes(AI_UNAVAILABLE_DRAFT_MARKER),
+  );
   const missing = contentPlaceholders(editing ? text : fullText);
   const published = variant?.status === "published";
   const manualPublishLabel = variant?.platform === "instagram" ? "az Instagramra" : "a Facebookra";
@@ -247,7 +251,13 @@ export function EasyPost({
     try {
       await action();
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Nem sikerült. Próbáld újra.");
+      setError(
+        name === "generate" && post
+          ? "Az AI most nem válaszol. A mentett ötleted megmaradt; szerkesztheted, vagy később újra próbálhatod."
+          : cause instanceof Error
+            ? cause.message
+            : "Nem sikerült. Próbáld újra.",
+      );
     } finally {
       inFlight.current = false;
       setBusy("");
@@ -267,6 +277,9 @@ export function EasyPost({
             content: value,
             cta: "",
             hashtags: [],
+            verificationWarnings: offlineDraft && value !== variant.content
+              ? variant.verificationWarnings?.filter((warning) => warning !== AI_UNAVAILABLE_DRAFT_MARKER)
+              : variant.verificationWarnings,
             status: published
               ? "published"
               : contentPlaceholders(value).length
@@ -322,6 +335,30 @@ export function EasyPost({
       setSaveState("Automatikusan mentve");
       await router.invalidate();
       await router.navigate({ to: "/app/posts/$id", params: { id: result.post.id } });
+    });
+  }
+  async function retryOfflineDraftWithAi() {
+    if (!brand || !post || !variant || offlineDraft === false) return;
+    await run("generate", async () => {
+      const result = await generation({
+        data: {
+          postId: post.post.id,
+          title: post.post.title,
+          goal: post.post.goal,
+          audience: post.post.audience,
+          region: brand.cityRegion,
+          language: post.post.language,
+          tone: post.post.tone,
+          ctaStyle: brand.profile.ctaStyle,
+          platforms: [variant.platform],
+          topic: fullText,
+        },
+      });
+      if (!result) throw new Error("A mentett ötlet megmaradt, de új poszt most nem készült.");
+      setPost(result);
+      setEditing(false);
+      setSaveState("Automatikusan mentve");
+      await router.invalidate();
     });
   }
   async function improvePastedText() {
@@ -697,12 +734,17 @@ export function EasyPost({
       {post && variant && (
         <Card className="space-y-4 p-5 md:p-8">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <h1 className="text-2xl font-semibold">A posztod elkészült</h1>
+            <h1 className="text-2xl font-semibold">{offlineDraft ? "Az ötleted elmentve" : "A posztod elkészült"}</h1>
             <span className="text-sm text-muted-foreground" role="status">
-              {saveState || "Mentett poszt"}
+              {offlineDraft ? "Piszkozat · még nincs kész poszt" : saveState || "Mentett poszt"}
             </span>
           </div>
-          {mode === "simple" && (
+          {offlineDraft && (
+            <div role="status" className="rounded-xl border bg-secondary/30 p-4 text-sm leading-relaxed">
+              <strong>Az AI most nem válaszol.</strong> Ezért az ötletedet változtatás nélkül, piszkozatként mentettük el. Nem kész poszt; megírhatod kézzel, vagy később újra megpróbálhatod.
+            </div>
+          )}
+          {mode === "simple" && !offlineDraft && (
             <div
               className="inline-flex rounded-xl border p-1"
               role="group"
@@ -869,44 +911,62 @@ export function EasyPost({
             </div>
           )}
           <ContentReviewNotice
-            warnings={variant.verificationWarnings}
+            warnings={variant.verificationWarnings?.filter((warning) => warning !== AI_UNAVAILABLE_DRAFT_MARKER)}
             texts={[editing ? text : fullText]}
           />
-          <div className="grid gap-2 sm:grid-cols-3">
-            <Button className="min-h-11" disabled={blocked || missing.length > 0} onClick={() => void copy(true)}>
-              Másolás és {labels[variant.platform]} megnyitása
-            </Button>
-            <Button
-              className="min-h-11"
-              variant="outline"
-              disabled={blocked || editing || published}
-              onClick={() => {
-                setText(fullText);
-                setEditing(true);
-              }}
-            >
-              Szerkesztés
-            </Button>
-            <Button
-              className="min-h-11"
-              variant="outline"
-              disabled={blocked || published}
-              onClick={() =>
-                void run("rewrite", async () => {
-                  if (editing) await persist(text);
-                  const result = await rewrite({
-                    data: { postId: post.post.id, variantId: variant.id, style: "alternative" },
-                  });
-                  setPost(result);
-                  setEditing(false);
-                  await router.invalidate();
-                })
-              }
-            >
-              Másik változat
-            </Button>
-          </div>
-          {mode === "detailed" && directChannel && directChannelReady && !published && (
+          {offlineDraft ? (
+            <div className="grid gap-2 sm:grid-cols-2">
+              <Button
+                className="min-h-11"
+                disabled={blocked || editing}
+                onClick={() => {
+                  setText(fullText);
+                  setEditing(true);
+                }}
+              >
+                Megírom kézzel
+              </Button>
+              <Button className="min-h-11" variant="outline" disabled={blocked || editing} onClick={() => void retryOfflineDraftWithAi()}>
+                Újrapróbálom az AI-val
+              </Button>
+            </div>
+          ) : (
+            <div className="grid gap-2 sm:grid-cols-3">
+              <Button className="min-h-11" disabled={blocked || missing.length > 0} onClick={() => void copy(true)}>
+                Másolás és {labels[variant.platform]} megnyitása
+              </Button>
+              <Button
+                className="min-h-11"
+                variant="outline"
+                disabled={blocked || editing || published}
+                onClick={() => {
+                  setText(fullText);
+                  setEditing(true);
+                }}
+              >
+                Szerkesztés
+              </Button>
+              <Button
+                className="min-h-11"
+                variant="outline"
+                disabled={blocked || published}
+                onClick={() =>
+                  void run("rewrite", async () => {
+                    if (editing) await persist(text);
+                    const result = await rewrite({
+                      data: { postId: post.post.id, variantId: variant.id, style: "alternative" },
+                    });
+                    setPost(result);
+                    setEditing(false);
+                    await router.invalidate();
+                  })
+                }
+              >
+                Másik változat
+              </Button>
+            </div>
+          )}
+          {!offlineDraft && mode === "detailed" && directChannel && directChannelReady && !published && (
             <div className="space-y-2 rounded-xl border border-primary/20 bg-primary/5 p-4">
               <p className="font-medium">Közvetlen közzététel</p>
               {publicationLoading ? (
@@ -953,7 +1013,7 @@ export function EasyPost({
               )}
             </div>
           )}
-          {!editing && !published && mode === "simple" && (
+          {!offlineDraft && !editing && !published && mode === "simple" && (
             <div className="space-y-3 rounded-xl border p-3">
               <p className="text-sm font-medium">Finomíts rajta</p>
               <div className="flex flex-wrap gap-2">
@@ -991,7 +1051,7 @@ export function EasyPost({
               )}
             </div>
           )}
-          {mode === "detailed" && !editing && !published && (
+          {!offlineDraft && mode === "detailed" && !editing && !published && (
             <div className="space-y-3 rounded-xl border p-3">
               <Button variant="outline" disabled={blocked} onClick={() => void makeThreeSimilar()}>Még 3 hasonló</Button>
               {similarPosts.length > 0 && (
@@ -1001,7 +1061,7 @@ export function EasyPost({
               )}
             </div>
           )}
-          {mode === "detailed" && <div className="flex flex-wrap gap-2">
+          {!offlineDraft && mode === "detailed" && <div className="flex flex-wrap gap-2">
             {(
               [
                 ["shorter", "Rövidebb"],
@@ -1043,7 +1103,7 @@ export function EasyPost({
               {published ? "Közzétéve · kézzel jelölve" : "Közzétettem"}
             </Button>
           </div>}
-          {mode === "simple" && <>
+          {!offlineDraft && mode === "simple" && <>
             <p className="text-sm text-muted-foreground">
               Másold ki, és tedd közzé {variant.platform === "instagram" ? "az Instagramon" : "a Facebookon"}.
             </p>
@@ -1067,7 +1127,7 @@ export function EasyPost({
               {published ? "Már kitettem a posztot " + manualPublishLabel : "Kitettem a posztot " + manualPublishLabel}
             </label>
           </>}
-          {mode === "detailed" && shareAvailable && (
+          {!offlineDraft && mode === "detailed" && shareAvailable && (
             <Button
               variant="outline"
               disabled={blocked}
@@ -1212,3 +1272,4 @@ function ImageAttachment({
     </details>
   );
 }
+

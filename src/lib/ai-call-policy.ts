@@ -13,6 +13,17 @@ export function aiProviderMessage(status: number) {
     return "Az AI-hozzáférés átmenetileg nem érhető el. Kérjük, jelezd az üzemeltetőnek.";
   return "A generálás átmenetileg nem érhető el. Próbáld újra később; a mentett tartalmaid megmaradnak.";
 }
+
+/** Safe, typed signal for provider failures that may use the local draft path. */
+export class AiProviderUnavailableError extends Error {
+  readonly status?: number;
+
+  constructor(message: string, status?: number) {
+    super(message);
+    this.name = "AiProviderUnavailableError";
+    this.status = status;
+  }
+}
 export function aiUsage(value: unknown) {
   const usage = value && typeof value === "object" ? (value as Record<string, unknown>) : {};
   const number = (key: string, integer = false) => {
@@ -30,3 +41,4 @@ export function aiUsage(value: unknown) {
     cost: number("cost"),
   };
 }
+

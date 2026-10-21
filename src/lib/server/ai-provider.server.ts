@@ -1,6 +1,6 @@
 import { requireBrandContext } from "./auth-context.server";
 import { reserveAiCall, finishAiCall, associateAiResponse } from "./ai-calls.server";
-import { aiProviderMessage } from "../ai-call-policy";
+import { AiProviderUnavailableError, aiProviderMessage } from "../ai-call-policy";
 import { previewAiAllowed, previewAiResponse } from "./preview-ai.server";
 /**
  * The single server-side AI integration for MarketingPilot.
@@ -84,7 +84,7 @@ type JsonSchema = Record<string, unknown>;
 
 function requireOpenRouterKey() {
   const key = process.env["OPENROUTER_API_KEY"]?.trim();
-  if (!key) throw new Error("Hiányzik az OPENROUTER_API_KEY konfigurációja.");
+  if (!key) throw new AiProviderUnavailableError(aiProviderMessage(503));
   return key;
 }
 
@@ -92,11 +92,11 @@ function requireProviderKey(provider: TextAiProvider) {
   if (provider === "openrouter") return requireOpenRouterKey();
   if (provider === "groq") {
     const key = process.env["GROQ_API_KEY"]?.trim();
-    if (!key) throw new Error("Hiányzik a GROQ_API_KEY konfigurációja.");
+    if (!key) throw new AiProviderUnavailableError(aiProviderMessage(503));
     return key;
   }
   const key = process.env["GEMINI_API_KEY"]?.trim();
-  if (!key) throw new Error("Hiányzik a GEMINI_API_KEY konfigurációja.");
+  if (!key) throw new AiProviderUnavailableError(aiProviderMessage(503));
   return key;
 }
 
@@ -175,10 +175,11 @@ async function request(
       latencyMs: Date.now() - started,
       errorCode: code,
     });
-    throw new Error(
+    throw new AiProviderUnavailableError(
       code === "TIMEOUT"
-        ? "A generálás túl sokáig tartott. Próbáld újra; a mentett tartalmaid megmaradnak."
+        ? "A generálás túl sokáig tartott. Az ötletedet piszkozatként elmentjük."
         : aiProviderMessage(503),
+      code === "TIMEOUT" ? undefined : 503,
     );
   } finally {
     clearTimeout(timeout);
@@ -258,3 +259,4 @@ export function openRouterImage(input: { prompt: string; stream: boolean }) {
     "image_generation",
   );
 }
+

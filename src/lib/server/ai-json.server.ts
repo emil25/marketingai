@@ -1,4 +1,4 @@
-import { aiProviderMessage } from "../ai-call-policy";
+import { AiProviderUnavailableError, aiProviderMessage } from "../ai-call-policy";
 import { annotateAiResponse, rejectAiResponse } from "./ai-calls.server";
 import type { ZodType } from "zod";
 import { openRouterChat } from "./ai-provider.server";
@@ -61,7 +61,10 @@ export async function requestAiJson<T>(
             ],
     });
     if (!response.ok) {
-      throw new Error(aiProviderMessage(response.status));
+      throw new AiProviderUnavailableError(
+        aiProviderMessage(response.status),
+        response.status,
+      );
     }
     try {
       const json = (await response.json()) as {
@@ -90,3 +93,4 @@ export async function requestAiJson<T>(
   }
   throw new Error("Az AI-válasz feldolgozása nem sikerült.");
 }
+
