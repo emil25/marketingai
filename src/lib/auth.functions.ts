@@ -23,7 +23,7 @@ import {
 import { requireBetaInvitation } from "@/lib/server/beta-access.server";
 import { normalizeRomanianPhone } from "@/lib/market/ro";
 import {
-  ensurePreviewDemoAccount,
+  ensurePreviewDemoAccountInPostgres,
   previewDemoLoginEnabled,
 } from "@/lib/server/preview-demo.server";
 
@@ -225,9 +225,7 @@ export const startPreviewDemoSession = createServerFn({ method: "POST" }).handle
   if (ip) await consumeAuthLimit(`preview-demo:ip:${ip}`, 5, 60);
 
   const { hashPassword } = await import("@/lib/server/password.server");
-  const account = await transact((database) =>
-    ensurePreviewDemoAccount(database, async () => hashPassword(randomUUID())),
-  );
+  const account = await ensurePreviewDemoAccountInPostgres(async () => hashPassword(randomUUID()));
   const session = await useAppSession();
   await session.update({
     userId: account.user.id,
