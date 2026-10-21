@@ -16,6 +16,7 @@ const GROQ_OPENAI_BASE_URL = "https://api.groq.com/openai/v1";
 const TEXT_REQUEST_TIMEOUT_MS = 120_000;
 const IMAGE_REQUEST_TIMEOUT_MS = 180_000;
 const RETRYABLE_PROVIDER_STATUSES = new Set([500, 502, 503, 504]);
+const GROQ_FALLBACK_TEXT_MODEL = "openai/gpt-oss-120b";
 
 /** Retry one transient upstream failure without retrying quota or authorization errors. */
 export async function retryTransientProviderResponse(
@@ -28,7 +29,34 @@ export async function retryTransientProviderResponse(
   return send();
 }
 
+/** Keep generation available during model-specific Groq overloads without changing providers. */
+export async function requestGroqWithModelFallback(
+  sendPrimary: () => Promise<Response>,
+  sendFallback: () => Promise<Response>,
+  wait?: () => Promise<void>,
+) {
+  const primary = await retryTransientProviderResponse(sendPrimary, wait);
+  if (primary.status !== 503) return primary;
+  return sendFallback();
+}
+
 export type TextAiProvider = "openrouter" | "gemini" | "groq";
+
+export const OPENROUTER_TEXT_MODEL =
+  process.env["OPENROUTER_TEXT_MODEL"]?.trim() || "openai/gpt-4.1-mini";
+export const OPENROUTER_IMAGE_MODEL =
+  process.env["OPENROUTER_IMAGE_MODEL"]?.trim() || "openai/gpt-image-2.5-sunburst";
+export const GEMINI_TEXT_MODEL =
+  process.env["GEMINI_TEXT_MODEL"]?.trim() || "gemini-3.1-flash-lite";
+export const GROQ_TEXT_MODEL = process.env["GROQ_TEXT_MODEL"]?.trim() || "openai/gpt-oss-20b";
+
+export function configuredTextAiProvider(): TextAiProvider {
+  const configured = process.env["AI_TEXT_PROVIDER"]?.trim().toLowerCase();
+  if (!configured || configured === "openrouter") return "openrouter";
+  if (configured === "gemini") return "gemini";
+  if (configured === "groq") return "groq";
+  throw new Error("Az AI_TEXT_PROVIDER értéke csak openrouter, gemini vagy groq lehet.");
+}
 
 /** Safe operator diagnostics; never returns or logs the credential value. */
 export function textAiProviderStatus() {
@@ -45,22 +73,6 @@ export function textAiProviderStatus() {
           ? "OPENROUTER_API_KEY"
           : null;
   return { provider, keyConfigured: keyName ? Boolean(process.env[keyName]?.trim()) : false };
-}
-
-export const OPENROUTER_TEXT_MODEL =
-  process.env["OPENROUTER_TEXT_MODEL"]?.trim() || "openai/gpt-4.1-mini";
-export const OPENROUTER_IMAGE_MODEL =
-  process.env["OPENROUTER_IMAGE_MODEL"]?.trim() || "openai/gpt-image-2.5-sunburst";
-export const GEMINI_TEXT_MODEL =
-  process.env["GEMINI_TEXT_MODEL"]?.trim() || "gemini-3.1-flash-lite";
-export const GROQ_TEXT_MODEL = process.env["GROQ_TEXT_MODEL"]?.trim() || "openai/gpt-oss-20b";
-
-export function configuredTextAiProvider(): TextAiProvider {
-  const configured = process.env["AI_TEXT_PROVIDER"]?.trim().toLowerCase();
-  if (!configured || configured === "openrouter") return "openrouter";
-  if (configured === "gemini") return "gemini";
-  if (configured === "groq") return "groq";
-  throw new Error("Az AI_TEXT_PROVIDER értéke csak openrouter, gemini vagy groq lehet.");
 }
 
 type ChatMessage = {
@@ -115,14 +127,21 @@ async function request(
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {
+    const send = (requestBody: Record<string, unknown>) =>
+      fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
+        body: JSON.stringify(requestBody),
+        signal: controller.signal,
+      });
     const response = previewFixture
       ? previewAiResponse(body)
-      : await retryTransientProviderResponse(() => fetch(url, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
-          body: JSON.stringify(body),
-          signal: controller.signal,
-        }));
+      : provider === "groq" && body.model === GROQ_TEXT_MODEL
+        ? await requestGroqWithModelFallback(
+            () => send(body),
+            () => send({ ...body, model: GROQ_FALLBACK_TEXT_MODEL }),
+          )
+        : await retryTransientProviderResponse(() => send(body));
     // Retain no provider body in logs or client-facing errors.
     const json = response.headers.get("content-type")?.includes("application/json")
       ? await response
@@ -239,4 +258,3 @@ export function openRouterImage(input: { prompt: string; stream: boolean }) {
     "image_generation",
   );
 }
-
