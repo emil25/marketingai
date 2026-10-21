@@ -5,6 +5,7 @@ import {
   configuredTextAiProvider,
   openRouterChat,
   openRouterImage,
+  requestGroqWithModelFallback,
   retryTransientProviderResponse,
   textAiProviderStatus,
   textCompletionUrl,
@@ -65,6 +66,42 @@ test("a persistent provider outage is attempted at most twice", async () => {
   );
   assert.equal(response.status, 503);
   assert.equal(attempts, 2);
+});
+
+test("Groq retries the economical model once, then falls back within Groq only on 503", async () => {
+  let primaryAttempts = 0;
+  let fallbackAttempts = 0;
+  const response = await requestGroqWithModelFallback(
+    async () => {
+      primaryAttempts += 1;
+      return Response.json({ error: "busy" }, { status: 503 });
+    },
+    async () => {
+      fallbackAttempts += 1;
+      return Response.json({ choices: [{ message: { content: "ok" } }] });
+    },
+    async () => undefined,
+  );
+  assert.equal(response.status, 200);
+  assert.equal(primaryAttempts, 2);
+  assert.equal(fallbackAttempts, 1);
+
+  primaryAttempts = 0;
+  fallbackAttempts = 0;
+  const unauthorized = await requestGroqWithModelFallback(
+    async () => {
+      primaryAttempts += 1;
+      return Response.json({ error: "unauthorized" }, { status: 401 });
+    },
+    async () => {
+      fallbackAttempts += 1;
+      return Response.json({ choices: [] });
+    },
+    async () => undefined,
+  );
+  assert.equal(unauthorized.status, 401);
+  assert.equal(primaryAttempts, 1);
+  assert.equal(fallbackAttempts, 0);
 });
 
 test("Groq uses its configured OpenAI-compatible model and the strict JSON schema request shape", () => {
@@ -163,4 +200,3 @@ test("Gemini text and OpenRouter image calls require an authenticated request be
     else process.env.GEMINI_TEXT_MODEL = env.geminiModel;
   }
 });
-
