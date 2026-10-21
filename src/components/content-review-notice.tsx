@@ -18,7 +18,7 @@ export function ContentReviewNotice({
       role="note"
       className="my-3 rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950"
     >
-      <strong>Ellenőrizendő</strong>
+      <strong>Ellenőrizd</strong>
       <ul className="mt-1 list-inside list-disc">
         {items.map((item) => (
           <li key={item}>{item}</li>

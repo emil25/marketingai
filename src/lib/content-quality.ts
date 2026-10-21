@@ -48,7 +48,7 @@ const normalizeClaim = (value: string) =>
   value.toLocaleLowerCase("hu").normalize("NFC").replace(/[^\p{L}\p{N}]+/gu, " ").trim();
 
 const SOFT_CLAIMS: Record<string, RegExp> = {
-  bakery_cafe: /\b(?:frissen sül\w*|frissen készül\w*|illatos\w*|omlós\w*|finom\w*|ropogós\w*|puha)\b/giu,
+  bakery_cafe: /\b(?:frissen sül\w*|frissen készül\w*|illatos\w*|omlós\w*|finom\w*|ropogós\w*|puha\w*|gazdag(?:\s+\p{L}+)?|házi\w*|kézműves\w*|krémes\w*|édes\w*|sós\w*|töltött\w*|vajasan)\b/giu,
   restaurant: /\b(?:illatos\w*|finom\w*|ropogós\w*|omlós\w*|frissen készül\w*)\b/giu,
   accommodation: /\b(?:csendes\w*|kényelmes\w*|otthonos\w*|hangulatos\w*|nyugodt\w*)\b/giu,
   hair_salon: /\b(?:friss\w*|elegáns\w*|letisztult\w*|kényelmes\w*|barátságos\w*)\b/giu,
@@ -180,6 +180,7 @@ const CLAIM_PLACEHOLDERS: Record<string, string> = {
   HARD_CLAIM_FEE: "[díj]",
   HARD_CLAIM_GUARANTEE: "[garancia]",
   HARD_CLAIM_SUPERLATIVE: "[ellenőrzött állítás]",
+  HARD_CLAIM_SOCIAL_PROOF: "[ellenőrzött népszerűségi állítás]",
   HARD_CLAIM_AWARD: "[díj vagy oklevél]",
   HARD_CLAIM_HEALTH_PROMISE: "[ellenőrzött szakmai állítás]",
   HARD_CLAIM_TECHNICAL_PROMISE: "[ellenőrzött műszaki állítás]",
@@ -200,6 +201,7 @@ const HARD_CLAIMS: ClaimRule[] = [
   { category: "HARD_CLAIM_FEE", pattern: /\b(?:ingyenes|díjmentes|kiszállási díj|felár nélkül|nincs (?:külön )?díj)\b/giu, label: "díj vagy díjmentesség" },
   { category: "HARD_CLAIM_GUARANTEE", pattern: /\bgaranci\w*\b/giu, label: "garancia" },
   { category: "HARD_CLAIM_SUPERLATIVE", pattern: /\b(?:első|egyetlen|legjobb|legolcsóbb|legtapasztaltabb|legnépszerűbb|legmagasabb|leggyorsabb|legbiztonságosabb|országos első|piacvezető)\b/giu, label: "elsőség vagy felsőfokú állítás" },
+  { category: "HARD_CLAIM_SOCIAL_PROOF", pattern: /\b(?:sokak\s+(?:kedvence|kedvenc\w*|által\s+kedvelt\w*)|sokan\s+(?:szeret\w*|imád\w*)|közkedvelt\w*|mindenki\s+(?:szeret\w*|imád\w*|kedvence)|vendég\w*\s+(?:egyik\s+)?kedvenc(?:e|ei|ük)|(?:a\s+)?környék\s+(?:kedvence|kedvenc\w*)|népszerű\w*|híres\b|híresség\w*|közismert\w*)\b/giu, label: "nem igazolt népszerűségi vagy társadalmi bizonyíték" },
   { category: "HARD_CLAIM_AWARD", pattern: /\b(?:díjnyertes|díjat nyert|oklevelet kapott|elismerésben részesült|aranyérmes)\b/giu, label: "díj vagy oklevél" },
   { category: "HARD_CLAIM_HEALTH_PROMISE", pattern: /\b(?:gyógyít\w*|meggyógyít\w*|fájdalommentes\w*|allergiamentes\w*|méregtelenít\w*|fogyaszt\w*|ránctalanít\w*|fiatalít\w*|kisimít\w* a ráncokat|megszünteti a (?:fájdalmat|ráncokat|panaszt)|garantált eredmény)\b/giu, label: "egészségügyi vagy kozmetikai ígéret" },
   { category: "HARD_CLAIM_TECHNICAL_PROMISE", pattern: /\b(?:hibamentes\w*|örök élettartam\w*|100\s*%\s*(?:biztonság|megoldás|hiba nélküli)|minden hibát megold\w*|azonnal működni fog)\b/giu, label: "műszaki ígéret" },

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { z } from "zod";
 import {
+  FACTUAL_CONTENT_RULES,
   assertContentReady,
   contentClaimFindings,
   contentPlaceholders,
@@ -44,6 +45,34 @@ test("reasonable bakery descriptors pass with a review notice; stated or approve
       ...context,
       approvedClaims: ["Frissen sütünk", "Omlós termékeket készítünk"],
     }),
+    [],
+  );
+});
+
+test("unconfirmed product details need review, while popularity claims block", () => {
+  const output = "A ropogós tészta és a gazdag töltelék sokak kedvence.";
+  const findings = contentClaimFindings(
+    output,
+    JSON.stringify({ products: "kakaós csiga", brief: "Mutasd be a kakaós csigát reggelire." }),
+    { businessType: "bakery_cafe" },
+  );
+  assert.ok(findings.some((finding) => finding.severity === "hard" && finding.category === "HARD_CLAIM_SOCIAL_PROOF" && finding.message.includes("sokak kedvence")));
+  assert.ok(findings.some((finding) => finding.severity === "soft" && finding.message.includes("ropogós")));
+  assert.ok(findings.some((finding) => finding.severity === "soft" && finding.message.includes("gazdag töltelék")));
+  assert.match(FACTUAL_CONTENT_RULES, /Ne találgass termékjellemzőkről/);
+  assert.match(FACTUAL_CONTENT_RULES, /Ne írj népszerűségi állítást/);
+
+  assert.deepEqual(
+    contentClaimFindings(output, JSON.stringify({ products: "kakaós csiga", brief: output }), { businessType: "bakery_cafe" }),
+    [],
+  );
+
+  for (const claim of ["A kakaós csiga közkedvelt.", "Mindenki szereti a kakaós csigát.", "Mindenki imádja a kakaós csigát.", "A kakaós csiga híres.", "A környék kedvence."]) {
+    assert.ok(contentClaimFindings(claim, JSON.stringify({ products: "kakaós csiga" }), { businessType: "bakery_cafe" }).some((finding) => finding.severity === "hard" && finding.category === "HARD_CLAIM_SOCIAL_PROOF"), claim);
+  }
+  const ownerProvided = "Ez a vendégeink kedvence.";
+  assert.deepEqual(
+    contentClaimFindings(ownerProvided, JSON.stringify({ products: "kakaós csiga", brief: ownerProvided }), { businessType: "bakery_cafe" }),
     [],
   );
 });
@@ -726,6 +755,42 @@ test("hard factual claims trigger one targeted edit retry instead of discarding 
   );
   assert.equal(calls, 2);
   assert.match(generated.variants[0].content, /Kenyér elvitelre/);
+});
+
+test("unsupported popularity is repaired once, but a popularity fact supplied by the owner passes", async () => {
+  let calls = 0;
+  const input = {
+    businessContext: { ...context, businessType: "bakery_cafe", products: "kakaós csiga" },
+    brief: "Mutasd be a kakaós csigát reggelire.",
+    title: "Kakaós csiga",
+    platforms: ["facebook"],
+    ctaStyle: "Látogass el!",
+  };
+  const repaired = await generateFactualPost(input, async (request) => {
+    calls++;
+    if (calls === 2) assert.match(request.messages.at(-1)!.content, /sokak kedvence|népszerűségi/iu);
+    const content = calls === 1
+      ? "A kakaós csiga sokak kedvence. Látogass el!"
+      : "A kakaós csiga reggelire. Látogass el!";
+    return Response.json({ choices: [{ message: { content: JSON.stringify({ variants: [{
+      platform: "facebook", content, cta: "Látogass el!", hashtags: [], ellenorizendo: [],
+    }] }) } }] });
+  });
+  assert.equal(calls, 2);
+  assert.match(repaired.variants[0].content, /A kakaós csiga reggelire/);
+  assert.doesNotMatch(repaired.variants[0].content, /sokak kedvence/u);
+
+  let ownerCalls = 0;
+  const ownerBrief = "Mutasd be a kakaós csigát, és mondd el: ez a vendégeink kedvence.";
+  const ownerOutput = await generateFactualPost({ ...input, brief: ownerBrief }, async () => {
+    ownerCalls++;
+    const content = "Ez a vendégeink kedvence. Látogass el!";
+    return Response.json({ choices: [{ message: { content: JSON.stringify({ variants: [{
+      platform: "facebook", content, cta: "Látogass el!", hashtags: [], ellenorizendo: [],
+    }] }) } }] });
+  });
+  assert.equal(ownerCalls, 1);
+  assert.match(ownerOutput.variants[0].content, /vendégeink kedvence/u);
 });
 
 test("explicitly requested missing facts cannot be replaced by a soon-available promise", async () => {

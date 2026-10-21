@@ -15,11 +15,9 @@ async function go(page: Page, url: string) {
 async function register(page: Page, browserName: string) {
   const email = `quick-actions-${browserName}-${Date.now()}@example.invalid`;
   await go(page, "/onboarding");
-  await page.getByRole("button", { name: /Pékség/ }).click();
-  await page.getByRole("button", { name: "Tovább", exact: true }).click();
   await page.getByLabel("Cég neve *", { exact: true }).fill(`TESZT Pékség ${browserName}`);
-  await page.getByLabel(/Fő termékek/).fill("Kovászos kenyér, kakaós csiga");
-  await page.getByRole("button", { name: "Tovább", exact: true }).click();
+  await page.getByLabel("Település (magyar névvel)", { exact: true }).fill("Csíkszereda");
+  await page.getByLabel("Mit kínálsz? *", { exact: true }).fill("Kovászos kenyér, kakaós csiga");
   await page.getByRole("button", { name: "Tovább", exact: true }).click();
   await page.getByLabel("Neved", { exact: true }).fill("Teszt Felhasználó");
   await page.getByLabel("Email", { exact: true }).fill(email);
@@ -44,7 +42,7 @@ test("simple quick edits and pasted-copy improvement work at 390 and 1280px", as
   page.on("pageerror", (error) => errors.push(error.message));
   await register(page, info.project.name);
   const topic = "Hétvégi kenyérajánlat Csíkszeredában";
-  await go(page, `/app/posts/new?first=1&topic=${encodeURIComponent(topic)}`);
+  await go(page, `/app/posts/new?first=true&topic=${encodeURIComponent(topic)}`);
   await expect(page.getByRole("status")).toContainText("Üdvözlünk");
   await expect(page.getByLabel("Az ötleted vagy ajánlatod", { exact: true })).toHaveValue(topic);
   for (const width of [390, 1280]) {
@@ -54,6 +52,11 @@ test("simple quick edits and pasted-copy improvement work at 390 and 1280px", as
     await page.getByLabel("Saját szöveg", { exact: true }).fill("Kovászos kenyér és kakaós csiga. Írj nekünk!");
     await page.getByRole("button", { name: "Javítsd a szövegem", exact: true }).click();
     await expect(page.getByRole("heading", { name: "A posztod elkészült", exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: /Másolás és (Facebook|Instagram) megnyitása/ })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Másolás", exact: true })).toHaveCount(0);
+    await expect(page.getByRole("checkbox", { name: /Kitettem a/ })).toBeVisible();
+    await expect(page.getByText("Közvetlen közzététel", { exact: true })).toHaveCount(0);
+    await expect(page.getByText("Finomíts rajta", { exact: true })).toBeVisible();
     await expect(page.getByText("Erősebb nyitás:", { exact: false })).toBeVisible();
 
     await page.getByRole("button", { name: "Erősebb nyitósor", exact: true }).click();

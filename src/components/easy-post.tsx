@@ -197,6 +197,8 @@ export function EasyPost({
   const fullText = variant ? postCopyText(variant) : "";
   const missing = contentPlaceholders(editing ? text : fullText);
   const published = variant?.status === "published";
+  const manualPublishLabel = variant?.platform === "instagram" ? "az Instagramra" : "a Facebookra";
+  const questionAlreadyAtEnd = fullText.replace(/#[\p{L}\p{N}_]+/gu, "").trim().endsWith("?");
   const directChannel: PublishPlatform | null =
     variant && (variant.platform === "facebook" || variant.platform === "instagram")
       ? variant.platform
@@ -866,9 +868,13 @@ export function EasyPost({
               ))}
             </div>
           )}
+          <ContentReviewNotice
+            warnings={variant.verificationWarnings}
+            texts={[editing ? text : fullText]}
+          />
           <div className="grid gap-2 sm:grid-cols-3">
-            <Button className="min-h-11" disabled={blocked} onClick={() => void copy()}>
-              Másolás
+            <Button className="min-h-11" disabled={blocked || missing.length > 0} onClick={() => void copy(true)}>
+              Másolás és {labels[variant.platform]} megnyitása
             </Button>
             <Button
               className="min-h-11"
@@ -900,7 +906,7 @@ export function EasyPost({
               Másik változat
             </Button>
           </div>
-          {mode === "simple" && directChannel && !published && (
+          {mode === "detailed" && directChannel && directChannelReady && !published && (
             <div className="space-y-2 rounded-xl border border-primary/20 bg-primary/5 p-4">
               <p className="font-medium">Közvetlen közzététel</p>
               {publicationLoading ? (
@@ -949,9 +955,21 @@ export function EasyPost({
           )}
           {!editing && !published && mode === "simple" && (
             <div className="space-y-3 rounded-xl border p-3">
+              <p className="text-sm font-medium">Finomíts rajta</p>
               <div className="flex flex-wrap gap-2">
                 <Button variant="outline" disabled={blocked} onClick={() => void loadQuickOptions("opening")}>Erősebb nyitósor</Button>
-                <Button variant="outline" disabled={blocked} onClick={() => void loadQuickOptions("closing")}>Kérdéssel zárom</Button>
+                {!questionAlreadyAtEnd && <Button variant="outline" disabled={blocked} onClick={() => void loadQuickOptions("closing")}>Kérdéssel zárom</Button>}
+                {(["shorter", "friendlier"] as const).map((style) => (
+                  <Button key={style} variant="outline" disabled={blocked} onClick={() => void run("rewrite", async () => {
+                    const saved = editing && text !== fullText ? await persist(text) : post;
+                    if (!saved) throw new Error("A mentett poszt nem található.");
+                    setPost(await rewrite({ data: { postId: saved.post.id, variantId: variant.id, style } }));
+                    setEditing(false);
+                    await router.invalidate();
+                  })}>
+                    {style === "shorter" ? "Rövidebb" : "Barátságosabb"}
+                  </Button>
+                ))}
               </div>
               {openingOptions && (
                 <div className="grid gap-2">
@@ -983,7 +1001,7 @@ export function EasyPost({
               )}
             </div>
           )}
-          <div className="flex flex-wrap gap-2">
+          {mode === "detailed" && <div className="flex flex-wrap gap-2">
             {(
               [
                 ["shorter", "Rövidebb"],
@@ -1010,9 +1028,6 @@ export function EasyPost({
                 {label}
               </Button>
             ))}
-            <Button variant="outline" disabled={blocked} onClick={() => void copy(true)}>
-              Másolás és {labels[variant.platform]} megnyitása
-            </Button>
             <Button
               variant="outline"
               disabled={blocked || published}
@@ -1027,11 +1042,32 @@ export function EasyPost({
             >
               {published ? "Közzétéve · kézzel jelölve" : "Közzétettem"}
             </Button>
-          </div>
-          <p className="text-sm text-muted-foreground">
-            A közvetlen közzététel csak csatlakoztatott, megfelelő engedélyű fiókkal működik. Másolás után kézzel is kiteheted.
-          </p>
-          {shareAvailable && (
+          </div>}
+          {mode === "simple" && <>
+            <p className="text-sm text-muted-foreground">
+              Másold ki, és tedd közzé {variant.platform === "instagram" ? "az Instagramon" : "a Facebookon"}.
+            </p>
+            <label className="flex min-h-11 items-center gap-3 border-t pt-3 font-medium">
+              <input
+                type="checkbox"
+                className="size-5 accent-primary"
+                checked={published}
+                disabled={blocked || published || missing.length > 0}
+                onChange={(event) => {
+                  if (!event.currentTarget.checked) return;
+                  void run("publish", async () => {
+                    const saved = editing && text !== fullText ? await persist(text) : post;
+                    if (!saved) throw new Error("A mentett poszt nem található.");
+                    setPost(await mark({ data: { postId: saved.post.id, variantId: variant.id } }));
+                    setEditing(false);
+                    await router.invalidate();
+                  });
+                }}
+              />
+              {published ? "Már kitettem a posztot " + manualPublishLabel : "Kitettem a posztot " + manualPublishLabel}
+            </label>
+          </>}
+          {mode === "detailed" && shareAvailable && (
             <Button
               variant="outline"
               disabled={blocked}
@@ -1055,10 +1091,6 @@ export function EasyPost({
               Megosztás a telefonról
             </Button>
           )}
-          <ContentReviewNotice
-            warnings={variant.verificationWarnings}
-            texts={[editing ? text : fullText]}
-          />
           <ImageAttachment post={post} disabled={blocked} onSaved={setPost} />
         </Card>
       )}
