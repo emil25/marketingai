@@ -30,6 +30,23 @@ export async function retryTransientProviderResponse(
 
 export type TextAiProvider = "openrouter" | "gemini" | "groq";
 
+/** Safe operator diagnostics; never returns or logs the credential value. */
+export function textAiProviderStatus() {
+  const configured = process.env["AI_TEXT_PROVIDER"]?.trim().toLowerCase() || "openrouter";
+  const provider = ["openrouter", "gemini", "groq"].includes(configured)
+    ? (configured as TextAiProvider)
+    : null;
+  const keyName =
+    provider === "groq"
+      ? "GROQ_API_KEY"
+      : provider === "gemini"
+        ? "GEMINI_API_KEY"
+        : provider === "openrouter"
+          ? "OPENROUTER_API_KEY"
+          : null;
+  return { provider, keyConfigured: keyName ? Boolean(process.env[keyName]?.trim()) : false };
+}
+
 export const OPENROUTER_TEXT_MODEL =
   process.env["OPENROUTER_TEXT_MODEL"]?.trim() || "openai/gpt-4.1-mini";
 export const OPENROUTER_IMAGE_MODEL =
