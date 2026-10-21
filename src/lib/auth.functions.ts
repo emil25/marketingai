@@ -1,5 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
+import { getRequestHeader } from "@tanstack/react-start/server";
 import { redirect } from "@tanstack/react-router";
+import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { getOptionalAuthContext, requireAuthContext } from "@/lib/server/auth-context.server";
 import { newId, nowIso, publicUser, transact } from "@/lib/server/store.server";
@@ -14,11 +16,16 @@ import { brandVoiceGuardrails, defaultAddressing, BRAND_MOODS } from "@/lib/onbo
 import {
   authConfiguration,
   protectAuth,
+  consumeAuthLimit,
   newAuthToken,
   sendAuthEmail,
 } from "@/lib/server/auth-security.server";
 import { requireBetaInvitation } from "@/lib/server/beta-access.server";
 import { normalizeRomanianPhone } from "@/lib/market/ro";
+import {
+  ensurePreviewDemoAccount,
+  previewDemoLoginEnabled,
+} from "@/lib/server/preview-demo.server";
 
 const CredentialsSchema = z.object({
   email: z.string().trim().email().max(180),
@@ -80,7 +87,11 @@ export const registerUser = createServerFn({ method: "POST" })
   .inputValidator((data: unknown) => RegisterSchema.parse(data))
   .handler(async ({ data }) => {
     if (data.brandDetails)
-      validateBusinessTypeDetails(data.businessType, data.brandDetails.industry, data.brandDetails.products);
+      validateBusinessTypeDetails(
+        data.businessType,
+        data.brandDetails.industry,
+        data.brandDetails.products,
+      );
     const { hashPassword } = await import("@/lib/server/password.server");
     const email = data.email.toLowerCase();
     if (!authConfiguration().registrationEnabled)
@@ -204,6 +215,29 @@ export const registerUser = createServerFn({ method: "POST" })
         : "/verify-email",
     };
   });
+
+/** A persistent fictional account avoids repeated signup attempts in the private Preview. */
+export const startPreviewDemoSession = createServerFn({ method: "POST" }).handler(async () => {
+  if (!previewDemoLoginEnabled())
+    throw new Error("A próba-belépés csak a kijelölt előnézetben érhető el.");
+  const ip = getRequestHeader("x-vercel-forwarded-for")?.split(",")[0]?.trim();
+  await consumeAuthLimit("preview-demo:shared", 20, 60);
+  if (ip) await consumeAuthLimit(`preview-demo:ip:${ip}`, 5, 60);
+
+  const { hashPassword } = await import("@/lib/server/password.server");
+  const account = await transact((database) =>
+    ensurePreviewDemoAccount(database, async () => hashPassword(randomUUID())),
+  );
+  const session = await useAppSession();
+  await session.update({
+    userId: account.user.id,
+    workspaceId: account.workspace.id,
+    activeBrandId: account.brand.id,
+    sessionVersion: account.user.auth?.sessionVersion ?? 0,
+    themePreference: "marketingpilot-v2",
+  });
+  return { nextUrl: "/app" };
+});
 
 /** Onboarding writes only the authenticated user's active brand, in one transaction. */
 export const completeOnboarding = createServerFn({ method: "POST" })

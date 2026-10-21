@@ -1,7 +1,7 @@
 import { FormEvent, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { registerUser } from "@/lib/auth.functions";
+import { registerUser, startPreviewDemoSession } from "@/lib/auth.functions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -10,6 +10,7 @@ import { PublicInfoLinks } from "@/components/public-info-page";
 import { Eye, EyeOff } from "lucide-react";
 import { AuthChallenge } from "./auth-challenge";
 import { brandForLocale, DEFAULT_MARKET_LOCALE } from "@/config/brand";
+import { translate } from "@/i18n";
 
 export interface OnboardingBrandDetails {
   name: string;
@@ -45,6 +46,7 @@ export function SignupForm({
 }) {
   const brand = brandForLocale(DEFAULT_MARKET_LOCALE);
   const register = useServerFn(registerUser);
+  const openPreviewDemo = useServerFn(startPreviewDemoSession);
   const [form, setForm] = useState({
     displayName: "",
     workspaceName: brandDetails?.name ?? "",
@@ -60,10 +62,26 @@ export function SignupForm({
   const [ready, setReady] = useState(false);
   const [attempt, setAttempt] = useState(0);
   const [privateBeta, setPrivateBeta] = useState(false);
+  const [previewDemoEnabled, setPreviewDemoEnabled] = useState(false);
+  const [demoPending, setDemoPending] = useState(false);
+  const [registration, setRegistration] = useState<
+    { status: "checking" | "error" } | { status: "enabled" } | { status: "closed"; message: string }
+  >({ status: "checking" });
   const [inviteCode, setInviteCode] = useState("");
   const [nextUrl, setNextUrl] = useState("/verify-email");
   const update = (key: keyof typeof form) => (event: React.ChangeEvent<HTMLInputElement>) =>
     setForm((current) => ({ ...current, [key]: event.target.value }));
+  async function enterPreviewDemo() {
+    setError("");
+    setDemoPending(true);
+    try {
+      const result = await openPreviewDemo();
+      window.location.assign(result.nextUrl);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "A próba-fiók most nem nyitható meg.");
+      setDemoPending(false);
+    }
+  }
   async function submit(event: FormEvent) {
     event.preventDefault();
     setError("");
@@ -127,135 +145,251 @@ export function SignupForm({
             </p>
           </>
         )}
-        <form onSubmit={submit} className={`${embedded ? "mt-6" : "mt-8"} space-y-4`}>
-          <fieldset disabled={registered} className="space-y-4">
-            {privateBeta && (
-              <div>
-                <Label htmlFor="inviteCode">Van meghívókódod?</Label>
-                <Input id="inviteCode" type="password" autoComplete="off" required maxLength={512}
-                  value={inviteCode} onChange={(event) => setInviteCode(event.target.value)} className="mt-2" />
-                <p className="mt-2 text-sm text-muted-foreground">Zárt béta: a kapott meghívókóddal levélmegerősítés nélkül kipróbálhatod.</p>
-              </div>
-            )}
-            {!embedded && (
-              <div>
-                <Label htmlFor="businessType">Vállalkozás típusa (opcionális)</Label>
-                <select
-                  id="businessType"
-                  value={form.businessType}
-                  onChange={(event) =>
-                    setForm((current) => ({ ...current, businessType: event.target.value }))
-                  }
-                  className="mt-2 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                >
-                  {BUSINESS_TYPES.map((item) => (
-                    <option key={item.value} value={item.value}>
-                      {item.value === "other" ? "Később adom meg / Egyéb" : item.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
+        <AuthChallenge
+          key={attempt}
+          action="signup"
+          onReady={setReady}
+          onToken={setBotToken}
+          onConfiguration={(config) => {
+            setPrivateBeta(config.privateBeta);
+            setPreviewDemoEnabled(config.previewDemoEnabled);
+            setRegistration(
+              config.registrationEnabled
+                ? { status: "enabled" }
+                : { status: "closed", message: config.registrationMessage },
+            );
+          }}
+          onConfigurationError={() =>
+            setRegistration((current) =>
+              current.status === "checking" ? { status: "error" } : current,
+            )
+          }
+          hideRegistrationClosedError
+          hideConfigurationError
+        />
+        {!embedded && previewDemoEnabled && (
+          <section
+            className={`${embedded ? "mt-6" : "mt-5"} space-y-3 rounded-2xl border border-primary/20 bg-primary/5 p-5`}
+          >
             <div>
-              <Label htmlFor="displayName">Neved</Label>
-              <Input
-                id="displayName"
-                autoComplete="name"
-                minLength={2}
-                maxLength={120}
-                required
-                value={form.displayName}
-                onChange={update("displayName")}
-                className="mt-2"
-              />
+              <h2 className="font-semibold">Próbáld ki regisztráció nélkül</h2>
+              <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
+                Megnyílik a közös, kitalált Példa Pékség-fiók. Amit ott készítesz, megmarad a
+                következő belépésre.
+              </p>
             </div>
-            {!embedded && (
+            <Button
+              type="button"
+              className="min-h-11 w-full rounded-full"
+              disabled={demoPending}
+              onClick={enterPreviewDemo}
+            >
+              {demoPending ? "Próba-fiók megnyitása…" : "Belépés a próba-fiókba"}
+            </Button>
+          </section>
+        )}
+        {error && previewDemoEnabled && registration.status !== "enabled" && (
+          <p role="alert" className="mt-3 text-sm text-destructive">
+            {error}
+          </p>
+        )}
+        {registration.status === "enabled" ? (
+          <form onSubmit={submit} className={`${embedded ? "mt-6" : "mt-8"} space-y-4`}>
+            <fieldset disabled={registered} className="space-y-4">
+              {privateBeta && (
+                <div>
+                  <Label htmlFor="inviteCode">Van meghívókódod?</Label>
+                  <Input
+                    id="inviteCode"
+                    type="password"
+                    autoComplete="off"
+                    required
+                    maxLength={512}
+                    value={inviteCode}
+                    onChange={(event) => setInviteCode(event.target.value)}
+                    className="mt-2"
+                  />
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    Zárt béta: a kapott meghívókóddal levélmegerősítés nélkül kipróbálhatod.
+                  </p>
+                </div>
+              )}
+              {!embedded && (
+                <div>
+                  <Label htmlFor="businessType">Vállalkozás típusa (opcionális)</Label>
+                  <select
+                    id="businessType"
+                    value={form.businessType}
+                    onChange={(event) =>
+                      setForm((current) => ({ ...current, businessType: event.target.value }))
+                    }
+                    className="mt-2 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  >
+                    {BUSINESS_TYPES.map((item) => (
+                      <option key={item.value} value={item.value}>
+                        {item.value === "other" ? "Később adom meg / Egyéb" : item.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
               <div>
-                <Label htmlFor="workspaceName">Vállalkozás neve</Label>
+                <Label htmlFor="displayName">Neved</Label>
                 <Input
-                  id="workspaceName"
-                  autoComplete="organization"
+                  id="displayName"
+                  autoComplete="name"
                   minLength={2}
-                  maxLength={160}
+                  maxLength={120}
                   required
-                  value={form.workspaceName}
-                  onChange={update("workspaceName")}
+                  value={form.displayName}
+                  onChange={update("displayName")}
                   className="mt-2"
                 />
               </div>
-            )}
-            <div>
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                autoComplete="email"
-                maxLength={180}
-                required
-                value={form.email}
-                onChange={update("email")}
-                className="mt-2"
-              />
-            </div>
-            <div>
-              <Label htmlFor="password">Jelszó (legalább 8 karakter)</Label>
-              <div className="relative mt-2">
+              {!embedded && (
+                <div>
+                  <Label htmlFor="workspaceName">Vállalkozás neve</Label>
+                  <Input
+                    id="workspaceName"
+                    autoComplete="organization"
+                    minLength={2}
+                    maxLength={160}
+                    required
+                    value={form.workspaceName}
+                    onChange={update("workspaceName")}
+                    className="mt-2"
+                  />
+                </div>
+              )}
+              <div>
+                <Label htmlFor="email">Email</Label>
                 <Input
-                  id="password"
-                  type={showPassword ? "text" : "password"}
-                  autoComplete="new-password"
-                  maxLength={200}
-                  minLength={8}
+                  id="email"
+                  type="email"
+                  autoComplete="email"
+                  maxLength={180}
                   required
-                  value={form.password}
-                  onChange={update("password")}
-                  className="pr-12"
+                  value={form.email}
+                  onChange={update("email")}
+                  className="mt-2"
                 />
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="absolute right-0 top-0 h-10 w-11"
-                  aria-label={showPassword ? "Jelszó elrejtése" : "Jelszó megjelenítése"}
-                  aria-pressed={showPassword}
-                  onClick={() => setShowPassword((value) => !value)}
-                >
-                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </Button>
               </div>
-            </div>
-          </fieldset>
-          {error && (
-            <p role="alert" className="text-sm text-destructive">
-              {error}
+              <div>
+                <Label htmlFor="password">Jelszó (legalább 8 karakter)</Label>
+                <div className="relative mt-2">
+                  <Input
+                    id="password"
+                    type={showPassword ? "text" : "password"}
+                    autoComplete="new-password"
+                    maxLength={200}
+                    minLength={8}
+                    required
+                    value={form.password}
+                    onChange={update("password")}
+                    className="pr-12"
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="absolute right-0 top-0 h-10 w-11"
+                    aria-label={showPassword ? "Jelszó elrejtése" : "Jelszó megjelenítése"}
+                    aria-pressed={showPassword}
+                    onClick={() => setShowPassword((value) => !value)}
+                  >
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </Button>
+                </div>
+              </div>
+            </fieldset>
+            {error && (
+              <p role="alert" className="text-sm text-destructive">
+                {error}
+              </p>
+            )}
+            <p className="text-sm text-muted-foreground">
+              A regisztrációval elfogadod a{" "}
+              <Link to="/terms" className="underline">
+                Használati feltételeket
+              </Link>
+              . Az adatok kezeléséről az{" "}
+              <Link to="/privacy" className="underline">
+                Adatvédelmi tájékoztatóban
+              </Link>{" "}
+              olvashatsz.
             </p>
-          )}
-          {!registered && <AuthChallenge key={attempt} action="signup" onReady={setReady} onToken={setBotToken} onConfiguration={(config) => setPrivateBeta(config.privateBeta)} />}
-          <p className="text-sm text-muted-foreground">
-            A regisztrációval elfogadod a{" "}
-            <Link to="/terms" className="underline">
-              Használati feltételeket
-            </Link>
-            . Az adatok kezeléséről az{" "}
-            <Link to="/privacy" className="underline">
-              Adatvédelmi tájékoztatóban
-            </Link>{" "}
-            olvashatsz.
-          </p>
-          <Button className="w-full rounded-full" disabled={pending || (!registered && !ready)}>
-            {pending ? "Mentés…" : registered ? "Logó mentésének újrapróbálása" : "Regisztráció"}
-          </Button>
-          {registered && (
-            <Button
-              type="button"
-              variant="outline"
-              className="w-full rounded-full"
-              onClick={() => window.location.assign(nextUrl)}
-            >
-              Folytatás logó nélkül
+            <Button className="w-full rounded-full" disabled={pending || (!registered && !ready)}>
+              {pending ? "Mentés…" : registered ? "Logó mentésének újrapróbálása" : "Regisztráció"}
             </Button>
-          )}
-        </form>
+            {registered && (
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full rounded-full"
+                onClick={() => window.location.assign(nextUrl)}
+              >
+                Folytatás logó nélkül
+              </Button>
+            )}
+          </form>
+        ) : registration.status === "closed" ? (
+          <section
+            role="status"
+            aria-live="polite"
+            className={`${embedded ? "mt-6" : "mt-8"} space-y-4 rounded-2xl border border-primary/20 bg-primary/5 p-5`}
+          >
+            <div>
+              <h2 className="font-semibold">{translate("auth.signupUnavailableTitle")}</h2>
+              <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                {registration.message}
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-3">
+              <Button asChild className="min-h-11 rounded-full">
+                <Link to="/login">{translate("auth.loginInstead")}</Link>
+              </Button>
+              <Button asChild variant="outline" className="min-h-11 rounded-full">
+                <Link to="/contact">{translate("auth.contactForHelp")}</Link>
+              </Button>
+            </div>
+          </section>
+        ) : registration.status === "error" ? (
+          <section
+            role="alert"
+            className={`${embedded ? "mt-6" : "mt-8"} space-y-4 rounded-2xl border border-destructive/20 bg-destructive/5 p-5`}
+          >
+            <div>
+              <h2 className="font-semibold">{translate("auth.signupCheckFailedTitle")}</h2>
+              <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                {translate("auth.signupCheckFailed")}
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-3">
+              <Button asChild className="min-h-11 rounded-full">
+                <Link to="/login">{translate("auth.loginInstead")}</Link>
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="min-h-11 rounded-full"
+                onClick={() => window.location.reload()}
+              >
+                {translate("auth.retry")}
+              </Button>
+              <Button asChild variant="outline" className="min-h-11 rounded-full">
+                <Link to="/contact">{translate("auth.contactForHelp")}</Link>
+              </Button>
+            </div>
+          </section>
+        ) : (
+          <p
+            role="status"
+            aria-live="polite"
+            className={`${embedded ? "mt-6" : "mt-8"} text-sm text-muted-foreground`}
+          >
+            {translate("auth.checkingSignup")}
+          </p>
+        )}
         <p className="mt-6 text-center text-sm text-muted-foreground">
           Van már fiókod?{" "}
           <Link to="/login" className="font-medium text-primary hover:underline">
@@ -265,7 +399,9 @@ export function SignupForm({
         <div className="mt-6 border-t pt-4 text-muted-foreground">
           <PublicInfoLinks />
           <p className="mt-3 text-center text-sm">
-            {privateBeta ? "Zárt béta, meghívott résztvevőknek." : "A béta üzemeltetői és végleges jogi adatai előkészítés alatt állnak."}
+            {privateBeta
+              ? "Zárt béta, meghívott résztvevőknek."
+              : "A béta üzemeltetői és végleges jogi adatai előkészítés alatt állnak."}
           </p>
         </div>
       </div>

@@ -24,6 +24,10 @@ test("private beta invitation enables registration without email; missing or inv
   assert.throws(() => requireBetaInvitation("wrong", env), /meghívókód/);
   assert.throws(() => requireBetaInvitation("", env), /meghívókód/);
   assert.equal(authConfiguration({ ...env, BETA_INVITE_CODE: "" }).registrationEnabled, false);
+  assert.match(
+    authConfiguration({ ...env, BETA_INVITE_CODE: "" }).registrationMessage,
+    /zárt béta/i,
+  );
   assert.throws(
     () => requireBetaInvitation("wrong", { ...env, BETA_INVITE_CODE: "" }),
     /Zárt béta/,

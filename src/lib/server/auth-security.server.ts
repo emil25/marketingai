@@ -5,6 +5,7 @@ import { getRequestHeader } from "@tanstack/react-start/server";
 import { assertJsonFixtureAllowed } from "./storage-mode.server";
 import { replaceAtomicFile } from "./atomic-file.server";
 import { betaConfiguration, developmentEmailAllowed } from "./beta-access.server";
+import { previewDemoLoginEnabled } from "./preview-demo.server";
 import { isProductionEnvironment } from "./production-config.server";
 import { brandForLocale, DEFAULT_MARKET_LOCALE } from "@/config/brand";
 import { translate } from "@/i18n";
@@ -53,9 +54,10 @@ export function authConfiguration(env: Record<string, string | undefined> = proc
         ? beta.inviteReady
         : !production || (!!operatorReady && emailReady && botReady && originReady)),
     privateBeta: beta.privateBeta,
+    previewDemoEnabled: previewDemoLoginEnabled(env),
     registrationMessage: beta.privateBeta
-      ? "Zárt béta: a regisztráció jelenleg nem elérhető."
-      : "A regisztráció előkészítés alatt áll. Kérjük, nézz vissza később.",
+      ? translate("auth.signupPrivateClosed")
+      : translate("auth.signupClosed"),
     emailReady,
     passwordResetAvailable: emailReady || developmentEmailAllowed(env),
     developmentEmail: !emailReady && developmentEmailAllowed(env),
@@ -170,8 +172,9 @@ export async function sendAuthEmail(email: string, kind: "verify" | "reset", tok
   // Fragment is consumed by the page, never sent in access logs or referrer headers.
   url.hash = token;
   const brand = brandForLocale(DEFAULT_MARKET_LOCALE);
-  const subject = translate(kind === "verify" ? "email.verifySubject" : "email.resetSubject")
-    .replaceAll("{brand}", brand.productName);
+  const subject = translate(
+    kind === "verify" ? "email.verifySubject" : "email.resetSubject",
+  ).replaceAll("{brand}", brand.productName);
   const text = `${subject}\n\n${url.href}\n\nHa nem te kérted, hagyd figyelmen kívül ezt a levelet.`;
   if (!authConfiguration().emailReady) {
     const { writeDevelopmentEmail } = await import("./development-outbox.server");

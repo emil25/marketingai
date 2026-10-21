@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
+import { Link } from "@tanstack/react-router";
 import { getAuthConfiguration } from "@/lib/account.functions";
+import { translate } from "@/i18n";
 type Turnstile = {
   render: (element: HTMLElement, options: Record<string, unknown>) => string;
   remove: (id: string) => void;
@@ -29,25 +31,36 @@ export function AuthChallenge({
   onToken,
   onReady,
   onConfiguration,
+  onConfigurationError,
+  hideRegistrationClosedError = false,
+  hideConfigurationError = false,
 }: {
   action: "signup" | "login" | "reset";
   onToken: (token: string) => void;
   onReady: (ready: boolean) => void;
   onConfiguration?: (config: Awaited<ReturnType<typeof getAuthConfiguration>>) => void;
+  onConfigurationError?: () => void;
+  hideRegistrationClosedError?: boolean;
+  hideConfigurationError?: boolean;
 }) {
   const node = useRef<HTMLDivElement>(null);
   const [error, setError] = useState("");
-  const callbacks = useRef({ onToken, onReady, onConfiguration });
-  callbacks.current = { onToken, onReady, onConfiguration };
+  const [registrationClosed, setRegistrationClosed] = useState(false);
+  const [configurationFailed, setConfigurationFailed] = useState(false);
+  const callbacks = useRef({ onToken, onReady, onConfiguration, onConfigurationError });
+  callbacks.current = { onToken, onReady, onConfiguration, onConfigurationError };
   useEffect(() => {
     let disposed = false;
     let widget: string | undefined;
+    let configurationLoaded = false;
     callbacks.current.onReady(false);
     void getAuthConfiguration()
       .then(async (config) => {
         if (disposed) return;
+        configurationLoaded = true;
         callbacks.current.onConfiguration?.(config);
         if (action === "signup" && !config.registrationEnabled) {
+          setRegistrationClosed(true);
           setError(config.registrationMessage);
           return;
         }
@@ -77,7 +90,13 @@ export function AuthChallenge({
         });
       })
       .catch(() => {
-        if (!disposed) setError("A biztonsági ellenőrzés nem érhető el. Frissítsd az oldalt.");
+        if (!disposed) {
+          setError("A biztonsági ellenőrzés nem érhető el. Frissítsd az oldalt.");
+          if (!configurationLoaded) {
+            setConfigurationFailed(true);
+            callbacks.current.onConfigurationError?.();
+          }
+        }
       });
     return () => {
       disposed = true;
@@ -87,11 +106,18 @@ export function AuthChallenge({
   return (
     <div>
       <div ref={node} />
-      {error && (
-        <p role="alert" className="text-sm text-destructive">
-          {error}
-        </p>
-      )}
+      {error &&
+        !(registrationClosed && hideRegistrationClosedError) &&
+        !(configurationFailed && hideConfigurationError) && (
+          <p role="alert" className="text-sm text-destructive">
+            {error}{" "}
+            {registrationClosed && (
+              <Link to="/contact" className="font-medium underline underline-offset-2">
+                {translate("auth.contactForHelp")}
+              </Link>
+            )}
+          </p>
+        )}
     </div>
   );
 }

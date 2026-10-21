@@ -50,6 +50,7 @@ test("production registration requires operator, mail, bot and HTTPS configurati
     for (const key of keys) delete process.env[key];
     process.env.NODE_ENV = "production";
     assert.equal(authConfiguration().registrationEnabled, false);
+    assert.match(authConfiguration().registrationMessage, /nem a te hibád/);
     for (const key of keys.slice(1)) process.env[key] = "test";
     process.env.PUBLIC_APP_URL = "https://example.invalid";
     assert.equal(authConfiguration().registrationEnabled, true);
