@@ -15,6 +15,18 @@ const GEMINI_OPENAI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta
 const GROQ_OPENAI_BASE_URL = "https://api.groq.com/openai/v1";
 const TEXT_REQUEST_TIMEOUT_MS = 120_000;
 const IMAGE_REQUEST_TIMEOUT_MS = 180_000;
+const RETRYABLE_PROVIDER_STATUSES = new Set([500, 502, 503, 504]);
+
+/** Retry one transient upstream failure without retrying quota or authorization errors. */
+export async function retryTransientProviderResponse(
+  send: () => Promise<Response>,
+  wait: () => Promise<void> = () => new Promise((resolve) => setTimeout(resolve, 400)),
+) {
+  const first = await send();
+  if (!RETRYABLE_PROVIDER_STATUSES.has(first.status)) return first;
+  await wait();
+  return send();
+}
 
 export type TextAiProvider = "openrouter" | "gemini" | "groq";
 
@@ -86,12 +98,14 @@ async function request(
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const response = previewFixture ? previewAiResponse(body) : await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
-      body: JSON.stringify(body),
-      signal: controller.signal,
-    });
+    const response = previewFixture
+      ? previewAiResponse(body)
+      : await retryTransientProviderResponse(() => fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
+          body: JSON.stringify(body),
+          signal: controller.signal,
+        }));
     // Retain no provider body in logs or client-facing errors.
     const json = response.headers.get("content-type")?.includes("application/json")
       ? await response
