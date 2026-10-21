@@ -6,8 +6,27 @@ import {
   openRouterChat,
   openRouterImage,
   retryTransientProviderResponse,
+  textAiProviderStatus,
   textCompletionUrl,
 } from "../src/lib/server/ai-provider.server.ts";
+
+test("AI provider diagnostics expose only the provider and key presence", () => {
+  const previous = {
+    provider: process.env.AI_TEXT_PROVIDER,
+    groqKey: process.env.GROQ_API_KEY,
+  };
+  process.env.AI_TEXT_PROVIDER = "groq";
+  process.env.GROQ_API_KEY = "test-groq-key-not-a-real-credential";
+  try {
+    assert.deepEqual(textAiProviderStatus(), { provider: "groq", keyConfigured: true });
+    assert.equal(JSON.stringify(textAiProviderStatus()).includes("test-groq-key"), false);
+  } finally {
+    if (previous.provider === undefined) delete process.env.AI_TEXT_PROVIDER;
+    else process.env.AI_TEXT_PROVIDER = previous.provider;
+    if (previous.groqKey === undefined) delete process.env.GROQ_API_KEY;
+    else process.env.GROQ_API_KEY = previous.groqKey;
+  }
+});
 
 test("temporary AI provider errors get one retry; quota errors do not", async () => {
   let attempts = 0;
