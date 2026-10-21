@@ -22,15 +22,19 @@ const configuredProvider = (
   process.env.AI_TEXT_PROVIDER?.trim().toLowerCase() ||
   (process.env.GEMINI_API_KEY?.trim() && !process.env.OPENROUTER_API_KEY?.trim()
     ? "gemini"
-    : "openrouter")
+    : process.env.GROQ_API_KEY?.trim() && !process.env.OPENROUTER_API_KEY?.trim()
+      ? "groq"
+      : "openrouter")
 );
-if (configuredProvider !== "openrouter" && configuredProvider !== "gemini")
-  throw new Error("A QA_TEXT_PROVIDER csak openrouter vagy gemini lehet.");
+if (configuredProvider !== "openrouter" && configuredProvider !== "gemini" && configuredProvider !== "groq")
+  throw new Error("A QA_TEXT_PROVIDER csak openrouter, gemini vagy groq lehet.");
 const provider = configuredProvider;
 const providerKey =
   provider === "gemini"
     ? process.env.GEMINI_API_KEY?.trim()
-    : process.env.OPENROUTER_API_KEY?.trim();
+    : provider === "groq"
+      ? process.env.GROQ_API_KEY?.trim()
+      : process.env.OPENROUTER_API_KEY?.trim();
 const live = !!providerKey && process.env.QA_FORCE_MOCK !== "true";
 const directory = path.resolve(`outputs/ai-qa-${Date.now()}`),
   samples = path.join(directory, "samples");
@@ -76,6 +80,7 @@ const child = spawn(
       OPENROUTER_API_KEY:
         provider === "openrouter" && live ? providerKey! : "explicit-qa-mock",
       GEMINI_API_KEY: provider === "gemini" && live ? providerKey! : "explicit-qa-mock",
+      GROQ_API_KEY: provider === "groq" && live ? providerKey! : "explicit-qa-mock",
       SESSION_SECRET: "isolated-fictional-ai-qa-session-2026",
       PUBLIC_APP_URL: origin,
       BETA_MODE: "off",
@@ -331,3 +336,4 @@ try {
   child.kill();
   await log.close();
 }
+

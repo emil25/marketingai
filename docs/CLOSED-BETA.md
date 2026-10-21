@@ -47,7 +47,7 @@ képernyőképen. A `.env.example` tartalmazza a neveket.
 | Üzemeltető | OPERATOR_NAME, OPERATOR_EMAIL, OPERATOR_ADDRESS valós, nyilvános adatok |
 | E-mail | RESEND_API_KEY; EMAIL_FROM hitelesített feladói domain |
 | Visszaélésvédelem | TURNSTILE_SITE_KEY; TURNSTILE_SECRET_KEY; engedélyezett preview/production domain |
-| Szöveges AI | OPENROUTER_API_KEY és használható kredit; AI_DAILY_CALL_LIMIT |
+| Szöveges AI | AI_TEXT_PROVIDER-hez tartozó OPENROUTER_API_KEY, GEMINI_API_KEY vagy GROQ_API_KEY; AI_DAILY_CALL_LIMIT |
 | Média | MEDIA_STORAGE=vercel-blob és privát Blob jogosultság |
 | Meglévő titkos csatornatárolás | CHANNEL_TOKEN_ENCRYPTION_KEY |
 
@@ -133,3 +133,4 @@ OpenRouter kredit, hitelesített Resend feladó/fiók, Turnstile fiók/domain,
 üzemeltetői adatok és végleges jogi szöveg, Neon ág/mentés és Vercel preview.
 Meta OAuth és AI képgenerálás e körön kívül marad. Automatikus publikálás nem
 feltétele a kézi munkafolyamatot használó zárt bétának.
+

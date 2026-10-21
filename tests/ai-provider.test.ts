@@ -1,6 +1,65 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { openRouterChat, openRouterImage } from "../src/lib/server/ai-provider.server.ts";
+import {
+  chatRequestBody,
+  configuredTextAiProvider,
+  openRouterChat,
+  openRouterImage,
+  textCompletionUrl,
+} from "../src/lib/server/ai-provider.server.ts";
+
+test("Groq uses its configured OpenAI-compatible model and the strict JSON schema request shape", () => {
+  const previous = {
+    provider: process.env.AI_TEXT_PROVIDER,
+    groqModel: process.env.GROQ_TEXT_MODEL,
+  };
+  process.env.AI_TEXT_PROVIDER = "groq";
+  process.env.GROQ_TEXT_MODEL = "openai/gpt-oss-20b";
+  try {
+    const provider = configuredTextAiProvider();
+    assert.equal(provider, "groq");
+    assert.equal(textCompletionUrl(provider), "https://api.groq.com/openai/v1/chat/completions");
+    assert.deepEqual(
+      chatRequestBody(
+        {
+          messages: [{ role: "user", content: "Írj rövid posztot." }],
+          schemaName: "post",
+          schema: {
+            type: "object",
+            properties: { content: { type: "string" } },
+            required: ["content"],
+            additionalProperties: false,
+          },
+          maxTokens: 400,
+        },
+        provider,
+      ),
+      {
+        model: "openai/gpt-oss-20b",
+        messages: [{ role: "user", content: "Írj rövid posztot." }],
+        max_tokens: 400,
+        response_format: {
+          type: "json_schema",
+          json_schema: {
+            name: "post",
+            strict: true,
+            schema: {
+              type: "object",
+              properties: { content: { type: "string" } },
+              required: ["content"],
+              additionalProperties: false,
+            },
+          },
+        },
+      },
+    );
+  } finally {
+    if (previous.provider === undefined) delete process.env.AI_TEXT_PROVIDER;
+    else process.env.AI_TEXT_PROVIDER = previous.provider;
+    if (previous.groqModel === undefined) delete process.env.GROQ_TEXT_MODEL;
+    else process.env.GROQ_TEXT_MODEL = previous.groqModel;
+  }
+});
 
 test("Gemini text and OpenRouter image calls require an authenticated request before contacting a provider", async () => {
   const env = {
@@ -45,3 +104,4 @@ test("Gemini text and OpenRouter image calls require an authenticated request be
     else process.env.GEMINI_TEXT_MODEL = env.geminiModel;
   }
 });
+

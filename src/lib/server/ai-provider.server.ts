@@ -12,10 +12,11 @@ import { previewAiAllowed, previewAiResponse } from "./preview-ai.server";
 
 const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1";
 const GEMINI_OPENAI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai";
+const GROQ_OPENAI_BASE_URL = "https://api.groq.com/openai/v1";
 const TEXT_REQUEST_TIMEOUT_MS = 120_000;
 const IMAGE_REQUEST_TIMEOUT_MS = 180_000;
 
-export type TextAiProvider = "openrouter" | "gemini";
+export type TextAiProvider = "openrouter" | "gemini" | "groq";
 
 export const OPENROUTER_TEXT_MODEL =
   process.env["OPENROUTER_TEXT_MODEL"]?.trim() || "openai/gpt-4.1-mini";
@@ -23,12 +24,14 @@ export const OPENROUTER_IMAGE_MODEL =
   process.env["OPENROUTER_IMAGE_MODEL"]?.trim() || "openai/gpt-image-2.5-sunburst";
 export const GEMINI_TEXT_MODEL =
   process.env["GEMINI_TEXT_MODEL"]?.trim() || "gemini-3.1-flash-lite";
+export const GROQ_TEXT_MODEL = process.env["GROQ_TEXT_MODEL"]?.trim() || "openai/gpt-oss-20b";
 
 export function configuredTextAiProvider(): TextAiProvider {
   const configured = process.env["AI_TEXT_PROVIDER"]?.trim().toLowerCase();
   if (!configured || configured === "openrouter") return "openrouter";
   if (configured === "gemini") return "gemini";
-  throw new Error("Az AI_TEXT_PROVIDER értéke csak openrouter vagy gemini lehet.");
+  if (configured === "groq") return "groq";
+  throw new Error("Az AI_TEXT_PROVIDER értéke csak openrouter, gemini vagy groq lehet.");
 }
 
 type ChatMessage = {
@@ -46,6 +49,11 @@ function requireOpenRouterKey() {
 
 function requireProviderKey(provider: TextAiProvider) {
   if (provider === "openrouter") return requireOpenRouterKey();
+  if (provider === "groq") {
+    const key = process.env["GROQ_API_KEY"]?.trim();
+    if (!key) throw new Error("Hiányzik a GROQ_API_KEY konfigurációja.");
+    return key;
+  }
   const key = process.env["GEMINI_API_KEY"]?.trim();
   if (!key) throw new Error("Hiányzik a GEMINI_API_KEY konfigurációja.");
   return key;
@@ -145,7 +153,13 @@ export function chatRequestBody(
   provider: TextAiProvider = configuredTextAiProvider(),
 ) {
   return {
-    model: input.model ?? (provider === "gemini" ? GEMINI_TEXT_MODEL : OPENROUTER_TEXT_MODEL),
+    model:
+      input.model ??
+      (provider === "gemini"
+        ? GEMINI_TEXT_MODEL
+        : provider === "groq"
+          ? GROQ_TEXT_MODEL
+          : OPENROUTER_TEXT_MODEL),
     messages: input.messages,
     max_tokens: Math.max(1, Math.min(16_000, input.maxTokens ?? 16_000)),
     ...(provider === "openrouter" ? { usage: { include: true } } : {}),
@@ -156,15 +170,24 @@ export function chatRequestBody(
   };
 }
 
+export function textCompletionUrl(provider: TextAiProvider) {
+  const baseUrl =
+    provider === "gemini"
+      ? GEMINI_OPENAI_BASE_URL
+      : provider === "groq"
+        ? GROQ_OPENAI_BASE_URL
+        : OPENROUTER_BASE_URL;
+  return `${baseUrl}/chat/completions`;
+}
+
 export function openRouterChat(input: ChatInput) {
   const remaining =
     input.deadlineAt === undefined ? TEXT_REQUEST_TIMEOUT_MS : input.deadlineAt - Date.now();
   if (remaining < 1000)
     throw new Error("Az AI-tervezés elérte az időkorlátot. A már elmentett hetek megmaradnak.");
   const provider = configuredTextAiProvider();
-  const baseUrl = provider === "gemini" ? GEMINI_OPENAI_BASE_URL : OPENROUTER_BASE_URL;
   return request(
-    `${baseUrl}/chat/completions`,
+    textCompletionUrl(provider),
     chatRequestBody(input, provider),
     Math.min(TEXT_REQUEST_TIMEOUT_MS, remaining),
     input.schemaName,
@@ -185,3 +208,4 @@ export function openRouterImage(input: { prompt: string; stream: boolean }) {
     "image_generation",
   );
 }
+

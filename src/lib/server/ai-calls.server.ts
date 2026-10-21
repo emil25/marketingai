@@ -192,7 +192,7 @@ export async function finishAiCall(
   id: string,
   result: {
     status: "success" | "error";
-    provider?: "openrouter" | "gemini";
+    provider?: "openrouter" | "gemini" | "groq";
     latencyMs?: number;
     httpStatus?: number;
     errorCode?: string;
@@ -294,3 +294,4 @@ export async function aiValidationReasonSummary(workspaceId: string, date = new 
   }
   return reasonSummary(start, groups);
 }
+

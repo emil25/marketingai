@@ -14,7 +14,7 @@ Részletes kommentek: `.env.example`.
 | Adatbázis | `DATABASE_URL`, `DIRECT_URL`, `DATABASE_URL_UNPOOLED`, `DATABASE_SSL`, `DATABASE_POOL_MAX` |
 | Futás és munkamenet | `NODE_ENV`, `SESSION_SECRET`, `PUBLIC_APP_URL`; Node tárhelyen `PORT`, `HOST`; Vercel biztosítja `VERCEL`, `VERCEL_ENV` |
 | Privát képek | `MEDIA_STORAGE`, `BLOB_STORE_ID`, `BLOB_READ_WRITE_TOKEN`; opcionálisan `MEDIA_PUBLIC_BASE_URL` |
-| Szöveges AI | `AI_TEXT_PROVIDER`, `OPENROUTER_API_KEY`, `OPENROUTER_TEXT_MODEL`, `GEMINI_API_KEY`, `GEMINI_TEXT_MODEL`, `AI_DAILY_CALL_LIMIT` |
+| Szöveges AI | `AI_TEXT_PROVIDER`, `OPENROUTER_API_KEY`, `OPENROUTER_TEXT_MODEL`, `GEMINI_API_KEY`, `GEMINI_TEXT_MODEL`, `GROQ_API_KEY`, `GROQ_TEXT_MODEL`, `AI_DAILY_CALL_LIMIT` |
 | Üzemeltetési riasztás | `CRON_SECRET`, `AI_MONITOR_CREDITS_THRESHOLD_USD`, `AI_MONITOR_402_THRESHOLD`, `AI_MONITOR_429_THRESHOLD`, `AI_MONITOR_TIMEOUT_THRESHOLD`; opcionális `OPENROUTER_MANAGEMENT_API_KEY` |
 | Csak opcionális elkülönített build-migráció | `MIGRATE_ON_BUILD`, `PREVIEW_DATABASE_TARGET_SHA256`, `PRODUCTION_DATABASE_TARGET_SHA256` |
 | Opcionális AI kép | `OPENROUTER_IMAGE_MODEL` |
@@ -154,6 +154,8 @@ node scripts/qa-hygiene.mjs
 
 ## 4. Production aktiválás
 
+- [ ] Ha `AI_TEXT_PROVIDER=groq`, a `GROQ_API_KEY` csak a szerver titkos Preview/Production beállításában legyen. A Groq ingyenes szintje használati korlátos; ellenőrizd a fiók aktuális modellkorlátait. Az alapmodell `openai/gpt-oss-20b`, amelyet a Groq dokumentációja jelenleg támogat kötött JSON-kimenethez. Az ingyenes szint elérhetősége és korlátja változhat.
+
 - [ ] Ha az `AI_TEXT_PROVIDER=gemini`, ellenőrizd, hogy a `GEMINI_API_KEY` olyan Google Cloud projekthez tartozik, amelyhez aktív Cloud Billing-fiók van kapcsolva. A projekt és a kulcs összetartozását a Google AI Studio projekt-/kulcslistájában ellenőrizd; a kulcs értékét ne másold naplóba vagy dokumentumba.
 - [ ] EGT-beli (így romániai) felhasználók számára a Gemini API-t csak a Google feltételei szerinti fizetős szolgáltatásként tedd elérhetővé. Ehhez az API-kulcs projektjének aktív számlázással kell rendelkeznie; ellenőrizd a projekt fizetési szintjét is.
 - [ ] Állíts be Google Cloud Billing-költségkeretet és e-mailes riasztásokat a Gemini-projektre, és ellenőrizd, hogy a megfelelő címzetthez érkeznek. Az egyszerű költségkeret-riasztás figyelmeztet, de önmagában nem állítja le a számlázást; ha rendelkezésre áll és megfelelő, külön költségkorlátot is állíts be.
@@ -276,3 +278,4 @@ npm run test:e2e -- tests/e2e/simple-marketing.spec.ts
 
 A nyilvános nyitóoldal ellenőrzése `BASE_URL`-lel is fut. A helyi JSON-t olvasó teljes
 feliratkozási/képfeltöltési próba távoli címen szándékosan kimarad; éles kézbesítést ez nem bizonyít.
+
