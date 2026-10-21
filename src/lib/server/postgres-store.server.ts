@@ -21,6 +21,7 @@ import type {
 } from "@/lib/data-model";
 import { normalizeBusinessType } from "@/lib/business-types";
 import { mainChannel } from "../main-channel";
+import { nullableJsonbParameter } from "./postgres-json.server";
 
 /**
  * PostgreSQL adapter for the existing AppData abstraction.
@@ -153,7 +154,7 @@ async function readDataFromClient(client: PoolClient): Promise<AppData> {
     passwordHash: String(row.password_hash),
     uiMode: row.ui_mode === "detailed" ? "detailed" : "simple",
     uiModeSuggestionDismissed: row.ui_mode_suggestion_dismissed === true,
-    auth: row.auth_metadata == null ? undefined : row.auth_metadata as UserRecord["auth"],
+    auth: row.auth_metadata == null ? undefined : (row.auth_metadata as UserRecord["auth"]),
     createdAt: iso(row.created_at),
   }));
   const workspaces: WorkspaceRecord[] = workspaceRows.map((row) => ({
@@ -214,7 +215,12 @@ async function readDataFromClient(client: PoolClient): Promise<AppData> {
     learningSamples: stringArray(row.learning_samples),
     learnedSummary: String(row.learned_summary ?? ""),
     learnedAt: optionalIso(row.learned_at),
-    ideaBank: row.idea_bank == null ? null : (typeof row.idea_bank === "string" ? JSON.parse(row.idea_bank) : row.idea_bank) as BrandProfileRecord["ideaBank"],
+    ideaBank:
+      row.idea_bank == null
+        ? null
+        : ((typeof row.idea_bank === "string"
+            ? JSON.parse(row.idea_bank)
+            : row.idea_bank) as BrandProfileRecord["ideaBank"]),
     createdAt: iso(row.created_at),
     updatedAt: iso(row.updated_at),
   }));
@@ -486,7 +492,16 @@ export async function replaceDataInClient(client: PoolClient, data: AppData) {
   await insertRows(
     client,
     "users",
-    ["id", "email", "display_name", "password_hash", "created_at", "auth_metadata", "ui_mode", "ui_mode_suggestion_dismissed"],
+    [
+      "id",
+      "email",
+      "display_name",
+      "password_hash",
+      "created_at",
+      "auth_metadata",
+      "ui_mode",
+      "ui_mode_suggestion_dismissed",
+    ],
     rowsFor(data.users, (item) => ({
       id: item.id,
       email: item.email,
@@ -639,7 +654,7 @@ export async function replaceDataInClient(client: PoolClient, data: AppData) {
       learning_samples: json(item.learningSamples ?? []),
       learned_summary: item.learnedSummary ?? "",
       learned_at: item.learnedAt ?? null,
-      idea_bank: json(item.ideaBank ?? null),
+      idea_bank: nullableJsonbParameter(item.ideaBank),
       created_at: item.createdAt,
       updated_at: item.updatedAt,
     })),
@@ -1131,3 +1146,4 @@ export async function closePostgresPool() {
   pool = undefined;
   await current.end();
 }
+
