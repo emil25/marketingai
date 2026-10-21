@@ -16,6 +16,9 @@ function Admin() {
     <div className="space-y-6">
       <PageHeader title="Admin" sub="A mai AI-tartalmi ellenőrzések összesítése." />
       <Card className="rounded-3xl p-6 sm:p-8">
+        <p className="mb-5 text-sm text-muted-foreground">
+          Szövegíró szolgáltató: {summary.provider.provider ?? "nincs érvényes beállítás"} · API-kulcs: {summary.provider.keyConfigured ? "beállítva" : "hiányzik"}
+        </p>
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <h2 className="text-lg font-semibold">Ellenőrzési okok</h2>
           <p className="text-sm text-muted-foreground">
