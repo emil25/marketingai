@@ -336,4 +336,3 @@ try {
   child.kill();
   await log.close();
 }
-

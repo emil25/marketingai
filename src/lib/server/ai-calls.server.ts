@@ -294,4 +294,3 @@ export async function aiValidationReasonSummary(workspaceId: string, date = new 
   }
   return reasonSummary(start, groups);
 }
-

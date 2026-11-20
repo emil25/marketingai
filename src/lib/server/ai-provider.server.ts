@@ -259,4 +259,3 @@ export function openRouterImage(input: { prompt: string; stream: boolean }) {
     "image_generation",
   );
 }
-

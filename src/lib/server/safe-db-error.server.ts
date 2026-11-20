@@ -21,4 +21,3 @@ export function safeDatabaseErrorMetadata(error: unknown) {
 
   return metadata;
 }
-

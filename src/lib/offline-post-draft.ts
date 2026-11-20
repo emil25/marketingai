@@ -19,4 +19,3 @@ export function offlineIdeaVariants(idea: string, platforms: readonly string[]) 
     ellenorizendo: [AI_UNAVAILABLE_DRAFT_MARKER],
   }));
 }
-

@@ -6,9 +6,15 @@ export const LANDING_DEMOS = [
     label: "landing.hero.profession.bakery",
     brand: "Példa Pékség",
     idea: "Mutasd be a kenyerünket és a kakaós csigánkat Csíkszeredában. Kérdezd meg, melyiket választanák reggelire.",
-    text: {
-      hu: "Kenyér vagy kakaós csiga? Mi kerül nálad a reggelizőasztalra?\n\nA Példa Pékségben mindkettőt megtalálod Csíkszeredában.\n\nÍrd meg kommentben, te melyiket választanád!\n\n#pékség #Csíkszereda",
-      ro: "Pâine caldă sau melc cu cacao? Ce alegi pentru micul dejun de azi? La Brutăria Exemplu din Miercurea Ciuc le găsești pe amândouă, proaspăt scoase din cuptor. Scrie-ne în comentarii preferatul tău! #brutărie #MiercureaCiuc",
+    copy: {
+      facebook: {
+        hu: "Reggelire inkább kenyeret vagy kakaós csigát választanál? A Példa Pékségben mindkettőt megtalálod Csíkszeredában. Írd meg, te melyiket választanád! #pékség #Csíkszereda",
+        ro: "La micul dejun ai alege pâine sau melc cu cacao? La Brutăria Exemplu le găsești pe amândouă în Miercurea Ciuc. Scrie-ne ce ai alege! #brutărie #MiercureaCiuc",
+      },
+      instagram: {
+        hu: "Kenyér vagy kakaós csiga? 🥐\nTe melyiket választanád reggelire?\n#pékség #Csíkszereda #reggeli #kakaóscsiga",
+        ro: "Pâine sau melc cu cacao? 🥐\nTu ce ai alege la micul dejun?\n#brutărie #MiercureaCiuc #micdejun #melccucacao",
+      },
     },
   },
   {
@@ -17,9 +23,15 @@ export const LANDING_DEMOS = [
     label: "landing.hero.profession.autoService",
     brand: "Példa Autószerviz",
     idea: "Szólj az autósoknak Székelyudvarhelyen, hogy jövő héttől indul a téli gumicsere, foglaljanak időpontot telefonon.",
-    text: {
-      hu: "Itt a hűvös reggelek ideje! 🚗 Jövő héttől indul nálunk a téli gumicsere Székelyudvarhelyen. Ne várd meg az első havazást és a sorban állást – foglalj időpontot még ma telefonon a [telefonszám] számon! #autószerviz #gumicsere #Székelyudvarhely",
-      ro: "Diminețile devin tot mai reci! 🚗 De săptămâna viitoare începem schimbul de anvelope de iarnă în Odorheiu Secuiesc. Evită aglomerația și programează-te din timp la telefon: [număr telefon]! #serviceauto #anvelope #OdorheiuSecuiesc",
+    copy: {
+      facebook: {
+        hu: "Jövő héttől indul a téli gumicsere Székelyudvarhelyen. Időpontot telefonon foglalhatsz: [telefonszám]. #autószerviz #Székelyudvarhely",
+        ro: "De săptămâna viitoare începe schimbul anvelopelor de iarnă în Odorheiu Secuiesc. Pentru programare, sună la [număr de telefon]. #serviceauto #OdorheiuSecuiesc",
+      },
+      instagram: {
+        hu: "Téli gumicsere jövő héttől 🚗\nIdőpontfoglalás telefonon: [telefonszám].\n#autószerviz #gumicsere #Székelyudvarhely #autó",
+        ro: "Schimbul anvelopelor de iarnă începe săptămâna viitoare 🚗\nPentru programare: [număr de telefon].\n#serviceauto #anvelope #OdorheiuSecuiesc #masina",
+      },
     },
   },
   {
@@ -28,9 +40,15 @@ export const LANDING_DEMOS = [
     label: "landing.hero.profession.beautySalon",
     brand: "Példa Szépségszalon",
     idea: "Péntek délután 3-ra felszabadult egy hajvágás és szárítás időpont Sepsiszentgyörgyön, írjanak üzenetet.",
-    text: {
-      hu: "Last minute szabad időpont! ✨ Péntek délután 15:00-ra felszabadult egy hely hajvágásra és szárításra Sepsiszentgyörgyön. Ha szeretnéd felfrissíteni a frizurád a hétvégére, írj nekünk üzenetet! #fodrászat #szépségszalon #Sepsiszentgyörgy",
-      ro: "Loc liber last-minute! ✨ Vineri la ora 15:00 s-a eliberat un loc pentru tuns și coafat în Sfântu Gheorghe. Dacă vrei un look proaspăt pentru weekend, lasă-ne un mesaj privat! #coafor #salonfrumusete #SfantuGheorghe",
+    copy: {
+      facebook: {
+        hu: "Péntek délután 15 órára felszabadult egy időpont hajvágásra és szárításra Sepsiszentgyörgyön. Ha kéred, írj nekünk üzenetet! #fodrászat #Sepsiszentgyörgy",
+        ro: "Vineri, la ora 15:00, este disponibil un loc pentru tuns și coafat în Sfântu Gheorghe. Dacă dorești programarea, scrie-ne un mesaj! #coafor #SfantuGheorghe",
+      },
+      instagram: {
+        hu: "Szabad időpont pénteken 15:00-kor ✂️\nHajvágás és szárítás Sepsiszentgyörgyön.\nÍrj üzenetet, ha kéred! #fodrászat #Sepsiszentgyörgy #hajvágás #időpont",
+        ro: "Loc liber vineri la ora 15:00 ✂️\nTuns și coafat în Sfântu Gheorghe.\nScrie-ne dacă dorești programarea! #coafor #SfantuGheorghe #tuns #programare",
+      },
     },
   },
 ] as const;
@@ -81,5 +99,5 @@ export const LANDING_SOCIAL_POSTS = [
 export const LANDING_EXAMPLE = {
   brand: LANDING_DEMOS[0].brand,
   idea: LANDING_DEMOS[0].idea,
-  text: LANDING_DEMOS[0].text.hu,
+  text: LANDING_DEMOS[0].copy.facebook.hu,
 };

@@ -1,7 +1,3 @@
-.mp-simple-steps {
-  margin-top: 0;
-  margin-bottom: 48px;
-}
 .mp-benefits {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -449,6 +445,29 @@ ul.mp-beta-exclusions {
   background: transparent;
   padding: 5px;
 }
+.mp-demo-channel {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-top: 9px;
+}
+.mp-demo-channel button {
+  min-height: 44px;
+  padding: 7px 13px;
+  border: 1px solid #527164;
+  border-radius: 999px;
+  color: #f5f7ee;
+  background: #214a3d;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.mp-demo-channel button[aria-pressed="true"] {
+  color: var(--mp-ink);
+  background: #fffdf5;
+  border-color: #fffdf5;
+}
 .mp-example-post {
   margin-top: 14px;
   padding: 20px;
@@ -744,13 +763,15 @@ ul.mp-beta-exclusions {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 32px;
-  margin-top: 34px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
-.mp-steps > div {
+.mp-steps > li {
   display: flex;
   gap: 15px;
 }
-.mp-steps > div > span {
+.mp-steps > li > span {
   color: #ab4d35;
   font-size: 14px;
   font-weight: 700;

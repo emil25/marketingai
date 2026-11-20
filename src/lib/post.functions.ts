@@ -1,6 +1,3 @@
-Warning: truncated output (original token count: 15462)
-Total output lines: 1532
-
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import type {
@@ -35,6 +32,8 @@ import { marketWritingRules } from "@/i18n/prompts/hu-RO";
 import { MainChannelSchema } from "./main-channel";
 import { channelSwitchSource, commitChannelSwitch, restoreChannelText } from "./server/post-channel.server";
 import { postCopyText } from "./post-editor";
+import { CreativeDraftSchema, type CreativeDraft } from "./post-creative";
+import { generateFivePostSeries, fivePostRoles } from "./server/five-post-series.server";
 import {
   generateOpeningOptions,
   generateQuestionClosings,
@@ -721,6 +720,125 @@ export const generatePostVariants = createServerFn({ method: "POST" })
     }
   });
 
+const FivePostSeriesInputSchema = z.object({
+  topic: z.string().trim().min(5).max(2000),
+  platform: MainChannelSchema,
+}).strict();
+
+const seriesRoleLabels: Record<(typeof fivePostRoles)[number], string> = {
+  figyelemfelkeltés: "Figyelemfelkeltés",
+  tanítás: "Hasznos tudnivaló",
+  értékbemutatás: "Az érték bemutatása",
+  "gyakori kérdés": "Gyakori kérdés",
+  "cselekvésre ösztönzés": "Következő lépés",
+};
+
+/** Creates all five posts only after the complete, checked series is ready. */
+export const generateFivePostSeriesDrafts = createServerFn({ method: "POST" })
+  .inputValidator((data: unknown) => FivePostSeriesInputSchema.parse(data))
+  .handler(async ({ data }) => {
+    const context = await requireBrandContext();
+    const brand = context.activeBrand;
+    if (!brand) throw new Error("Még nincs aktív vállalkozásod.");
+    const businessContext = buildBusinessContext(brand, brand.profile, {
+      goal: "Ötposztos sorozat",
+      audience: brand.audience,
+      language: brand.languageMarket,
+      platform: data.platform,
+    });
+    const job = await transact((db) => createAiJob(db, {
+      workspaceId: context.workspace.id,
+      brandId: brand.id,
+      type: "content",
+      input: { kind: "five_post_series", topic: data.topic, platform: data.platform },
+    }));
+    await transact((db) => startAiJob(db, job.id));
+
+    try {
+      const result = await generateFivePostSeries({
+        businessContext,
+        topic: data.topic,
+        platform: data.platform,
+      });
+      const posts = await transact((db) => {
+        const timestamp = nowIso();
+        const created = result.posts.map((item, index) => {
+          const role = fivePostRoles[index]!;
+          const title = `${data.topic.slice(0, 78)} · ${seriesRoleLabels[role]}`;
+          const post: PostRecord = {
+            id: newId("post"),
+            workspaceId: context.workspace.id,
+            brandId: brand.id,
+            campaignId: null,
+            title,
+            goal: seriesRoleLabels[role],
+            audience: brand.audience,
+            language: brand.languageMarket,
+            tone: brand.profile.tone,
+            status: "draft",
+            scheduledAt: null,
+            timezone: "Europe/Bucharest",
+            mediaAssetIds: [],
+            platforms: [data.platform],
+            hooks: [],
+            selectedHook: null,
+            abVariants: [],
+            adCopies: [],
+            createdAt: timestamp,
+            updatedAt: timestamp,
+          };
+          db.posts.push(post);
+          db.postVariants.push({
+            id: newId("variant"),
+            postId: post.id,
+            platform: data.platform,
+            content: item.content,
+            hashtags: item.hashtags,
+            cta: item.cta,
+            verificationWarnings: item.ellenorizendo,
+            status: contentPlaceholders(item.content, item.cta, ...item.hashtags).length ? "draft" : "prepared",
+            createdAt: timestamp,
+            updatedAt: timestamp,
+          });
+
+          const templates = ["editorial", "overlay", "minimal"] as const;
+          const format = index % 2 === 0 ? "portrait" : "square";
+          const caption = [item.content, item.hashtags.join(" ")].filter(Boolean).join("\n\n");
+          const draft: CreativeDraft = CreativeDraftSchema.parse({
+            format,
+            template: templates[index % templates.length],
+            caption,
+            slides: [{
+              headline: item.graphic.headline,
+              body: item.graphic.body,
+              cta: item.graphic.cta,
+              imageId: null,
+            }],
+          });
+          const creativeJob = createAiJob(db, {
+            workspaceId: context.workspace.id,
+            brandId: brand.id,
+            type: "content",
+            input: { kind: "creative_draft", postId: post.id, draft },
+          });
+          startAiJob(db, creativeJob.id);
+          completeAiJob(db, creativeJob.id);
+          return { id: post.id, title, role: seriesRoleLabels[role] };
+        });
+        completeAiJob(db, job.id);
+        return created;
+      });
+      return { posts };
+    } catch (cause) {
+      await transact((db) => completeAiJob(
+        db,
+        job.id,
+        cause instanceof Error ? cause.message : "Az ötposztos sorozat nem készült el.",
+      ));
+      throw cause;
+    }
+  });
+
 const ExtrasInputSchema = z.object({
   postId: z.string().min(1),
   platform: PlatformSchema.optional(),
@@ -734,7 +852,32 @@ export const switchPostChannel = createServerFn({ method: "POST" })
   }).strict().parse(data))
   .handler(async ({ data }) => {
     const { context, post, brand, database } = await ownedPostContext(data.postId);
-    const scope = { userId: context.user.id, workspaceId: context.workspace.…462 tokens truncated…  }
+    const scope = { userId: context.user.id, workspaceId: context.workspace.id };
+    const before = channelSwitchSource(database, scope, post.id, data.variantId, data.channel, data.expectedUpdatedAt);
+    const job = await transact((db) => createAiJob(db, {
+      workspaceId: post.workspaceId, brandId: post.brandId, type: "content",
+      input: { kind: "post_channel_switch", postId: post.id, sourceVariantId: data.variantId, channel: data.channel },
+    }));
+    await transact((db) => startAiJob(db, job.id));
+    try {
+      const businessContext = buildBusinessContext(brand, brand.profile, {
+        goal: post.goal, audience: post.audience, language: post.language, platform: data.channel,
+      });
+      const result = await generateFactualPost({
+        businessContext, title: post.title, platforms: [data.channel], ctaStyle: brand.profile.ctaStyle,
+        requireChannelTags: true,
+        brief: `A felhasználó szerkesztett posztját írd át ${data.channel === "instagram" ? "Instagramra: önálló, erős első sor, rövid bekezdések, 1–3 emoji és 4–6 hashtag" : "Facebookra: beszélgetősebb, eltérő nyitás és felépítés, 1–2 hashtag"}. Kizárólag a mentett szöveg és a vállalkozás megadott tényeit használd. Őrizd meg a hiányzó adatok helykitöltőit, ne találj ki új tényeket. Mentett, szerkesztett szöveg:\n${postCopyText(before.source)}`,
+      });
+      const selection = await transact((db) => {
+        const selected = commitChannelSwitch(db, scope, before, result.variants[0]);
+        completeAiJob(db, job.id);
+        return selected;
+      });
+      return { ...selection, snapshot: await getPostSnapshot(post.id, context.user.id, context.workspace.id) };
+    } catch (cause) {
+      await transact((db) => completeAiJob(db, job.id, cause instanceof Error ? cause.message : "A csatornaváltás nem sikerült."));
+      throw cause;
+    }
   });
 
 export const restorePostChannelText = createServerFn({ method: "POST" })
@@ -1507,4 +1650,3 @@ export const updatePostMedia = createServerFn({ method: "POST" })
     });
     return getPostSnapshot(result, context.user.id, context.workspace.id);
   });
-

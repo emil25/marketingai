@@ -7,4 +7,3 @@ export function jsonbParameter(value: unknown): string {
 export function nullableJsonbParameter(value: unknown): string | null {
   return value == null ? null : jsonbParameter(value);
 }
-

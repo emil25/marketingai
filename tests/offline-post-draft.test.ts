@@ -42,4 +42,3 @@ test("offline draft keeps the exact user idea and adds no claims or hashtags", (
   );
   assert.ok(variants.every((item) => item.ellenorizendo.includes("AI_UNAVAILABLE_DRAFT")));
 });
-

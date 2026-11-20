@@ -41,4 +41,3 @@ export function aiUsage(value: unknown) {
     cost: number("cost"),
   };
 }
-

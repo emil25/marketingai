@@ -204,6 +204,26 @@ test("unsupported offers, novelty and empty promises are hard failures, but owne
   assert.deepEqual(supported.filter((finding) => finding.severity === "hard"), []);
 });
 
+test("unsupported all-in-one and perfect-result promises are blocked but owner-provided claims pass", () => {
+  const invented = "Az eskuvo.ro-n minden megtalálható, ami a nagy naphoz kell. Regisztrálj még ma, és kezdd el összeállítani a tökéletes esküvőt!";
+  const inventedFindings = contentClaimFindings(
+    invented,
+    JSON.stringify({ brandName: "eskuvo.ro", businessType: "other", brief: "Esküvői reklámposzt, hogy regisztráljanak." }),
+    { businessType: "other" },
+  ).filter((finding) => finding.severity === "hard");
+  assert.ok(inventedFindings.some((finding) => finding.category === "HARD_CLAIM_EMPTY_PROMISE" && finding.message.includes("minden megtalálható")));
+  assert.ok(inventedFindings.some((finding) => finding.category === "HARD_CLAIM_EMPTY_PROMISE" && finding.message.includes("tökéletes esküvő")));
+
+  const ownerProvided = contentClaimFindings(
+    invented,
+    JSON.stringify({ businessType: "other", offers: invented, brief: invented }),
+    { businessType: "other" },
+  );
+  assert.deepEqual(ownerProvided, []);
+  assert.match(FACTUAL_CONTENT_RULES, /Ne ígérd, hogy „minden megtalálható”/);
+  assert.match(FACTUAL_CONTENT_RULES, /ne ígérj „tökéletes” eredményt/);
+});
+
 test("thin and Other profiles ask for concrete offer details without inferring from their name", () => {
   assert.equal(
     needsOfferDetails({ businessType: "other", industry: "", products: "", services: "" }, "Írj bemutatkozó posztot."),

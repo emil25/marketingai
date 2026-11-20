@@ -1146,4 +1146,3 @@ export async function closePostgresPool() {
   pool = undefined;
   await current.end();
 }
-

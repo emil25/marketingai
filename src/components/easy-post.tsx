@@ -9,6 +9,7 @@ import { Card } from "./ui/card";
 import { useUiMode } from "./ui-mode";
 import {
   generatePostVariants,
+  generateFivePostSeriesDrafts,
   updatePost,
   rewritePostVariant,
   switchPostChannel,
@@ -82,6 +83,9 @@ export function EasyPost({
   const [similarPosts, setSimilarPosts] = useState<PostSnapshot[]>([]);
   const [similarText, setSimilarText] = useState("");
   const [similarTextPosts, setSimilarTextPosts] = useState<PostSnapshot[]>([]);
+  const [seriesTopic, setSeriesTopic] = useState("");
+  const [seriesPlatform, setSeriesPlatform] = useState<MainChannel>(() => mainChannel(brand?.profile));
+  const [seriesPosts, setSeriesPosts] = useState<Array<{ id: string; title: string; role: string }>>([]);
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const [editing, setEditing] = useState(false);
@@ -160,6 +164,7 @@ export function EasyPost({
   }, [post?.post.id, loadPublicationInfo]);
   const [placeholderValues, setPlaceholderValues] = useState<Record<string, string>>({});
   const generation = useServerFn(generatePostVariants);
+  const generateSeries = useServerFn(generateFivePostSeriesDrafts);
   const save = useServerFn(updatePost);
   const rewrite = useServerFn(rewritePostVariant);
   const switchChannel = useServerFn(switchPostChannel);
@@ -293,6 +298,16 @@ export function EasyPost({
     setPost(next);
     setSaveState("Automatikusan mentve");
     return next;
+  }
+  function acceptRewrite(next: PostSnapshot | null, variantId: string) {
+    if (!next) throw new Error("Az átírt posztot nem sikerült betölteni.");
+    setPost(next);
+    setPreviousVersionId(
+      next.versions
+        .slice()
+        .reverse()
+        .find((version) => version.variantId === variantId)?.id ?? null,
+    );
   }
   useEffect(() => {
     if (!editing || text === fullText || busy || error) return;
@@ -510,6 +525,16 @@ export function EasyPost({
       await router.invalidate();
     });
   }
+  async function makeFivePostSeries() {
+    await run("series", async () => {
+      setSeriesPosts([]);
+      const result = await generateSeries({ data: { topic: seriesTopic, platform: seriesPlatform } });
+      if (result.posts.length !== 5) throw new Error("Nem készült el mind az öt poszt. Próbáld újra.");
+      setSeriesPosts(result.posts);
+      await router.invalidate();
+      toast.success("Az öt poszt és a szerkeszthető grafikavázlatok elkészültek.");
+    });
+  }
   async function copy(open = false) {
     await run("copy", async () => {
       if (!variant) return;
@@ -721,13 +746,61 @@ export function EasyPost({
             </Button>
           </details>
           {mode === "detailed" && (
-            <details className="mt-3 rounded-xl border p-4">
-              <summary className="min-h-11 cursor-pointer font-medium">Ez bejött, készíts hasonlót</summary>
-              <p className="mt-2 text-sm text-muted-foreground">A felépítést és a hosszát követjük, a szöveget nem másoljuk.</p>
-              <Textarea aria-label="Jól működő poszt mintája" className="mt-3 min-h-32" value={similarText} maxLength={10000} disabled={blocked} onChange={(event) => setSimilarText(event.target.value)} placeholder="Illeszd be a mintának szánt posztot…" />
-              <Button className="mt-3 min-h-11" disabled={blocked || similarText.trim().length < 10} onClick={() => void makeSimilarFromPastedText()}>Készíts 3 hasonlót</Button>
-              {similarTextPosts.length > 0 && <ul className="mt-3 grid gap-2">{similarTextPosts.map((item) => <li key={item.post.id}><Link className="inline-flex min-h-11 items-center underline" to="/app/posts/$id" params={{ id: item.post.id }}>{item.post.title}</Link></li>)}</ul>}
-            </details>
+            <>
+              <details className="mt-3 rounded-xl border p-4">
+                <summary className="min-h-11 cursor-pointer font-medium">Ez bejött, készíts hasonlót</summary>
+                <p className="mt-2 text-sm text-muted-foreground">A felépítést és a hosszát követjük, a szöveget nem másoljuk.</p>
+                <Textarea aria-label="Jól működő poszt mintája" className="mt-3 min-h-32" value={similarText} maxLength={10000} disabled={blocked} onChange={(event) => setSimilarText(event.target.value)} placeholder="Illeszd be a mintának szánt posztot…" />
+                <Button className="mt-3 min-h-11" disabled={blocked || similarText.trim().length < 10} onClick={() => void makeSimilarFromPastedText()}>Készíts 3 hasonlót</Button>
+                {similarTextPosts.length > 0 && <ul className="mt-3 grid gap-2">{similarTextPosts.map((item) => <li key={item.post.id}><Link className="inline-flex min-h-11 items-center underline" to="/app/posts/$id" params={{ id: item.post.id }}>{item.post.title}</Link></li>)}</ul>}
+              </details>
+              <details className="mt-3 rounded-xl border p-4">
+                <summary className="min-h-11 cursor-pointer font-medium">Ötposztos sorozat</summary>
+                <p className="mt-2 text-sm text-muted-foreground">Egy témából öt külön poszt készül: figyelemfelkeltő, tanító, értékbemutató, gyakori kérdésre válaszoló és felhívással záró. Mindegyikhez külön, szerkeszthető grafikai vázlatot kapsz, a vállalkozásod színeivel és betűivel.</p>
+                <label className="mt-3 block font-medium" htmlFor="five-post-topic">Téma vagy ajánlat</label>
+                <Textarea
+                  id="five-post-topic"
+                  aria-label="Az ötposztos sorozat témája"
+                  className="mt-2 min-h-24"
+                  value={seriesTopic}
+                  maxLength={2000}
+                  disabled={blocked}
+                  onChange={(event) => setSeriesTopic(event.target.value)}
+                  placeholder="Például: a hétvégi nyitvatartás vagy egy megadott új termék"
+                />
+                <label className="mt-3 block font-medium" htmlFor="five-post-platform">Csatorna</label>
+                <select
+                  id="five-post-platform"
+                  className="mt-2 min-h-11 w-full rounded-md border bg-card px-3 sm:w-auto"
+                  value={seriesPlatform}
+                  disabled={blocked}
+                  onChange={(event) => setSeriesPlatform(event.target.value as MainChannel)}
+                >
+                  <option value="facebook">Facebook</option>
+                  <option value="instagram">Instagram</option>
+                </select>
+                <Button
+                  className="mt-3 min-h-11 w-full sm:w-auto"
+                  disabled={blocked || seriesTopic.trim().length < 5}
+                  onClick={() => void makeFivePostSeries()}
+                >
+                  {busy === "series" ? "Készül az öt poszt…" : "Készítsd el az öt posztot"}
+                </Button>
+                {seriesPosts.length > 0 && (
+                  <ol className="mt-4 grid gap-2" aria-label="Az elkészült öt poszt">
+                    {seriesPosts.map((item, index) => (
+                      <li key={item.id}>
+                        <Link className="flex min-h-11 items-center gap-2 underline" to="/app/posts/$id" params={{ id: item.id }}>
+                          <span aria-hidden="true">{index + 1}.</span>
+                          <span>{item.role}: {item.title}</span>
+                          <span className="sr-only">— szerkesztés</span>
+                        </Link>
+                      </li>
+                    ))}
+                  </ol>
+                )}
+              </details>
+            </>
           )}
         </Card>
       )}
@@ -788,7 +861,7 @@ export function EasyPost({
                 })
               }
             >
-              Előző szöveg visszaállítása
+              Visszavonás
             </Button>
           )}
           {mode === "detailed" && post.variants.length > 1 && (
@@ -956,7 +1029,7 @@ export function EasyPost({
                     const result = await rewrite({
                       data: { postId: post.post.id, variantId: variant.id, style: "alternative" },
                     });
-                    setPost(result);
+                    acceptRewrite(result, variant.id);
                     setEditing(false);
                     await router.invalidate();
                   })
@@ -1023,7 +1096,10 @@ export function EasyPost({
                   <Button key={style} variant="outline" disabled={blocked} onClick={() => void run("rewrite", async () => {
                     const saved = editing && text !== fullText ? await persist(text) : post;
                     if (!saved) throw new Error("A mentett poszt nem található.");
-                    setPost(await rewrite({ data: { postId: saved.post.id, variantId: variant.id, style } }));
+                    acceptRewrite(
+                      await rewrite({ data: { postId: saved.post.id, variantId: variant.id, style } }),
+                      variant.id,
+                    );
                     setEditing(false);
                     await router.invalidate();
                   })}>
@@ -1075,10 +1151,11 @@ export function EasyPost({
                 onClick={() =>
                   void run("rewrite", async () => {
                     if (editing) await persist(text);
-                    setPost(
+                    acceptRewrite(
                       await rewrite({
                         data: { postId: post.post.id, variantId: variant.id, style },
                       }),
+                      variant.id,
                     );
                     setEditing(false);
                     await router.invalidate();
@@ -1272,4 +1349,3 @@ function ImageAttachment({
     </details>
   );
 }
-

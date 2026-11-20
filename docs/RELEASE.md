@@ -278,4 +278,3 @@ npm run test:e2e -- tests/e2e/simple-marketing.spec.ts
 
 A nyilvános nyitóoldal ellenőrzése `BASE_URL`-lel is fut. A helyi JSON-t olvasó teljes
 feliratkozási/képfeltöltési próba távoli címen szándékosan kimarad; éles kézbesítést ez nem bizonyít.
-

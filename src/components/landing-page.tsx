@@ -132,6 +132,7 @@ export function LandingPage({
           </p>
         )}
         <Hero interactiveReady={interactiveReady} />
+        <HowItWorks />
         <SocialPostCarousel />
         <ProductPreview interactiveReady={interactiveReady} />
         <p
@@ -260,6 +261,7 @@ function SocialPostCarousel() {
 function Hero({ interactiveReady }: { interactiveReady: boolean }) {
   const [activeDemoIndex, setActiveDemoIndex] = useState(0);
   const [demoLanguage, setDemoLanguage] = useState<"hu" | "ro">("hu");
+  const [demoChannel, setDemoChannel] = useState<"facebook" | "instagram">("facebook");
   const demo = LANDING_DEMOS[activeDemoIndex];
 
   function onProfessionKeyDown(index: number, event: ReactKeyboardEvent<HTMLButtonElement>) {
@@ -357,6 +359,19 @@ function Hero({ interactiveReady }: { interactiveReady: boolean }) {
             ))}
           </div>
         </div>
+        <div className="mp-demo-channel" role="group" aria-label={translate("landing.hero.channelAria")}>
+          {(["facebook", "instagram"] as const).map((channel) => (
+            <button
+              key={channel}
+              type="button"
+              aria-pressed={demoChannel === channel}
+              disabled={!interactiveReady}
+              onClick={() => setDemoChannel(channel)}
+            >
+              {translate(`landing.hero.channel.${channel}`)}
+            </button>
+          ))}
+        </div>
         <article className="mp-example-post" aria-label={translate("landing.hero.previewAria")}>
           <header>
             <span className="mp-example-avatar" aria-hidden="true">
@@ -364,7 +379,9 @@ function Hero({ interactiveReady }: { interactiveReady: boolean }) {
             </span>
             <div>
               <strong>{demo.brand}</strong>
-              <small>{translate("landing.hero.exampleNetwork")}</small>
+              <small>
+                {translate(`landing.hero.channel.${demoChannel}`)} · {translate("landing.social.sample")}
+              </small>
             </div>
           </header>
           <div
@@ -380,8 +397,8 @@ function Hero({ interactiveReady }: { interactiveReady: boolean }) {
             </div>
             <div className="mp-demo-result">
               <small>{translate("landing.hero.resultLabel")}</small>
-              <p key={`${demo.id}-${demoLanguage}`} lang={demoLanguage} aria-live="polite">
-                {demo.text[demoLanguage]}
+              <p key={`${demo.id}-${demoChannel}-${demoLanguage}`} lang={demoLanguage} aria-live="polite">
+                {demo.copy[demoChannel][demoLanguage]}
               </p>
             </div>
           </div>
@@ -409,31 +426,7 @@ function ProductPreview({ interactiveReady }: { interactiveReady: boolean }) {
   }, [lightboxOpen]);
 
   return (
-    <section id="preview" className="mp-section mp-container">
-      <div className="mp-steps mp-simple-steps" aria-label={translate("landing.steps.aria")}>
-        {[
-          {
-            title: translate("landing.steps.idea.title"),
-            text: translate("landing.steps.idea.text"),
-          },
-          {
-            title: translate("landing.steps.review.title"),
-            text: translate("landing.steps.review.text"),
-          },
-          {
-            title: translate("landing.steps.share.title"),
-            text: translate("landing.steps.share.text"),
-          },
-        ].map(({ title, text }, index) => (
-          <div key={title}>
-            <span>0{index + 1}</span>
-            <div>
-              <h3>{title}</h3>
-              <p>{text}</p>
-            </div>
-          </div>
-        ))}
-      </div>
+    <section id="app-preview" className="mp-section mp-container">
       <div className="mp-section-heading">
         <div>
           <p className="mp-eyebrow">{translate("landing.preview.sectionEyebrow")}</p>
@@ -547,6 +540,47 @@ function ProductPreview({ interactiveReady }: { interactiveReady: boolean }) {
           </div>
         </dialog>
       )}
+    </section>
+  );
+}
+
+function HowItWorks() {
+  return (
+    <section
+      id="preview"
+      className="mp-container mp-section mp-how-it-works"
+      aria-labelledby="landing-steps-title"
+    >
+      <div className="mp-section-heading mp-steps-heading">
+        <div>
+          <p className="mp-eyebrow">{translate("landing.steps.eyebrow")}</p>
+          <h2 id="landing-steps-title">{translate("landing.steps.title")}</h2>
+        </div>
+      </div>
+      <ol className="mp-steps" aria-label={translate("landing.steps.aria")}>
+        {[
+          {
+            title: translate("landing.steps.idea.title"),
+            text: translate("landing.steps.idea.text"),
+          },
+          {
+            title: translate("landing.steps.review.title"),
+            text: translate("landing.steps.review.text"),
+          },
+          {
+            title: translate("landing.steps.share.title"),
+            text: translate("landing.steps.share.text"),
+          },
+        ].map(({ title, text }, index) => (
+          <li key={title}>
+            <span aria-hidden="true">0{index + 1}</span>
+            <div>
+              <h3>{title}</h3>
+              <p>{text}</p>
+            </div>
+          </li>
+        ))}
+      </ol>
     </section>
   );
 }

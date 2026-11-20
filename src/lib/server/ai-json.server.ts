@@ -93,4 +93,3 @@ export async function requestAiJson<T>(
   }
   throw new Error("Az AI-válasz feldolgozása nem sikerült.");
 }
-

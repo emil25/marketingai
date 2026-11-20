@@ -10,4 +10,3 @@ test("nullable JSONB fields stay SQL NULL when they have no value", () => {
 test("nullable JSONB fields serialize provided values as JSON", () => {
   assert.equal(nullableJsonbParameter({ ideas: ["Mai kínálat"] }), '{"ideas":["Mai kínálat"]}');
 });
-

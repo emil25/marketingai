@@ -67,4 +67,3 @@ export const startInstance = createStart(() => ({
   requestMiddleware: [errorMiddleware, csrfMiddleware],
   functionMiddleware: [functionErrors],
 }));
-

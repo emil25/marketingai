@@ -28,4 +28,3 @@ test("untrusted or non-PostgreSQL diagnostic fields are omitted", () => {
   });
   assert.equal(safeDatabaseErrorMetadata(new Error("database secret")), undefined);
 });
-

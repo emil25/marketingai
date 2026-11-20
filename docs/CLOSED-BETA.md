@@ -133,4 +133,3 @@ OpenRouter kredit, hitelesített Resend feladó/fiók, Turnstile fiók/domain,
 üzemeltetői adatok és végleges jogi szöveg, Neon ág/mentés és Vercel preview.
 Meta OAuth és AI képgenerálás e körön kívül marad. Automatikus publikálás nem
 feltétele a kézi munkafolyamatot használó zárt bétának.
-
